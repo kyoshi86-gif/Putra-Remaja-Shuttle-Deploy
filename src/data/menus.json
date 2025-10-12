@@ -1,0 +1,68 @@
+[
+  {
+    "key": "Keberangkatan",
+    "label": "Keberangkatan", 
+    "sub": [
+      {
+        "label": "Dashboard",
+        "access": "dashboard",
+        "path": "/dashboard",
+        "component": "Dashboard"
+      },
+      { 
+        "label": "Surat Jalan", 
+        "access": "Keberangkatan -> Surat Jalan",
+        "path": "/surat-jalan",
+        "component": "SuratJalan"
+      },
+      { 
+        "label": "Uang Muka Sangu", 
+        "access": "Keberangkatan -> Uang Muka Sangu",
+        "path": "/uang-muka-sangu",
+        "component": "UangMuka" 
+      },
+      { 
+        "label": "Premi Driver", 
+        "access": "Keberangkatan -> Premi Driver",
+        "path": "/premi-driver",
+        "component": "PremiDriver" 
+      }
+    ]
+  },
+  {
+    "key": "Konfigurasi",
+    "label": "Konfigurasi",
+    "sub": [
+      { 
+        "label": "Role Akses", 
+        "access": "Konfigurasi -> Role Akses",
+        "path": "/role-akses",
+        "component": "RoleAkses" 
+      },
+      { 
+        "label": "Edit Role", 
+        "access": "Konfigurasi -> Edit Role",
+        "path": "/edit-role",
+        "component": "EditRole" 
+      },
+      { 
+        "label": "List User", 
+        "access": "Konfigurasi -> List User",
+        "path": "/list-user",
+        "component": "ListUser" 
+      },
+      { 
+        "label": "Armada", 
+        "access": "Konfigurasi -> Armada",
+        "path": "/armada",
+        "component": "Armada"
+      },
+      { 
+        "label": "Driver", 
+        "access": "Konfigurasi -> Driver",
+        "path": "/driver",
+        "component": "Driver"
+      }
+    ]
+  }
+]

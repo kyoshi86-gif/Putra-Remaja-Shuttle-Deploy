@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ✅ Styling global dengan Tailwind harus di dalam @layer base */
+@layer base {
+  body {
+  @apply bg-[#0092F5] text-[#213547] font-sans m-0 min-w-[320px] min-h-screen;
+}
+
+  a {
+    @apply font-medium text-indigo-500 no-underline;
+  }
+
+  a:hover {
+    @apply text-indigo-700;
+  }
+
+  button {
+    @apply rounded border-0 px-4 py-2 text-sm font-medium transition;
+  }
+
+  button:hover {
+    @apply border-indigo-500;
+  }
+
+  button:focus,
+  button:focus-visible {
+    outline: 4px auto -webkit-focus-ring-color;
+  }
+
+  table, th, td {
+    @apply border border-black;
+    border-collapse: collapse;
+  }
+}
+
+
+
+/* ✅ jangan timpa background root di sini */
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button.default-button {
+  background-color: #f9f9f9;
+}
+}
