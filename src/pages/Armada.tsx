@@ -219,14 +219,12 @@ export default function Armada() {
           >
             <FiPlus /> Tambah
           </button>
-
           <button
             onClick={handleDeleteSelected}
             className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
           >
             <FiTrash2 /> Hapus
           </button>
-
           <button
             onClick={handleExportExcel}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"

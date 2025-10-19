@@ -85,6 +85,8 @@ export default function Layout() {
       }
 
       const menus = await getMenus();
+
+      // 🔧 pastikan tidak ada duplikat path
       const uniquePaths = new Set<string>();
       const titles: Record<string, string> = {};
       const hierarchyMap: Record<string, { label: string; path: string }[]> = {};

@@ -27,6 +27,12 @@
         "path": "/uang-saku-driver",
         "component": "UangSakuDriver"
       },
+      {
+        "label": "Uang Muka Sangu", 
+        "access": "Keberangkatan -> Uang Muka Sangu",
+        "path": "/uang-muka-sangu",
+        "component": "UangMuka" 
+      },
       { 
         "label": "Premi Driver", 
         "access": "Keberangkatan -> Premi Driver",
@@ -35,6 +41,7 @@
       }
     ]
   },
+
   {
     "key": "Kasir",
     "label": "Kasir",
@@ -47,6 +54,7 @@
       }
     ]
   },
+
   {
     "key": "Konfigurasi",
     "label": "Konfigurasi",
