@@ -1,0 +1,92 @@
+[
+  {
+    "key": "Keberangkatan",
+    "label": "Keberangkatan", 
+    "sub": [
+      {
+        "label": "Dashboard",
+        "access": "dashboard",
+        "path": "/dashboard",
+        "component": "Dashboard"
+      },
+      { 
+        "label": "Surat Jalan", 
+        "access": "Keberangkatan -> Surat Jalan",
+        "path": "/surat-jalan",
+        "component": "SuratJalan"
+      },
+      { 
+        "label": "Cetak Surat Jalan", 
+        "access": "Keberangkatan -> Cetak Surat Jalan",
+        "path": "/cetak-surat-jalan",
+        "component": "CetakSuratJalan"
+      },
+      { 
+        "label": "Uang Saku Driver", 
+        "access": "Keberangkatan -> Uang Saku Driver",
+        "path": "/uang-saku-driver",
+        "component": "UangSakuDriver"
+      },
+      { 
+        "label": "Premi Driver", 
+        "access": "Keberangkatan -> Premi Driver",
+        "path": "/premi-driver",
+        "component": "PremiDriver" 
+      }
+    ]
+  },
+  {
+    "key": "Kasir",
+    "label": "Kasir",
+    "sub": [
+      { 
+        "label": "Kas Harian", 
+        "access": "Kasir -> Kas Harian",
+        "path": "/kas-harian",
+        "component": "KasHarian" 
+      }
+    ]
+  },
+  {
+    "key": "Konfigurasi",
+    "label": "Konfigurasi",
+    "sub": [
+      { 
+        "label": "Role Akses", 
+        "access": "Konfigurasi -> Role Akses",
+        "path": "/role-akses",
+        "component": "RoleAkses" 
+      },
+      { 
+        "label": "Edit Role", 
+        "access": "Konfigurasi -> Edit Role",
+        "path": "/edit-role",
+        "component": "EditRole" 
+      },
+      { 
+        "label": "List User", 
+        "access": "Konfigurasi -> List User",
+        "path": "/list-user",
+        "component": "ListUser" 
+      },
+      { 
+        "label": "Armada", 
+        "access": "Konfigurasi -> Armada",
+        "path": "/armada",
+        "component": "Armada"
+      },
+      { 
+        "label": "Driver", 
+        "access": "Konfigurasi -> Driver",
+        "path": "/driver",
+        "component": "Driver"
+      },
+      { 
+        "label": "Rute", 
+        "access": "Konfigurasi -> Rute",
+        "path": "/rute",
+        "component": "Rute"
+      }
+    ]
+  }
+]
