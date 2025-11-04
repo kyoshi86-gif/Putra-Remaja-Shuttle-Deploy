@@ -1,11 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, useState } from "react";
 import Layout from "./layouts/Layout";
-import Login from "./pages/Login";
 import RoleProtectedRoute from "./routes/RoleProtectedRoute";
 import menus from "./data/menus.json";
 import { resolvePageComponent } from "./utils/resolvePageComponent";
-
+const Login = lazy(resolvePageComponent("Login"));
 const Dashboard = lazy(resolvePageComponent("Dashboard"));
 const EditRole = lazy(resolvePageComponent("EditRole"));
 const CetakSuratJalan = lazy(resolvePageComponent("CetakSuratJalan"));

@@ -1,8 +1,8 @@
 export function resolvePageComponent(name: string) {
-  const modules = import.meta.glob("../pages/**/*.{tsx,jsx}");
+  const modules = import.meta.glob("/src/pages/**/*.{tsx,jsx}");
 
   const normalized = name.trim().replace(/^\/+/, "");
-  const path = `../pages/${normalized}.tsx`;
+  const path = `/src/pages/${normalized}.tsx`;
 
   const loader = modules[path];
 
