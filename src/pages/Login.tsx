@@ -89,7 +89,7 @@ export default function Login() {
             }}
             style={{ height: "50px", marginBottom: "10px" }}
           />
-          <h2 style={{ margin: 0, color: "black" }}>Login</h2>
+          <h2 style={{ margin: 0, color: "black" }}>Back Office</h2>
         </div>
         <form
           onSubmit={handleLogin}
