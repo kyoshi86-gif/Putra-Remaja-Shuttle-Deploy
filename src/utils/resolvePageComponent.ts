@@ -1,13 +1,17 @@
 export function resolvePageComponent(name: string) {
-  const modules = import.meta.glob("../pages/**/*.tsx");
+  const modules = import.meta.glob("../pages/**/*.{tsx,jsx}");
 
-  const path = `../pages/${name}.tsx`;
+  const normalized = name.trim().replace(/^\/+/, "");
+  const path = `../pages/${normalized}.tsx`;
+
   const loader = modules[path];
 
   if (!loader) {
-    throw new Error(`❌ Component "${name}" not found at ${path}`);
+    const available = Object.keys(modules).join("\n• ");
+    throw new Error(
+      `❌ Component "${name}" not found at ${path}\n\n📁 Available components:\n• ${available}`
+    );
   }
 
-  // TypeScript aman karena lazy() butuh fungsi async
-  return loader as () => Promise<{ default: React.ComponentType<any> }>;
+  return loader as () => Promise<{ default: React.ComponentType<Record<string, unknown>> }>;
 }
