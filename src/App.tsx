@@ -3,12 +3,13 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import Layout from "./layouts/Layout";
 import Login from "./pages/Login";
 import RoleProtectedRoute from "./routes/RoleProtectedRoute";
-import Dashboard from "./pages/Dashboard";
-import EditRole from "./pages/EditRole";
-import CetakSuratJalan from "./pages/CetakSuratJalan";
-import CetakUangSaku from "./pages/CetakUangSaku";
 import menus from "./data/menus.json";
 import { resolvePageComponent } from "./utils/resolvePageComponent";
+
+const Dashboard = lazy(resolvePageComponent("Dashboard"));
+const EditRole = lazy(resolvePageComponent("EditRole"));
+const CetakSuratJalan = lazy(resolvePageComponent("CetakSuratJalan"));
+const CetakUangSaku = lazy(resolvePageComponent("CetakUangSaku"));
 
 interface CustomUser {
   id: string;
@@ -20,7 +21,7 @@ interface CustomUser {
 
 export default function App() {
   const [dynamicRoutes, setDynamicRoutes] = useState<
-    { path: string; access: string[]; component: React.LazyExoticComponent<React.ComponentType<any>> }[]
+    { path: string; access: string[]; component: React.LazyExoticComponent<React.ComponentType<Record<string, unknown>>> }[]
   >([]);
   const [routesLoaded, setRoutesLoaded] = useState(false);
   const [userKey, setUserKey] = useState<string>("");
@@ -133,9 +134,7 @@ export default function App() {
             path="*"
             element={
               user ? (
-                <RoleProtectedRoute requiredAccess={["Dashboard"]}>
-                  <Navigate to="/dashboard" replace />
-                </RoleProtectedRoute>
+                <Navigate to="/dashboard" replace />
               ) : (
                 <Navigate to="/login" replace />
               )
