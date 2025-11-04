@@ -1,15 +1,23 @@
+// src/lib/supabaseClient.ts
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? "";
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseKey || supabaseUrl.includes("supabase.co") === false) {
-  console.error("❌ Supabase env tidak valid:", { supabaseUrl, supabaseKey });
-  alert("Supabase belum dikonfigurasi dengan benar. Hubungi admin.");
+// Debug log saat build dan runtime
+console.log("✅ Supabase ENV:", {
+  VITE_SUPABASE_URL: supabaseUrl,
+  VITE_SUPABASE_ANON_KEY: supabaseKey,
+});
+
+// Validasi env
+if (
+  typeof supabaseUrl !== "string" ||
+  typeof supabaseKey !== "string" ||
+  !supabaseUrl.includes("supabase.co")
+) {
+  throw new Error("❌ Supabase env tidak valid. Cek konfigurasi Vercel dan prefix VITE_");
 }
 
-console.log("✅ ENV:", {
-  url: import.meta.env.VITE_SUPABASE_URL,
-  key: import.meta.env.VITE_SUPABASE_ANON_KEY,
-});
+// Inisialisasi Supabase client
 export const supabase = createClient(supabaseUrl, supabaseKey);
