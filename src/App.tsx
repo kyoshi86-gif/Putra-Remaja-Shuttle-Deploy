@@ -113,7 +113,7 @@ export default function App() {
               <Route
                 path="/cetak-surat-jalan"
                 element={
-                  <RoleProtectedRoute requiredAccess={["Cetak"]}>
+                  <RoleProtectedRoute skipAccessCheck>
                     <CetakSuratJalan />
                   </RoleProtectedRoute>
                 }
@@ -121,7 +121,7 @@ export default function App() {
               <Route
                 path="/cetak-uang-saku"
                 element={
-                  <RoleProtectedRoute requiredAccess={["Cetak"]}>
+                  <RoleProtectedRoute skipAccessCheck>
                     <CetakUangSaku />
                   </RoleProtectedRoute>
                 }

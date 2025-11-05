@@ -76,7 +76,7 @@ export default function UangSakuDriver() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 25;
+  const itemsPerPage = 100;
 
   // --- FETCH DATA ---
   const fetchData = async () => {
@@ -289,9 +289,9 @@ export default function UangSakuDriver() {
 
   const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
   if (e) e.preventDefault();
-  if (isSubmitting) return;
-
+  if (isSubmitting) return false; // ⛔ cegah submit ganda
   setIsSubmitting(true);
+
   try {
     // --- Validasi wajib ---
     const wajibIsi = [
@@ -507,7 +507,7 @@ if (updateKasError) {
     alert("Terjadi kesalahan: " + message);
     return false;
   } finally {
-    setIsSubmitting(false);
+    setIsSubmitting(false); // ✅ kunci dibuka setelah selesai
   }
 };
 
@@ -972,11 +972,14 @@ const handleTambah = async (): Promise<void> => {
                   Batal
                 </button>
                 <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                >
-                  Simpan
-                </button>
+                type="submit"
+                disabled={isSubmitting}
+                className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
+                  isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                Simpan
+              </button>
               </div>
         </form>
       </div>
@@ -984,7 +987,7 @@ const handleTambah = async (): Promise<void> => {
   )}
 
       {/* BUTTONS */}
-      <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+      <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
         <div className="flex flex-wrap gap-3">
           <button
             onClick={handleTambah}
@@ -1035,11 +1038,11 @@ const handleTambah = async (): Promise<void> => {
       </div>
 
       {/* TABLE */}
-      <div className="w-full overflow-x-auto">
-      <table className="min-w-[800px] w-full table-auto border border-gray-300 text-sm">
+      <div className="w-full pr-8">
+      <table className="min-w-[1800px] table-auto border border-gray-300">
         <thead className="bg-gray-400 text-white">
           <tr> 
-            <th className="p-2 border text-center">
+            <th className="p-2 border text-center w-[40px]">
               <input
                 ref={selectAllRef}
                 type="checkbox"
@@ -1050,21 +1053,21 @@ const handleTambah = async (): Promise<void> => {
                 onChange={handleSelectAll}
               />
             </th>
-            <th className="border p-2 text-center w-[60px]">Aksi</th>
-            <th className="border p-2 text-center w-[100px]">Tanggal</th>
-            <th className="border p-2 text-center w-[150px]">No Kas / USD</th>
-            <th className="border p-2 text-center w-[150px]">No Surat Jalan</th>
-            <th className="border p-2 text-center w-[270px]">Tgl Berangkat & Kembali</th>
-            <th className="border p-2 text-center w-[90px]">Driver</th>
-            <th className="border p-2 text-center w-[90px]">Crew</th>
-            <th className="border p-2 text-center w-[90px]">No Polisi</th>
-            <th className="border p-2 text-center w-[90px]">Kode Unit</th>
-            <th className="border p-2 text-center w-[180px]">Kode Rute</th>
-            <th className="border p-2 text-center w-[100px]">BBM</th>
-            <th className="border p-2 text-center w-[100px]">Uang Makan</th>
-            <th className="border p-2 text-center w-[90px]">Parkir</th>
-            <th className="border p-2 text-center w-[110px]">Jumlah</th>
-            <th className="border p-2 text-center w-[110px]">Kartu Etoll</th>
+            <th className="border p-2 text-center w-[50px]">Aksi</th>
+            <th className="border p-2 text-center w-[150px]">Tanggal</th>
+            <th className="border p-2 text-center w-[230px]">No Kas / USD</th>
+            <th className="border p-2 text-center w-[230px]">No Surat Jalan</th>
+            <th className="border p-2 text-center w-[300px]">Tgl Berangkat & Kembali</th>
+            <th className="border p-2 text-center w-[150px]">Driver</th>
+            <th className="border p-2 text-center w-[150px]">Crew</th>
+            <th className="border p-2 text-center w-[150px]">No Polisi</th>
+            <th className="border p-2 text-center w-[120px]">Kode Unit</th>
+            <th className="border p-2 text-center w-[220px]">Kode Rute</th>
+            <th className="border p-2 text-center w-[150px]">BBM</th>
+            <th className="border p-2 text-center w-[150px]">Uang Makan</th>
+            <th className="border p-2 text-center w-[150px]">Parkir</th>
+            <th className="border p-2 text-center w-[150px]">Jumlah</th>
+            <th className="border p-2 text-center w-[200px]">Kartu Etoll</th>
           </tr>
         </thead>
 
@@ -1096,16 +1099,16 @@ const handleTambah = async (): Promise<void> => {
               return (
                 <tr
                   key={item.id}
-                  className="hover:bg-gray-100 transition-all duration-150"
+                  className="hover:bg-yellow-300 transition-all duration-150"
                 >
-                  <td className="border p-2 text-center">
+                  <td className="border p-0 text-center">
                     <input
                       type="checkbox"
                       checked={selected.includes(item.id)}
                       onChange={() => handleSelect(item.id)}
                     />
                   </td>
-                  <td className="border p-2 text-center">
+                  <td className="border p-0 text-center">
                     <div className="flex justify-center gap-[0.5px]">
                     <button
                       onClick={() => {
@@ -1138,13 +1141,13 @@ const handleTambah = async (): Promise<void> => {
                     </button>
                     </div>
                   </td>
-                  <td className="border p-2 text-center">
+                  <td className="border p-0 text-center">
                     {formatTanggal(item.tanggal)}
                   </td>
-                   <td className="border p-2 text-center">
+                   <td className="border p-0 text-center">
                     {item.no_uang_saku}
                   </td>
-                  <td className="border p-2 text-center">
+                  <td className="border p-0 text-center">
                     {item.no_surat_jalan}
                   </td>
 
@@ -1155,34 +1158,34 @@ const handleTambah = async (): Promise<void> => {
                       : formatTanggal(item.tanggal_berangkat || item.tanggal_kembali)}
                   </td>
 
-                  <td className="border p-2 text-center px-2">
+                  <td className="border p-0 text-center px-2">
                     {item.driver}
                   </td>
-                  <td className="border p-2 text-center px-2">
+                  <td className="border p-0 text-center px-2">
                     {item.crew}
                   </td>
-                  <td className="border p-2 text-center">
+                  <td className="border p-0 text-center">
                     {item.no_polisi}
                   </td>
-                  <td className="border p-2 text-center">
+                  <td className="border p-0 text-center">
                     {item.kode_unit}
                   </td>
-                  <td className="border p-2 text-center">
+                  <td className="border p-0 text-center">
                     {item.kode_rute}
                   </td>
-                  <td className="border p-2 text-right pr-2">
+                  <td className="border p-0 text-right pr-2">
                     {formatRupiah(item.bbm)}
                   </td>
-                  <td className="border p-2 text-right pr-2">
+                  <td className="border p-00 text-right pr-2">
                     {formatRupiah(item.uang_makan)}
                   </td>
-                  <td className="border p-2 text-right pr-2">
+                  <td className="border p-0 text-right pr-2">
                     {formatRupiah(item.parkir)}
                   </td>
-                  <td className="border p-2 text-right font-semibold pr-2">
+                  <td className="border p-0 text-right font-semibold pr-2">
                     {formatRupiah(item.jumlah)}
                   </td>
-                  <td className="border p-2 text-center">
+                  <td className="border p-0 text-center">
                     {item.kartu_etoll}
                   </td>
                 </tr>

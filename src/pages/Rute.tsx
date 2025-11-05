@@ -40,7 +40,7 @@ export default function Rute() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 20;
 
   const fetchData = async () => {
     setLoading(true);
@@ -375,7 +375,7 @@ export default function Rute() {
       )}
 
       {/* Tombol & Filter */}
-      <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+      <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
         {/* Kiri */}
         <div className="flex flex-wrap gap-3">
           <button
@@ -432,8 +432,8 @@ export default function Rute() {
       </div>
 
       {/* Tabel */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full table-auto border border-gray-300 text-sm">
+      <div className="w-full pr-8">
+        <table className="w-full table-auto border border-gray-300 text-sm">
           <thead>
             <tr className="bg-gray-400 text-white">
               <th className="border p-2 text-center">
@@ -448,7 +448,7 @@ export default function Rute() {
               </th>
               <th className="border p-2 text-center">Status</th>
               <th className="border p-2 text-center">Kode Rute</th>
-              <th className="border p-2 text-center">Aksi</th>
+              <th className="border p-2 text-center w-[60px]">Aksi</th>
             </tr>
           </thead>
 
@@ -472,7 +472,7 @@ export default function Rute() {
                   className={`transition-all ${
                     item.status === "NON-AKTIF"
                       ? "bg-red-500 text-white"
-                      : "hover:bg-gray-100"
+                      : "hover:bg-yellow-300 transition-all duration-150"
                   }`}
                 >
                   <td className="border text-center">
@@ -485,20 +485,22 @@ export default function Rute() {
                   <td className="border text-center">{item.status}</td>
                   <td className="border text-center">{item.kode_rute}</td>
                   <td className="border text-center">
+                    <div className="flex justify-center gap-[0.5px]">
                     <button
                       onClick={() => handleEdit(item)}
-                      className="text-blue-600 hover:text-blue-800 mr-2"
+                      className="text-blue-600 hover:text-blue-800 px-[5px]"
                       title="Edit"
                     >
                       <FiEdit size={16} />
                     </button>
                     <button
                       onClick={() => handleDelete(item.id)}
-                      className="text-red-600 hover:text-red-800"
+                      className="text-red-600 hover:text-red-800 px-[5px]"
                       title="Hapus"
                     >
                       <FiTrash2 size={16} />
                     </button>
+                    </div>
                   </td>
                 </tr>
               ))

@@ -4,9 +4,11 @@ import Sidebar from "../components/Sidebar";
 import { supabase } from "../lib/supabaseClient";
 import { getUserAccess } from "../lib/access";
 import { getMenus } from "../lib/getMenus";
+import { useAutoLogout } from "../utils/useAutoLogout";
 import bcrypt from "bcryptjs";
 
 export default function Layout() {
+  useAutoLogout(); // ⏱️ aktif di semua halaman
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const [username, setUsername] = useState("Admin User");
@@ -128,6 +130,34 @@ export default function Layout() {
   }, []);
 
   const currentTitle = menuTitles[location.pathname] || "Dashboard";
+
+  //-- tampilan tabel sroll horizontal --
+  useEffect(() => {
+    const wrapWideTables = () => {
+      const tables = document.querySelectorAll("table");
+      tables.forEach((table) => {
+        const parent = table.parentElement;
+        const alreadyWrapped = parent?.classList.contains("table-scroll-wrapper");
+        if (!alreadyWrapped) {
+          const wrapper = document.createElement("div");
+          wrapper.className = "table-scroll-wrapper";
+          wrapper.style.overflowX = "auto";
+          wrapper.style.width = "100%";
+          wrapper.style.maxWidth = "100vw"; // ⬅️ batasi agar scroll tidak lari ke body
+          wrapper.style.marginBottom = "16px";
+
+          parent?.insertBefore(wrapper, table);
+          wrapper.appendChild(table);
+        }
+      });
+    };
+
+    wrapWideTables(); // initial wrap
+    const observer = new MutationObserver(wrapWideTables);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className={`layout-wrapper`} style={{ display: "flex", minHeight: "100vh", backgroundColor: "#0092F5", overflowX: "hidden", overflowY: "auto", }}>
@@ -281,13 +311,15 @@ export default function Layout() {
             backgroundColor: isPrintRoute ? "white" : "#fff",
             borderRadius: "5px",
             borderTop: isPrintRoute ? "none" : "10px solid #B7BABF",
-            width: "calc(100% - 40px)",
-            maxWidth: "none",
-            overflowX: "hidden",
+            width: "100%",
+            maxWidth: "100vw",
+            overflowX: "auto",
             overflowY: "auto",
           }}
         >
+          <div style={{ minWidth: "800px" }}>
           <Outlet />
+          </div>
         </div>
       </div>
     </div>

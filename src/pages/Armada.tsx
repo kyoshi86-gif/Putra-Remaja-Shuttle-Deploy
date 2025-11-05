@@ -210,7 +210,7 @@ export default function Armada() {
       )}
 
       {/* Tombol Aksi & Pencarian */}
-      <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+      <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
         {/* Tombol sebelah kiri */}
         <div className="flex flex-wrap gap-3">
           <button
@@ -260,9 +260,9 @@ export default function Armada() {
       </div>
 
       {/* Tabel Armada */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full table-auto border border-gray-300">
-          <thead className="bg-gray-200 text-sm">
+      <div className="w-full pr-8">
+        <table className="w-full table-auto border border-gray-300 text-sm">
+          <thead className="bg-gray-400 text-white">
             <tr>
               <th className="border p-2 text-center">✔</th>
               <th className="border p-2 text-center">No</th>
@@ -270,7 +270,7 @@ export default function Armada() {
               <th className="border p-2 text-center">No Polisi</th>
               <th className="border p-2 text-center">Tipe</th>
               <th className="border p-2 text-center">Layanan</th>
-              <th className="border p-2 text-center">Aksi</th>
+              <th className="border p-2 text-center w-[60px]">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -288,7 +288,7 @@ export default function Armada() {
               </tr>
             ) : (
               paginatedData.map((item, index) => (
-                <tr key={item.id} className="hover:bg-gray-50">
+                <tr key={item.id} className="hover:bg-yellow-300 transition-all duration-150">
                   <td className="border text-center">
                     <input
                       type="checkbox"
@@ -301,19 +301,23 @@ export default function Armada() {
                   <td className="border text-center">{item.plat}</td>
                   <td className="border text-center">{item.tipe}</td>
                   <td className="border text-center">{item.layanan}</td>
-                  <td className="border text-center flex justify-center gap-2">
+                  <td className="border px-2 py-2 text-center">
+                    <div className="flex justify-center gap-[0.5px]">
                     <button
                       onClick={() => handleEdit(item)}
-                      className="text-blue-600 hover:text-blue-800"
+                      className="text-blue-600 hover:text-blue-800 px-[5px]"
+                      title="Edit"
                     >
-                      <FiEdit size={18} />
+                      <FiEdit size={16} />
                     </button>
                     <button
                       onClick={() => handleDelete(item.id)}
-                      className="text-red-600 hover:text-red-800"
+                      className="text-red-600 hover:text-red-800 px-[5px]"
+                      title="Hapus"
                     >
-                      <FiTrash2 size={18} />
+                      <FiTrash2 size={16} />
                     </button>
+                    </div>
                   </td>
                 </tr>
               ))

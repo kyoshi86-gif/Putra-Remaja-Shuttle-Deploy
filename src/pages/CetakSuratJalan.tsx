@@ -212,41 +212,45 @@ useEffect(() => {
         </div>
       </div>
 
-
       {/* Snack & KM */}
       <div className="grid grid-cols-2 gap-2 mb-2 text-[11px]">
         <table className="w-full border text-[11px]">
           <tbody>
             <tr>
-              <td>Snack Berangkat</td>
-              <td>{data.snack_berangkat || ""}</td>
+              <td className="border border-black">Snack Berangkat</td>
+              <td className="border border-black text-left px-4">{data.snack_berangkat || ""}</td>
             </tr>
             <tr>
-              <td>Snack Kembali</td>
-              <td>{data.snack_kembali || ""}</td>
+              <td className="border border-black">Snack Kembali</td>
+              <td className="border border-black text-left px-4">{data.snack_kembali || ""}</td>
             </tr>
             <tr>
-              <td>KM Berangkat</td>
-              <td>{data.km_berangkat ? Number(data.km_berangkat).toLocaleString("id-ID") : ""}</td>
+              <td className="border border-black">KM Berangkat</td>
+              <td className="border border-black text-left px-4">{data.km_berangkat ? Number(data.km_berangkat).toLocaleString("id-ID") : ""}</td>
             </tr>
             <tr>
-              <td>KM Kembali</td>
-              <td>{data.km_kembali ? Number(data.km_kembali).toLocaleString("id-ID") : ""}</td>
+              <td className="border border-black">KM Kembali</td>
+              <td className="border border-black text-left px-4">{data.km_kembali ? Number(data.km_kembali).toLocaleString("id-ID") : ""}</td>
             </tr>
           </tbody>
         </table>
 
         {/* Checklist */}
         <div className="grid grid-cols-2 gap-2">
-          <table className="w-full border text-[11px]">
+          <table className="w-full border text-[10px]">
             <thead>
-              <tr className="bg-gray-100"><th>PERLENGKAPAN MAP</th></tr>
+              <tr className="bg-gray-100">
+                <th className="text-center px-2 py-1">PERLENGKAPAN MAP</th>
+              </tr>
             </thead>
             <tbody>
               {checklistPerlengkapan.map((item) => (
                 <tr key={item}>
-                  <td>
-                    <input type="checkbox" className="mr-1" /> {item}
+                  <td className="text-left px-2 py-1">
+                    <label className="flex items-start gap-x-2">
+                      <input type="checkbox" className="mt-[2px]" />
+                      <span>{item}</span>
+                    </label>
                   </td>
                 </tr>
               ))}
@@ -255,13 +259,18 @@ useEffect(() => {
 
           <table className="w-full border text-[11px]">
             <thead>
-              <tr className="bg-gray-100"><th>KEBERSIHAN</th></tr>
+              <tr className="bg-gray-100">
+                <th className="text-center px-2 py-1">KEBERSIHAN</th>
+              </tr>
             </thead>
             <tbody>
               {checklistKebersihan.map((item) => (
                 <tr key={item}>
-                  <td>
-                    <input type="checkbox" className="mr-1" /> {item}
+                  <td className="text-left px-2 py-1">
+                    <label className="flex items-start gap-x-2">
+                      <input type="checkbox" className="mt-[2px]" /> 
+                      <span>{item}</span>
+                    </label>
                   </td>
                 </tr>
               ))}
@@ -294,12 +303,12 @@ useEffect(() => {
         </thead>
         <tbody>
           <tr className="h-[90px] align-bottom">
-            <td className="border px-8 py-1 text-center">
+            <td className="border px-8 py-1 text-center align-bottom">
               <span>{data.driver}</span>
             </td>
             <td className="border px-2 py-1 text-center">
             </td>
-            <td className="border px-2 py-1 text-center">
+            <td className="border px-2 py-1 text-center align-bottom">
               <span>{customUser?.name || ""}</span>
             </td>
             <td className="border px-2 py-1 text-center">
@@ -316,7 +325,7 @@ useEffect(() => {
         @media print {
           @page {
             size: A5 landscape;
-            margin: 4mm 8mm 0mm 4mm;
+            margin: 4mm 6mm 2mm 4mm;
           }
 
           html, body {
@@ -325,8 +334,8 @@ useEffect(() => {
             margin: 0;
             padding: 0;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 9pt;
-            line-height: 1.2;
+            font-size: 8pt;
+            line-height: 1.15;
             overflow: hidden !important;
           }
 
@@ -338,7 +347,7 @@ useEffect(() => {
           .print-container {
             font-size: 9pt !important;
             line-height: 1.2 !important;
-            max-height: 138mm !important;
+            max-height: 136mm !important;
             overflow: hidden !important;
           }
 
@@ -357,14 +366,14 @@ useEffect(() => {
           }
 
           table {
-            width: 100%;
+            width: 100% !important;
             border-collapse: collapse;
             font-size: 9pt;
           }
 
           td, th {
             border: 1px solid black;
-            padding: 1px 3px;
+            padding: 1px 2px;
             font-size: 9pt;
           }
 
@@ -400,6 +409,7 @@ useEffect(() => {
           .italic {
             font-style: italic !important;
           }
+
         }
       `}</style>
     </div>

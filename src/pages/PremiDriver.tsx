@@ -39,6 +39,7 @@ export default function PremiDriver() {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [showDriverDropdown, setShowDriverDropdown] = useState(false);
   const [, setDriverOptions] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [suratJalanTersedia, setSuratJalanTersedia] = useState<{ no_surat_jalan: string, nama: string }[]>([]);
   const [formData, setFormData] = useState<PremiData>({
     id: 0,
@@ -496,6 +497,8 @@ export default function PremiDriver() {
   // === SIMPAN FORM ===
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSubmitting) return false; // ⛔ cegah submit ganda
+    setIsSubmitting(true);
 
     // === Validasi wajib isi ===
     const wajibIsi = [
@@ -512,6 +515,7 @@ export default function PremiDriver() {
       const value = formData[key];
       if (!value || value.toString().trim() === "") {
         alert(`❌ ${label} wajib diisi.`);
+        setIsSubmitting(false);
         return;
       }
     }
@@ -849,12 +853,12 @@ export default function PremiDriver() {
       // ✅ Tambahkan baris baru jika ada
       const existingKeterangan = new Set((oldKas ?? []).map((k) => k.keterangan?.trim().toLowerCase()));
       const tambahan = transaksi.filter((t) => !existingKeterangan.has(t.keterangan?.trim().toLowerCase()));
-console.log("🚀 transaksi:", transaksi);
+    console.log("🚀 transaksi:", transaksi);
       if (tambahan.length > 0) {
         const { error: insertError } = await supabase
           .from("kas_harian")
           .insert(tambahan);
-console.log("✅ Menyimpan tambahan:", tambahan);
+    console.log("✅ Menyimpan tambahan:", tambahan);
         if (insertError) {
           alert("❌ Gagal simpan transaksi tambahan: " + insertError.message);
           return;
@@ -877,7 +881,7 @@ console.log("✅ Menyimpan tambahan:", tambahan);
     }
     // ✅ Beri sinyal ke halaman Kas Harian agar refresh otomatis
     window.dispatchEvent(new Event("refresh-kas-harian"));
-
+    setIsSubmitting(false); // ✅ buka kunci submit
   };
 
   //--- AUTO REFRESH TAPI GAGAL ---
@@ -1021,8 +1025,8 @@ console.log("✅ Menyimpan tambahan:", tambahan);
 
   return (
     <div className="p-4 bg-white rounded shadow">
+      <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
       {/* Tombol Aksi */}
-      <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
         <div className="flex flex-wrap gap-3">
           <button onClick={handleTambah} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
             <FiPlus /> Tambah
@@ -1049,19 +1053,22 @@ console.log("✅ Menyimpan tambahan:", tambahan);
             className="w-full border rounded px-3 py-2 pr-8"
           />
           {search && (
-            <FiX
-              className="absolute right-2 top-3 cursor-pointer text-gray-500"
+            <button
               onClick={() => setSearch("")}
-            />
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+            >
+              ✕
+            </button>
           )}
         </div>
       </div>
 
       {/* Tabel Data */}
-      <table className="min-w-[800px] w-full table-auto border border-gray-300 text-sm">
+      <div className="max-w-screen overflow-x-auto pr-8">
+      <table className="min-w-[1600px] table-auto border border-gray-300">
         <thead className="bg-gray-400 text-white">
           <tr>
-            <th className="p-2 border text-center">
+            <th className="p-2 border text-center w-[40px]">
               <input
                 type="checkbox"
                 ref={selectAllRef}
@@ -1069,25 +1076,25 @@ console.log("✅ Menyimpan tambahan:", tambahan);
                 onChange={handleSelectAll}
               />
             </th>
-            <th className="p-2 border text-center w-[60px]">Aksi</th>
-            <th className="p-2 border text-center w-[80px]">Tanggal</th>
-            <th className="p-2 border text-center w-[100px]">No Kas / PD</th>
-            <th className="p-2 border text-center w-[110px]">No Surat Jalan</th>
-            <th className="p-2 border text-center w-[160px]">Tgl Brkt & Kembali</th>
-            <th className="p-2 border text-center w-[90px]">Driver / Crew</th>
-            <th className="p-2 border text-center">No Polisi</th>
-            <th className="p-2 border text-center w-[60px]">Kode Unit</th>
-            <th className="p-2 border text-center">Kode Rute</th>
-            <th className="p-2 border text-center">Premi</th>
-            <th className="p-2 border text-center">Perpal</th>
-            <th className="p-2 border text-center">Potongan</th>
-            <th className="p-2 border text-center">Jumlah</th>
-            <th className="p-2 border text-center">Keterangan</th>
+            <th className="p-2 border text-center w-[50px]">Aksi</th>
+            <th className="p-2 border text-center w-[150px]">Tanggal</th>
+            <th className="p-2 border text-center w-[230px]">No Kas / PD</th>
+            <th className="p-2 border text-center w-[230px]">No Surat Jalan</th>
+            <th className="p-2 border text-center w-[300px]">Tgl Brkt & Kembali</th>
+            <th className="p-2 border text-center w-[150px]">Driver / Crew</th>
+            <th className="p-2 border text-center w-[150px]">No Polisi</th>
+            <th className="p-2 border text-center w-[120px]">Kode Unit</th>
+            <th className="p-2 border text-center w-[220px]">Kode Rute</th>
+            <th className="p-2 border text-center w-[150px]">Premi</th>
+            <th className="p-2 border text-center w-[150px]">Perpal</th>
+            <th className="p-2 border text-center w-[150px]">Potongan</th>
+            <th className="p-2 border text-center w-[150px]">Jumlah</th>
+            <th className="p-2 border text-center w-[300px]">Keterangan</th>
           </tr>
         </thead>
         <tbody>
           {paginatedData.map((row) => (
-            <tr key={row.id} className="hover:bg-gray-50">
+            <tr key={row.id} className="hover:bg-yellow-300 transition-all duration-150">
               <td className="p-2 border text-center">
                 <input
                   type="checkbox"
@@ -1202,6 +1209,7 @@ console.log("✅ Menyimpan tambahan:", tambahan);
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* POP UP FORM */}
       {showForm && (
@@ -1614,11 +1622,14 @@ console.log("✅ Menyimpan tambahan:", tambahan);
                   Batal
                 </button>
                 <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                >
-                  Simpan
-                </button>
+                type="submit"
+                disabled={isSubmitting}
+                className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
+                  isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                Simpan
+              </button>
               </div>
             </form>
           </div>

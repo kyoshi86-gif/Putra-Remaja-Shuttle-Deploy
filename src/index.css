@@ -8,11 +8,22 @@
   @apply bg-[#0092F5] text-[#213547] font-sans m-0 min-w-[320px] min-h-screen;
 }
 
-  table, th, td {
-    @apply border border-black text-[12px]; /* ⬅️ tambahkan ini */
+ table {
+    @apply w-full table-auto border border-black text-[12px];
     border-collapse: collapse;
   }
 
+  th, td {
+    @apply px-1 py-[1px] text-[12px] leading-[1] text-center align-middle;
+  }
+
+  .table-scroll-wrapper::-webkit-scrollbar {
+    height: 8px;
+  }
+  .table-scroll-wrapper::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
 
   a {
     @apply font-medium text-indigo-500 no-underline;
@@ -33,11 +44,6 @@
   button:focus,
   button:focus-visible {
     outline: 4px auto -webkit-focus-ring-color;
-  }
-
-  table, th, td {
-    @apply border border-black;
-    border-collapse: collapse;
   }
 }
 

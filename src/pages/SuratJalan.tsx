@@ -31,6 +31,7 @@ export default function SuratJalan() {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<SuratJalanData>({
     id: 0,
     tanggal_berangkat: "",
@@ -289,6 +290,9 @@ export default function SuratJalan() {
 
   // --- Submit ---
   const handleSubmit = async () => {
+    if (isSubmitting) return false; // ⛔ cegah submit ganda
+    setIsSubmitting(true);
+
   try {
     // --- Validasi wajib ---
     const wajibIsi: Array<{ field: keyof SuratJalanData; label: string }> = [
@@ -373,6 +377,9 @@ export default function SuratJalan() {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     alert("Terjadi kesalahan: " + message);
+    return false;
+  } finally {
+    setIsSubmitting(false); // ✅ kunci dibuka setelah selesai
   }
 };
 
@@ -709,7 +716,10 @@ export default function SuratJalan() {
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  disabled={isSubmitting}
+                  className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
+                    isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
                 >
                   Simpan
                 </button>
@@ -720,7 +730,7 @@ export default function SuratJalan() {
       )}
 
       {/* TOMBOL */}
-      <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+      <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
         <div className="flex flex-wrap gap-3">
           <button
             onClick={async () => {
@@ -800,11 +810,11 @@ export default function SuratJalan() {
       </div>
 
       {/* TABEL */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full table-auto border border-gray-300 text-sm">
+      <div className="w-full pr-8">
+        <table className="w-full table-auto border border-gray-300 text-sm">
           <thead className="bg-gray-400 text-white">
             <tr>
-              <th className="p-2 border text-center">
+              <th className="p-2 border text-center w-[40px]">
                 <input
                   ref={selectAllRef}
                   type="checkbox"
@@ -827,7 +837,7 @@ export default function SuratJalan() {
               <th className="border p-2 text-center w-[80px]">KM Kembali</th>
               <th className="border p-2 text-center w-[80px]">Snack Berangkat</th>
               <th className="border p-2 text-center w-[80px]">Snack Kembali</th>
-              <th className="border p-2 text-center w-[210px]">Keterangan</th>
+              <th className="border p-2 text-center w-[250px]">Keterangan</th>
             </tr>
           </thead>
           <tbody>
@@ -847,7 +857,7 @@ export default function SuratJalan() {
               paginatedData.map((item) => (
                 <tr
                   key={item.id}
-                  className="hover:bg-gray-100 text-center border"
+                  className="hover:bg-yellow-300 transition-all duration-150 text-center border"
                 >
                   <td className="p-2 border">
                     <input

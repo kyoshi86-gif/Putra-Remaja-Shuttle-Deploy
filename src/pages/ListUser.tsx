@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import bcrypt from "bcryptjs";
+import {FiEdit, FiTrash2} from "react-icons/fi";
 
 interface User {
   id: string;
@@ -205,16 +206,7 @@ export default function ListUser() {
   return (
     <div className="p-4 bg-white rounded shadow">
       {/* Form tambah user */}
-      <div
-        style={{
-          margin: "20px 0",
-          border: "1px solid #d1d5db",
-          padding: "16px",
-          borderRadius: "8px",
-          backgroundColor: "#f9fafb",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-        }}
-      >
+      <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
         <div
           style={{
             display: "flex",
@@ -270,16 +262,9 @@ export default function ListUser() {
           <button
             onClick={addUser}
             disabled={loading}
-            style={{
-              backgroundColor: "#3b82f6",
-              color: "white",
-              padding: "8px 16px",
-              borderRadius: "6px",
-              border: "none",
-              fontSize: "0.875rem",
-              cursor: "pointer",
-              minWidth: "120px",
-            }}
+            className={`min-w-[120px] px-4 py-2 rounded-md text-white text-sm ${
+              loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+            }`}
           >
             {loading ? "Memproses..." : "Tambah User"}
           </button>
@@ -287,19 +272,20 @@ export default function ListUser() {
       </div>
 
       {/* Tabel user */}
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div className="w-full pr-8">
+      <table className="w-full table-auto border border-gray-300 text-sm">
         <thead className="bg-gray-400 text-white">
           <tr>
-            <th style={{ border: "1px solid #000", padding: "8px" }}>Nama</th>
-            <th style={{ border: "1px solid #000", padding: "8px" }}>Role</th>
-            <th style={{ border: "1px solid #000", padding: "8px" }}>User id</th>
-            <th style={{ border: "1px solid #000", padding: "8px" }}>Aksi</th>
+            <th className="border p-2 text-center w-[100px]">Nama</th>
+            <th className="border p-2 text-center w-[50px]">Role</th>
+            <th className="border p-2 text-center w-[60px]">User id</th>
+            <th className="border p-2 text-center w-[60px]">Aksi</th>
           </tr>
         </thead>
         <tbody>
           {users.map((user, index) => (
-            <tr key={user.user_id || user.id || index}>
-              <td style={{ textAlign: "center", border: "1px solid #000", padding: "8px" }}>
+            <tr key={user.user_id || user.id || index} className="hover:bg-yellow-300 transition-all duration-150">
+              <td className="border p-2 text-center">
                 {editingUserId === user.id ? (
                   <input
                     type="text"
@@ -311,7 +297,7 @@ export default function ListUser() {
                   user.name
                 )}
               </td>
-              <td style={{ textAlign: "center", border: "1px solid #000", padding: "8px" }}>
+              <td className="border p-2 text-center">
                 {editingUserId === user.id ? (
                   <select value={editingRole} onChange={(e) => setEditingRole(e.target.value)}>
                     {roles.map((r) => (
@@ -324,10 +310,10 @@ export default function ListUser() {
                   user.role
                 )}
               </td>
-              <td style={{ textAlign: "center", border: "1px solid #000", padding: "8px" }}>
+              <td className="border p-2 text-center">
                 {user.user_id || user.id}
               </td>
-              <td style={{ textAlign: "center", border: "1px solid #000", padding: "8px" }}>
+              <td className="border p-2 text-center">
                 {editingUserId === user.id ? (
                   <>
                     <input
@@ -380,18 +366,10 @@ export default function ListUser() {
                         setEditingRole(user.role);
                         setEditingPassword("");
                       }}
-                      style={{
-                        marginRight: "10px",
-                        backgroundColor: "#3b82f6",
-                        color: "white",
-                        padding: "6px 12px",
-                        borderRadius: "4px",
-                        border: "none",
-                        fontSize: "0.875rem",
-                        cursor: "pointer",
-                      }}
+                      className="text-blue-600 hover:text-blue-800 px-[5px]"
+                      title="Edit"
                     >
-                      Edit
+                      <FiEdit size={16} />
                     </button>
                     <button
                       onClick={() => {
@@ -401,17 +379,10 @@ export default function ListUser() {
                         }
                         deleteUser(user.id);
                       }}
-                      style={{
-                        backgroundColor: "#ef4444",
-                        color: "white",
-                        padding: "6px 12px",
-                        borderRadius: "4px",
-                        border: "none",
-                        fontSize: "0.875rem",
-                        cursor: "pointer",
-                      }}
+                      className="text-red-600 hover:text-red-800 px-[5px]"
+                      title="Hapus"
                     >
-                      Delete
+                      <FiTrash2 size={16} />
                     </button>
                   </>
                 )}
@@ -420,6 +391,7 @@ export default function ListUser() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

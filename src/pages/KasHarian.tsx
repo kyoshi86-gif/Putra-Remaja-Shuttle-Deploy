@@ -638,7 +638,7 @@ export default function KasHarian() {
   return (
     <div className="p-4 bg-white rounded shadow">
     {/* Range Tanggal box */}
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+    <div className="flex fw-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3 lex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
     <div ref={triggerRef}>
       <label className="font-semibold">Date range: </label>
       <input
@@ -764,8 +764,8 @@ export default function KasHarian() {
         </div>
 
       {/* Tabel */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full table-auto border border-gray-300 text-sm">
+      <div className="w-full pr-8">
+        <table className="w-full table-auto border border-gray-300 text-sm">
           <thead className="bg-gray-400 text-white">
             <tr>
               <th className="p-2 border text-center w-[40px]">
@@ -827,7 +827,7 @@ export default function KasHarian() {
                   <>
                     {/* Baris Transaksi */}
                     {paginatedData.map((row) => (
-                      <tr key={row.id} className="hover:bg-gray-100 text-center border">
+                      <tr key={row.id} className="hover:bg-yellow-300 transition-all duration-150 text-center border">
                         <td className="p-2 border">
                           <input
                             type="checkbox"

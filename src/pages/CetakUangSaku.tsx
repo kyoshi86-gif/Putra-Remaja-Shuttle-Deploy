@@ -208,33 +208,33 @@ export default function CetakUangSaku() {
       <table className="w-full border text-[14px] mt-2">
         <thead className="bg-gray-100">
             <tr>
-            <th className="border px-2 py-1 text-center">BBM</th>
-            <th className="border px-2 py-1 text-center">Uang Makan</th>
-            <th className="border px-2 py-1 text-center">Parkir</th>
-            <th className="border px-2 py-1 text-center">Jumlah</th>
+            <th className="border border-black px-2 py-1 text-center">BBM</th>
+            <th className="border border-black px-2 py-1 text-center">Uang Makan</th>
+            <th className="border border-black px-2 py-1 text-center">Parkir</th>
+            <th className="border border-black px-2 py-1 text-center">Jumlah</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-            <td className="border px-2 py-1">
+            <td className="border border-black px-2 py-1">
                 <div className="flex justify-between">
                 <span>Rp.</span>
                 <span>{formatRupiah(data.bbm)}</span>
                 </div>
             </td>
-            <td className="border px-2 py-1">
+            <td className="border border-black px-2 py-1">
                 <div className="flex justify-between">
                 <span>Rp.</span>
                 <span>{formatRupiah(data.uang_makan)}</span>
                 </div>
             </td>
-            <td className="border px-2 py-1">
+            <td className="border border-black px-2 py-1">
                 <div className="flex justify-between">
                 <span>Rp.</span>
                 <span>{formatRupiah(data.parkir)}</span>
                 </div>
             </td>
-            <td className="border px-2 py-1 font-semibold">
+            <td className="border border-black px-2 py-1 font-semibold">
                 <div className="flex justify-between">
                 <span>Rp.</span>
                 <span>{formatRupiah(data.jumlah ?? 0)}</span>
@@ -276,10 +276,10 @@ export default function CetakUangSaku() {
         </thead>
         <tbody>
           <tr className="h-[80px] align-bottom">
-            <td className="border px-2 py-1 text-center">
+            <td className="border px-2 py-1 text-center align-bottom">
               {data.driver}
             </td>
-            <td className="border px-2 py-1 text-center">
+            <td className="border px-2 py-1 text-center align-bottom">
               {customUser?.name || ""}
             </td>
             <td className="border px-2 py-1 text-center"></td>
