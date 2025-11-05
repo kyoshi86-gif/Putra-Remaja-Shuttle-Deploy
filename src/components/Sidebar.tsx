@@ -153,7 +153,7 @@ export default function Sidebar({
         width: isCollapsed ? "50px" : "200px",
         background: "#2c3e50",
         color: "white",
-        height: "100vh",
+        height: "100%",
         transition: "width 0.3s",
         position: "fixed",
         left: 0,

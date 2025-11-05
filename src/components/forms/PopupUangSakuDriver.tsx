@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { FiX } from "react-icons/fi";
 
@@ -97,7 +97,12 @@ const PopupUangSakuDriver = ({
   };
 
   // Simpan data
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async () => {
+    if (isSubmitting) return false; // ⛔ cegah submit ganda
+    setIsSubmitting(true);
+
     const tanggalValid = typeof formData.tanggal === "string" && formData.tanggal.trim() !== "";
     const nominalValid = typeof formData.jumlah === "number" && !isNaN(formData.jumlah);
 
@@ -159,6 +164,8 @@ const PopupUangSakuDriver = ({
       const error = err as Error;
       alert("❌ Gagal simpan: " + error.message);
       return false;
+    } finally {
+      setIsSubmitting(false); // ✅ kunci dibuka setelah selesai
     }
   };
 
@@ -429,12 +436,24 @@ const PopupUangSakuDriver = ({
           </div>
 
           {/* Tombol Simpan */}
-          <button
-            type="submit"
-            className="col-span-2 mt-3 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-          >
-            Simpan
-          </button>
+          <div className="col-span-2 flex justify-end gap-4 mt-4">
+                <button
+                  type="button"
+                  onClick={handleCloseForm}
+                  className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500"
+                >
+                  Batal
+                </button>
+                <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
+                  isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                Simpan
+              </button>
+              </div>
         </form>
       </div>
     </div>

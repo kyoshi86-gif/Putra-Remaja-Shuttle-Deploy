@@ -353,8 +353,12 @@ export default function KasHarian() {
     setShowForm(true);
   };
 
+  const [isSaving, setIsSaving] = useState(false);
+
   // Save form (insert or update)
   const handleSave = async () => {
+    if (isSaving) return; // ⛔ cegah double klik
+    setIsSaving(true);
     try {
       // Basic validation
       if (!formData.tanggal || !formData.nominal) {
@@ -453,6 +457,8 @@ export default function KasHarian() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       alert("Gagal simpan: " + message);
+    } finally {
+      setIsSaving(false); // ✅ buka kunci submit
     }
   };
 
@@ -642,10 +648,14 @@ export default function KasHarian() {
     <div ref={triggerRef}>
       <label className="font-semibold">Date range: </label>
       <input
-        type="text"
+        type="text" 
         readOnly
-        value={`${format(range[0].startDate ?? new Date(), "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate ?? new Date(), "dd-MM-yyyy", { locale: id })}`}
-        onClick={() => setShowPicker(!showPicker)}
+        value={
+          range[0]?.startDate && range[0]?.endDate
+            ? `${format(range[0].startDate, "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate, "dd-MM-yyyy", { locale: id })}`
+            : ""
+        }
+        onClick={() => setShowPicker(true)}
         className="border border-gray-300 rounded px-2 py-1 text-sm leading-normal w-[220px] cursor-pointer"
       />
 
@@ -661,20 +671,28 @@ export default function KasHarian() {
             }}
             >
             <DateRangePicker
-                onChange={(ranges) => {
-                  const selection = ranges.selection;
-                  if (selection) {
-                    setRange([selection]);
-                  }
-                }}
-                moveRangeOnFirstSelection={false}
-                showMonthAndYearPickers={true}
-                staticRanges={[]}
-                inputRanges={[]}
-                months={1}
-                ranges={range}
-                direction="horizontal"
-                locale={id}
+              className="custom-datepicker"
+              onChange={(ranges) => {
+                const selection = ranges.selection;
+                if (selection?.startDate && selection?.endDate) {
+                  setRange([
+                    {
+                      ...selection,
+                      key: "selection",
+                    },
+                  ]);
+                }
+              }}
+              moveRangeOnFirstSelection={false}
+              showMonthAndYearPickers={true}
+              staticRanges={[]}
+              inputRanges={[]}
+              months={1}
+              ranges={range}
+              direction="horizontal"
+              locale={id}
+              preventSnapRefocus={true}
+              calendarFocus="forwards"
             />
             <div className="flex justify-end mt-2 space-x-2">
                 <button onClick={() => setShowPicker(false)} className="px-3 py-1 bg-green-600 text-white rounded">Apply</button>
@@ -781,7 +799,7 @@ export default function KasHarian() {
               <th className="border p-2 text-center w-[60px]">Aksi</th>
               <th className="border p-2 text-center w-[80px]">Tanggal</th>
               <th className="border p-2 text-center w-[70px]">Waktu</th>
-              <th className="border p-2 text-center w-[100px]">No Bukti</th>
+              <th className="border p-2 text-center w-[120px]">No Bukti</th>
               <th className="border p-2 text-center">Keterangan</th>
               <th className="border p-2 text-center w-[60px]">Jenis</th>
               <th className="border p-2 text-center w-[90px]">Debet</th>
@@ -1039,9 +1057,15 @@ export default function KasHarian() {
                   >
                     Batal
                   </button>
-                  <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                    Simpan
-                  </button>
+                  <button
+                  type="submit"
+                  disabled={isSaving}
+                  className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
+                    isSaving ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  Simpan
+                </button>
                 </div>
               </form>
             )}

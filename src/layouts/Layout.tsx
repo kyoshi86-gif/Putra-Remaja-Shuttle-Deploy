@@ -312,7 +312,7 @@ export default function Layout() {
             borderRadius: "5px",
             borderTop: isPrintRoute ? "none" : "10px solid #B7BABF",
             width: "100%",
-            maxWidth: "100vw",
+            maxWidth: "100%",
             overflowX: "auto",
             overflowY: "auto",
           }}

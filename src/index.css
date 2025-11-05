@@ -5,10 +5,10 @@
 /* ✅ Styling global dengan Tailwind harus di dalam @layer base */
 @layer base {
   body {
-  @apply bg-[#0092F5] text-[#213547] font-sans m-0 min-w-[320px] min-h-screen;
-}
+    @apply bg-[#0092F5] text-[#213547] font-sans m-0 min-w-[1024px] min-h-screen overflow-x-auto;
+  }
 
- table {
+  table {
     @apply w-full table-auto border border-black text-[12px];
     border-collapse: collapse;
   }
@@ -23,6 +23,10 @@
   .table-scroll-wrapper::-webkit-scrollbar-thumb {
     background: #888;
     border-radius: 4px;
+  }
+
+  .custom-datepicker .rdrDefinedRangesWrapper {
+    display: none !important;
   }
 
   a {
@@ -47,12 +51,17 @@
   }
 }
 
-  .rdrDefinedRangesWrapper {
-    display: none !important;
+/* ✅ Non-responsive layout: paksa lebar desktop di semua device */
+
+
+/* ✅ Matikan zoom dan scale di mobile */
+@media screen and (max-width: 1023px) {
+  body {
+    zoom: 0.9; /* opsional: kecilkan sedikit agar muat */
   }
+}
 
-
-/* ✅ jangan timpa background root di sini */
+/* ✅ Jangan timpa background root di sini */
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
@@ -61,6 +70,15 @@
     color: #747bff;
   }
   button.default-button {
-  background-color: #f9f9f9;
+    background-color: #f9f9f9;
+  }
 }
+
+/* ✅ Matikan responsive Tailwind jika perlu */
+@layer utilities {
+  @variants responsive {
+    .no-responsive {
+      @apply min-w-[1024px];
+    }
+  }
 }

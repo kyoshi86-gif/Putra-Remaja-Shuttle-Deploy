@@ -41,7 +41,13 @@ export function getWIBTimestampFromUTC(utcString: string): string {
   return `${dd}-${mm}-${yyyy} ${hh}:${min}:${ss}`;
 }
 
-export function toWIBTimeString(waktu: string): string {
-  const [hh, mm, ss] = waktu.split(":");
+export function toWIBTimeString(waktu?: string): string {
+  if (!waktu || typeof waktu !== "string") return "--:--:--";
+
+  const parts = waktu.split(":");
+  const hh = parts[0] ?? "00";
+  const mm = parts[1] ?? "00";
+  const ss = parts[2] ?? "00";
+
   return `${hh.padStart(2, "0")}:${mm.padStart(2, "0")}:${ss.padStart(2, "0")}`;
 }
