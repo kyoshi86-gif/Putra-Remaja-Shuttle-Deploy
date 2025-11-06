@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiPrinter } from "react-icons/fi";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { insertWithAutoNomor } from "../lib/dbUtils";
 import { getCustomUserId } from "../lib/authUser";
 
@@ -26,6 +25,7 @@ interface PremiData {
   keterangan: string;
   id_kas_harian?: number | null;
   user_id?: string;
+  perpalAktif?: boolean;
 }
 
 export default function PremiDriver() {
@@ -123,6 +123,8 @@ export default function PremiDriver() {
     kode_unit: string;
     kode_rute: string;
     nama?: string;
+    perpal_1x_keterangan?: string | null;
+    perpal_2x_keterangan?: string | null;
   }
 
   const [semuaSJ, setSemuaSJ] = useState<SuratJalanRow[]>([]);
@@ -152,6 +154,7 @@ export default function PremiDriver() {
     jumlah: 0,
     keterangan: "",
     id_kas_harian: null,
+    perpalAktif: false,
   };
 
   const prepareFormData = (nomor: string): PremiData => ({
@@ -247,7 +250,8 @@ export default function PremiDriver() {
   const fetchSJ = async () => {
     const { data: semuaSJ } = await supabase
       .from("uang_saku_driver")
-      .select("no_surat_jalan, driver, crew, tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute");
+      .select("no_surat_jalan, driver, crew, tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute")
+      .order("tanggal", { ascending: false });
 
     const { data: sudahDipakai } = await supabase
       .from("premi_driver")
@@ -312,54 +316,58 @@ export default function PremiDriver() {
 
   // --- Fungsi pilih SJ (ditrigger sebelum blur karena onMouseDown di item) ---
   const handleSelectSj = async (sj: SuratJalanRow) => {
-    const options = [sj.driver, sj.crew].filter(Boolean);
-    setDriverDropdownOptions(options);
+  const options = [sj.driver, sj.crew].filter(Boolean);
+  setDriverDropdownOptions(options);
 
-    setFormData((prev) => ({
-      ...prev,
-      no_surat_jalan: sj.no_surat_jalan,
-      driver: sj.nama ?? "",
-      crew: sj.crew ?? "",
-      tanggal_berangkat: sj.tanggal_berangkat ?? "",
-      tanggal_kembali: sj.tanggal_kembali ?? "",
-      no_polisi: sj.no_polisi ?? "",
-      kode_unit: sj.kode_unit ?? "",
-      kode_rute: sj.kode_rute ?? "",
-    }));
+  // ✅ Ambil detail SJ dari tabel surat_jalan
+  const { data: detailSJ } = await supabase
+    .from("surat_jalan")
+    .select("tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute, perpal_1x_rute, perpal_2x_rute")
+    .eq("no_surat_jalan", sj.no_surat_jalan)
+    .single();
 
-    // ✅ Hanya ambil data realisasi jika yang dipilih adalah driver
-    if (sj.nama === sj.driver) {
-      const { data: sakuRow } = await supabase
-        .from("uang_saku_driver")
-        .select("jumlah, bbm, uang_makan, parkir")
-        .eq("no_surat_jalan", sj.no_surat_jalan)
-        .single();
+  const nilaiPerpal =
+    (detailSJ?.perpal_1x_rute ? 20000 : 0) +
+    (detailSJ?.perpal_2x_rute ? 30000 : 0);
 
-      if (sakuRow) {
-        const jumlah =
-          (sakuRow.bbm || 0) + (sakuRow.uang_makan || 0) + (sakuRow.parkir || 0);
-        const sisa = (sakuRow.jumlah || 0) - jumlah;
+  const perpalAktif = !!(detailSJ?.perpal_1x_rute || detailSJ?.perpal_2x_rute);
 
-        setUangSakuDetail({
-          uang_saku: sakuRow.jumlah || 0,
-          bbm: sakuRow.bbm || 0,
-          makan: sakuRow.uang_makan || 0,
-          parkir: sakuRow.parkir || 0,
-          jumlah,
-          sisa,
-        });
-      } else {
-        setUangSakuDetail({
-          uang_saku: 0,
-          bbm: 0,
-          makan: 0,
-          parkir: 0,
-          jumlah: 0,
-          sisa: 0,
-        });
-      }
+  setFormData((prev) => ({
+    ...prev,
+    no_surat_jalan: sj.no_surat_jalan,
+    driver: sj.nama ?? "",
+    crew: sj.crew ?? "",
+    tanggal_berangkat: detailSJ?.tanggal_berangkat ?? "",
+    tanggal_kembali: detailSJ?.tanggal_kembali ?? "",
+    no_polisi: detailSJ?.no_polisi ?? "",
+    kode_unit: detailSJ?.kode_unit ?? "",
+    kode_rute: detailSJ?.kode_rute ?? "",
+    perpalAktif,
+    perpal: nilaiPerpal,
+  }));
+
+  // ✅ Realisasi hanya untuk driver
+  if (sj.nama === sj.driver) {
+    const { data: sakuRow } = await supabase
+      .from("uang_saku_driver")
+      .select("jumlah, bbm, uang_makan, parkir")
+      .eq("no_surat_jalan", sj.no_surat_jalan)
+      .single();
+
+    if (sakuRow) {
+      const jumlah =
+        (sakuRow.bbm || 0) + (sakuRow.uang_makan || 0) + (sakuRow.parkir || 0);
+      const sisa = (sakuRow.jumlah || 0) - jumlah;
+
+      setUangSakuDetail({
+        uang_saku: sakuRow.jumlah || 0,
+        bbm: sakuRow.bbm || 0,
+        makan: sakuRow.uang_makan || 0,
+        parkir: sakuRow.parkir || 0,
+        jumlah,
+        sisa,
+      });
     } else {
-      // ✅ Kosongkan jika yang dipilih adalah crew
       setUangSakuDetail({
         uang_saku: 0,
         bbm: 0,
@@ -369,12 +377,22 @@ export default function PremiDriver() {
         sisa: 0,
       });
     }
+  } else {
+    setUangSakuDetail({
+      uang_saku: 0,
+      bbm: 0,
+      makan: 0,
+      parkir: 0,
+      jumlah: 0,
+      sisa: 0,
+    });
+  }
 
-    setSjSearch(sj.no_surat_jalan);
-    setShowDropdown(false);
-    setHighlightedIndex(-1);
-    setShowDriverDropdown(false);
-  };
+  setSjSearch(sj.no_surat_jalan);
+  setShowDropdown(false);
+  setHighlightedIndex(-1);
+  setShowDriverDropdown(false);
+};
 
   // === SEARCH ===
   useEffect(() => {
@@ -472,12 +490,29 @@ export default function PremiDriver() {
 
   // === EXPORT ===
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filtered);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Premi Driver");
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, "UangSakuDriver.xlsx");
+    exportTableToExcel(filtered, {
+      filename: "PremiDriver.xlsx",
+      sheetName: "Premi Driver",
+      columns: [
+        { label: "Tanggal", key: "tanggal", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "No Premi Driver", key: "no_premi_driver" },
+        { label: "No Surat Jalan", key: "no_surat_jalan" },
+        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Driver", key: "driver" },
+        { label: "Crew", key: "crew" },
+        { label: "No Polisi", key: "no_polisi" },
+        { label: "Kode Unit", key: "kode_unit" },
+        { label: "Kode Rute", key: "kode_rute" },
+        { label: "Premi", key: "premi", type: "currency" },
+        { label: "Perpal", key: "perpal", type: "currency" },
+        { label: "Potongan", key: "potongan", type: "currency" },
+        { label: "Jumlah", key: "jumlah", type: "currency" },
+        { label: "Keterangan", key: "keterangan" },
+        { label: "Created At", key: "created_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+        { label: "User ID", key: "user_id" },
+      ]
+    });
   };
 
   // === CETAK ===
@@ -527,24 +562,24 @@ export default function PremiDriver() {
     }
 
     // === Bersihkan angka ===
-    const numericFields = ["premi", "perpal"];
-    const cleanedData: Partial<Record<keyof PremiData, string | number | null>> = { ...formData };
+    const { perpalAktif, ...formDataWithoutPerpalFlag } = formData;
 
-    numericFields.forEach((f) => {
-      const key = f as keyof PremiData;
-      const raw = cleanedData[key];
+    const cleanedData: Partial<Record<keyof PremiData, string | number | null>> = {
+      ...formDataWithoutPerpalFlag,
+    };
+
+    const numericFields: (keyof PremiData)[] = ["premi", "perpal"];
+
+    for (const key of numericFields) {
+      const raw = formData[key];
 
       const parsed =
         raw === "" || raw === undefined || raw === null
           ? null
           : Number(String(raw).replace(/[^\d.-]/g, ""));
 
-      if (parsed === null || Number.isNaN(parsed)) {
-        cleanedData[key] = null as PremiData[typeof key];
-      } else {
-        cleanedData[key] = parsed as PremiData[typeof key];
-      }
-    });
+      cleanedData[key] = Number.isNaN(parsed) ? null : parsed;
+    }
 
     // === Bersihkan UUID ===
     if (
@@ -1106,7 +1141,12 @@ export default function PremiDriver() {
                 <div className="flex justify-center gap-[0.5px]">
                   <button
                     onClick={async () => {
-                      setFormData({ ...row, user_id: row.user_id ?? getCustomUserId() ?? "" });
+                      setFormData({ 
+                        ...row,
+                        user_id: row.user_id ?? getCustomUserId() ?? "",
+                        perpalAktif: !!row.perpal, // ✅ aktifkan textbox kalau ada nilai perpal
+                      });
+
                       setSjSearch(row.no_surat_jalan || "");
                       setShowForm(true);
                       setPotonganList([]);
@@ -1455,10 +1495,12 @@ export default function PremiDriver() {
               <div>
                 <label>Perpal</label>
                 <input
+                  type="text"
                   name="perpal"
                   value={formatRupiah(formData.perpal ?? 0)}
                   onChange={handleChange}
-                  className="w-full border rounded px-3 py-2 text-left"
+                  disabled={!formData.perpalAktif}
+                  className={`w-full border rounded px-3 py-2 ${!formData.perpalAktif ? "bg-gray-100 text-gray-500" : ""}`}
                 />
               </div>
               <div className="mb-2">

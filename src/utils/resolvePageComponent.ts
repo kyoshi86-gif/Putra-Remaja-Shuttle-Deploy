@@ -1,17 +1,18 @@
-export function resolvePageComponent(name: string) {
-  const modules = import.meta.glob("/src/pages/**/*.{tsx,jsx}");
+export function resolvePageComponent(name: string): () => Promise<{ default: React.ComponentType<any> }> {
+  const modules = import.meta.glob('/src/pages/**/*.{tsx,jsx}');
 
-  const normalized = name.trim().replace(/^\/+/, "");
+  const normalized = name.trim().replace(/^\/+/, '');
   const path = `/src/pages/${normalized}.tsx`;
 
   const loader = modules[path];
 
   if (!loader) {
-    const available = Object.keys(modules).join("\n• ");
-    throw new Error(
-      `❌ Component "${name}" not found at ${path}\n\n📁 Available components:\n• ${available}`
-    );
+    console.warn(`❌ Component "${name}" not found at ${path}`);
+    return (() =>
+      import('../pages/NotFoundFallback.tsx')) as () => Promise<{
+        default: React.ComponentType<any>;
+      }>;
   }
 
-  return loader as () => Promise<{ default: React.ComponentType<Record<string, unknown>> }>;
+  return loader as () => Promise<{ default: React.ComponentType<any> }>;
 }

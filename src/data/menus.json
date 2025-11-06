@@ -15,6 +15,12 @@
         "path": "/surat-jalan",
         "component": "SuratJalan"
       },
+      {
+        "label": "Tambah Perpal",
+        "access": "surat_jalan.tambah_perpal",
+        "path": "/surat-jalan/tambah-perpal",
+        "component": "TambahPerpal"
+      },
       { 
         "label": "Cetak Surat Jalan", 
         "access": "Keberangkatan -> Cetak Surat Jalan",

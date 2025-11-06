@@ -1,9 +1,11 @@
 import { useRef, useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiPrinter } from "react-icons/fi";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { insertWithAutoNomor } from "../lib/dbUtils";
+import { getCustomUserId } from "../lib/authUser";
+import { hasAccess } from "../lib/hasAccess";
+
 
 interface SuratJalanData {
   id: number;
@@ -16,11 +18,18 @@ interface SuratJalanData {
   unit: string;
   kode_unit: string;
   kode_rute: string;
-  km_berangkat: number;
-  km_kembali: number;
-  snack_berangkat: number;
-  snack_kembali: number;
+  km_berangkat: number | null | undefined;
+  km_kembali: number | null | undefined;
+  snack_berangkat: number | null | undefined;
+  snack_kembali: number | null | undefined;
   keterangan: string;
+  user_id?: string;
+  perpal_1x_keterangan?: string;
+  perpal_2x_keterangan?: string;
+  perpal_1x_tanggal?: string;
+  perpal_1x_rute?: string;
+  perpal_2x_tanggal?: string;
+  perpal_2x_rute?: string;
 }
 
 export default function SuratJalan() {
@@ -32,6 +41,14 @@ export default function SuratJalan() {
   const [loading, setLoading] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [canTambahPerpal, setCanTambahPerpal] = useState(false);
+  useEffect(() => {
+    hasAccess("surat_jalan.tambah_perpal").then((result) => {
+      console.log("✅ Akses tambah perpal:", result);
+      setCanTambahPerpal(result);
+    });
+  }, []);
+
   const [formData, setFormData] = useState<SuratJalanData>({
     id: 0,
     tanggal_berangkat: "",
@@ -91,11 +108,17 @@ export default function SuratJalan() {
     snack_kembali: 0,
     keterangan: "",
     kode_unit: "",
+    perpal_1x_keterangan: "",
+    perpal_2x_keterangan: "",
+    perpal_1x_tanggal: undefined,
+    perpal_1x_rute: undefined,
+    perpal_2x_tanggal: undefined,
+    perpal_2x_rute: undefined,
   };
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 9;
+  const itemsPerPage = 20;
 
   // --- Fetch data ---
   const fetchData = async () => {
@@ -223,12 +246,27 @@ export default function SuratJalan() {
 
   // --- Export Excel ---
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filtered);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Surat Jalan");
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, "SuratJalan.xlsx");
+    exportTableToExcel(filtered, {
+      filename: "SuratJalan.xlsx",
+      sheetName: "Surat Jalan",
+      columns: [
+        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Driver", key: "driver" },
+        { label: "Crew", key: "crew" },
+        { label: "No Surat Jalan", key: "no_surat_jalan" },
+        { label: "No Polisi", key: "no_polisi" },
+        { label: "Kode Rute", key: "kode_rute" },
+        { label: "KM Berangkat", key: "km_berangkat" },
+        { label: "KM Kembali", key: "km_kembali" },
+        { label: "Snack Berangkat", key: "snack_berangkat" },
+        { label: "Snack Kembali", key: "snack_kembali" },
+        { label: "Keterangan", key: "keterangan" },
+        { label: "Created At", key: "created_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+        { label: "User ID", key: "user_id" },
+        { label: "Updated At", key: "updated_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+      ]
+    });
   };
 
   // --- Cetak Surat Jalan ---
@@ -260,9 +298,18 @@ export default function SuratJalan() {
 
   // --- Edit ---
   const handleEdit = (item: SuratJalanData) => {
-    setFormData(item);
+    const cleanItem = {
+      ...defaultFormData,
+      ...item,
+      perpal_1x_tanggal: item.perpal_1x_tanggal ?? undefined,
+      perpal_2x_tanggal: item.perpal_2x_tanggal ?? undefined,
+      perpal_1x_rute: item.perpal_1x_rute ?? "",
+      perpal_2x_rute: item.perpal_2x_rute ?? "",
+    };
+
+    setFormData(cleanItem);
     setShowForm(true);
-    checkIfUsedInUangSaku(item.no_surat_jalan); // ⬅️ cek apakah sudah dipakai
+    checkIfUsedInUangSaku(item.no_surat_jalan);
   };
 
   // --- Delete ---
@@ -288,10 +335,35 @@ export default function SuratJalan() {
     if (!error) fetchData();
   };
 
+  const parseNumber = (val: any): number | null => {
+    const parsed = Number(String(val).replace(/[^\d.-]/g, ""));
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const cleanPerpalFields = (data: Partial<SuratJalanData>) => {
+    const cleaned = { ...data };
+
+    if (!data.perpal_1x_tanggal || data.perpal_1x_tanggal.trim() === "") {
+      cleaned.perpal_1x_tanggal = undefined;
+      cleaned.perpal_1x_rute = undefined;
+      cleaned.perpal_1x_keterangan = undefined;
+    }
+
+    if (!data.perpal_2x_tanggal || data.perpal_2x_tanggal.trim() === "") {
+      cleaned.perpal_2x_tanggal = undefined;
+      cleaned.perpal_2x_rute = undefined;
+      cleaned.perpal_2x_keterangan = undefined;
+    }
+
+    return cleaned;
+  };
+
   // --- Submit ---
   const handleSubmit = async () => {
     if (isSubmitting) return false; // ⛔ cegah submit ganda
     setIsSubmitting(true);
+
+  const userId = await getCustomUserId();  
 
   try {
     // --- Validasi wajib ---
@@ -312,25 +384,36 @@ export default function SuratJalan() {
     }
 
     // --- Bersihkan data numeric sesuai kolom baru ---
-    const numericFields = [
-      "km_berangkat",
-      "km_kembali",
-      "snack_berangkat",
-      "snack_kembali",
-    ];
 
-    const cleanedData: Partial<Record<keyof SuratJalanData, string | number | null>> = { ...formData };
+    let cleanedData: Partial<SuratJalanData> = {
+      ...formData,
+      km_berangkat: parseNumber(formData.km_berangkat),
+      km_kembali: parseNumber(formData.km_kembali),
+      snack_berangkat: parseNumber(formData.snack_berangkat),
+      snack_kembali: parseNumber(formData.snack_kembali),
+    };
+    cleanedData = cleanPerpalFields(cleanedData);
+    
+    // Bersihkan angka
+  const numericFields: Array<keyof SuratJalanData> = [
+    "km_berangkat",
+    "km_kembali",
+    "snack_berangkat",
+    "snack_kembali",
+  ];
+
     numericFields.forEach((f) => {
       const key = f as keyof SuratJalanData;
       const val = cleanedData[key];
-
-      const parsed =
-        val === "" || val === undefined || val === null
-          ? null
-          : Number(String(val).replace(/[^\d.-]/g, ""));
-
-      cleanedData[key] = Number.isNaN(parsed) ? null : parsed;
+      const parsed = val === "" || val === undefined || val === null
+        ? null
+        : Number(String(val).replace(/[^\d.-]/g, ""));
+      cleanedData.km_berangkat = Number.isNaN(parsed) ? undefined : parsed;
     });
+
+    // ⬅️ Tambahkan ini
+    cleanedData.perpal_1x_keterangan = formData.perpal_1x_keterangan || undefined;
+    cleanedData.perpal_2x_keterangan = formData.perpal_2x_keterangan || undefined;
 
     // --- Simpan atau update ---
     const isEdit = formData.id && Number(formData.id) !== 0;
@@ -340,7 +423,7 @@ export default function SuratJalan() {
     if (isEdit) {
       const { error } = await supabase
         .from("surat_jalan")
-        .update({ ...cleanedData, no_surat_jalan: finalNomor })
+        .update({ ...cleanedData, no_surat_jalan: finalNomor, user_id: userId })
         .eq("id", formData.id);
       dbError = error;
     } else {
@@ -349,7 +432,7 @@ export default function SuratJalan() {
       const result = await insertWithAutoNomor({
           table: "surat_jalan",
           prefix: "SJ-",
-          data: cleanedData,
+          data: { ...cleanedData, user_id: userId },
           nomorField: "no_surat_jalan",
         });
 
@@ -414,6 +497,17 @@ export default function SuratJalan() {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  // --- Handle Cancel Perpal ---
+  const handleCancelPerpal = () => {
+    setFormData((prev) => ({
+      ...prev,
+      perpal_1x_tanggal: undefined,
+      perpal_1x_rute: undefined,
+      perpal_2x_tanggal: undefined,
+      perpal_2x_rute: undefined,
     }));
   };
 
@@ -521,7 +615,7 @@ export default function SuratJalan() {
                 <label className="block mb-1 font-semibold">Driver</label>
                 <select
                   name="driver"
-                  value={formData.driver}
+                  value={formData.driver ?? ""}
                   onChange={handleChange}
                   className={`w-full border rounded px-3 py-2 ${
                     isLocked ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
@@ -541,7 +635,7 @@ export default function SuratJalan() {
                 <label className="block mb-1 font-semibold">Crew</label>
                 <select
                   name="crew"
-                  value={formData.crew}
+                  value={formData.crew ?? ""}
                   onChange={handleChange}
                   className={`w-full border rounded px-3 py-2 ${
                     isLocked ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
@@ -563,7 +657,7 @@ export default function SuratJalan() {
                 <label className="block mb-1 font-semibold">No Polisi</label>
                 <select
                   name="no_polisi"
-                  value={formData.no_polisi}
+                  value={formData.no_polisi ?? ""}
                   onChange={handleChange}
                   className={`w-full border rounded px-3 py-2 ${
                     isLocked ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
@@ -604,11 +698,14 @@ export default function SuratJalan() {
               </div>
             </div>
 
+            {/* === Kode Rute + Perpal === */}
+            <div className="col-span-2 grid grid-cols-[2fr_1fr_1fr] gap-4">
+              {/* Kode Rute */}
               <div>
                 <label className="block mb-1 font-semibold">Kode Rute</label>
                 <select
                   name="kode_rute"
-                  value={formData.kode_rute}
+                  value={formData.kode_rute ?? ""}
                   onChange={handleChange}
                   className={`w-full border rounded px-3 py-2 ${
                     isLocked ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
@@ -624,6 +721,169 @@ export default function SuratJalan() {
                 </select>
               </div>
 
+              {/* Tombol Perpal */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={!canTambahPerpal}
+                  onClick={() =>
+                    canTambahPerpal &&
+                    setFormData((prev) => ({
+                      ...prev,
+                      perpal_1x_tanggal: "",
+                      perpal_1x_rute: "",
+                      perpal_2x_tanggal: undefined,
+                      perpal_2x_rute: undefined,
+                    }))
+                  }
+                  className={`px-2 py-1 rounded text-sm text-white ${
+                    canTambahPerpal
+                      ? "bg-yellow-500 hover:bg-yellow-600"
+                      : "bg-gray-300 cursor-not-allowed"
+                  }`}
+                >
+                  Tambah Perpal 1x
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!canTambahPerpal}
+                  onClick={() =>
+                    canTambahPerpal &&
+                    setFormData((prev) => ({
+                      ...prev,
+                      perpal_2x_tanggal: "",
+                      perpal_2x_rute: "",
+                      perpal_1x_tanggal: undefined,
+                      perpal_1x_rute: undefined,
+                    }))
+                  }
+                  className={`px-2 py-1 rounded text-sm text-white ${
+                    canTambahPerpal
+                      ? "bg-yellow-600 hover:bg-yellow-700"
+                      : "bg-gray-300 cursor-not-allowed"
+                  }`}
+                >
+                  Tambah Perpal 2x
+                </button>
+              </div>
+            </div>
+
+            {/* === Input Keterangan Perpal === */}
+           {formData.perpal_1x_tanggal !== undefined && (
+            <div className="mb-2">
+              <div className="flex gap-2 items-start">
+                {/* Label Perpal 1x + input tanggal */}
+                <div className="w-1/2">
+                  <label className="block font-semibold mb-1">Perpal 1x</label>
+                  <input
+                    type="date"
+                    value={formData.perpal_1x_tanggal ?? ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        perpal_1x_tanggal: e.target.value,
+                      }))
+                    }
+                    onFocus={(e) => e.target.showPicker?.()}
+                    className="border px-2 py-1 text-sm w-full"
+                  />
+                </div>
+
+                {/* Label Kode Rute Baru + select */}
+                <div className="w-1/3">
+                  <label className="block font-semibold mb-1">Kode Rute Baru</label>
+                  <select
+                    value={formData.perpal_1x_rute ?? ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        perpal_1x_rute: e.target.value,
+                      }))
+                    }
+                    className="border px-2 py-1 text-sm w-full"
+                  >
+                    <option value="">Pilih Rute Aktif</option>
+                    {rute.map((r) => (
+                      <option key={r.id} value={r.kode_rute}>
+                        {r.kode_rute}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Tombol tong */}
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={handleCancelPerpal}
+                    className="text-red-500 text-sm"
+                    title="Batalkan Perpal"
+                  >
+                    <FiTrash2 />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {formData.perpal_2x_tanggal !== undefined && (
+          <div className="mb-2">
+            <div className="flex gap-2 items-start">
+              {/* Label Perpal 2x + input tanggal */}
+              <div className="w-1/2">
+                <label className="block font-semibold mb-1">Perpal 2x</label>
+                <input
+                  type="date"
+                  value={formData.perpal_2x_tanggal ?? ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      perpal_2x_tanggal: e.target.value,
+                    }))
+                  }
+                  onFocus={(e) => e.target.showPicker?.()}
+                  className="border px-2 py-1 text-sm w-full"
+                />
+              </div>
+
+              {/* Label Kode Rute Baru + select */}
+              <div className="w-1/3">
+                <label className="block font-semibold mb-1">Kode Rute Baru</label>
+                <select
+                  value={formData.perpal_2x_rute ?? ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      perpal_2x_rute: e.target.value,
+                    }))
+                  }
+                  className="border px-2 py-1 text-sm w-full"
+                >
+                  <option value="">Pilih Rute Aktif</option>
+                  {rute.map((r) => (
+                    <option key={r.id} value={r.kode_rute}>
+                      {r.kode_rute}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tombol tong */}
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={handleCancelPerpal}
+                  className="text-red-500 text-sm"
+                  title="Batalkan Perpal"
+                >
+                  <FiTrash2 />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+            
              <div className="col-span-2 grid grid-cols-2 gap-4">
               {/* KM Berangkat */}
               <div>
@@ -832,12 +1092,13 @@ export default function SuratJalan() {
               <th className="border p-2 text-center w-[90px]">Crew</th>
               <th className="border p-2 text-center w-[120px]">No Surat Jalan</th>
               <th className="border p-2 text-center w-[90px]">No Polisi</th>
-              <th className="border p-2 text-center w-[120px]">Kode Rute</th>
+              <th className="border p-2 text-center w-[180px]">Kode Rute</th>
               <th className="border p-2 text-center w-[80px]">KM Berangkat</th>
               <th className="border p-2 text-center w-[80px]">KM Kembali</th>
-              <th className="border p-2 text-center w-[80px]">Snack Berangkat</th>
-              <th className="border p-2 text-center w-[80px]">Snack Kembali</th>
-              <th className="border p-2 text-center w-[250px]">Keterangan</th>
+              <th className="border p-2 text-center w-[60px]">Snack Berangkat</th>
+              <th className="border p-2 text-center w-[60px]">Snack Kembali</th>
+              <th className="border p-2 text-center w-[170px]">Keterangan</th>
+              <th className="border p-2 text-center w-[40px]">User ID</th>
             </tr>
           </thead>
           <tbody>
@@ -890,12 +1151,23 @@ export default function SuratJalan() {
                   <td className="p-2 border">{item.crew}</td>
                   <td className="p-2 border">{item.no_surat_jalan}</td>
                   <td className="p-2 border">{item.no_polisi}</td>
-                  <td className="p-2 border">{item.kode_rute}</td>
+                  <td className="px-3 py-2">
+                    {item.kode_rute}
+                    {(item.perpal_1x_tanggal || item.perpal_2x_tanggal) && (
+                      <span
+                        title="Ada Perpal"
+                        className="ml-2 inline-block text-xs bg-yellow-500 text-white px-1.5 py-0.5 rounded font-bold"
+                      >
+                        🅿️
+                      </span>
+                    )}
+                  </td>
                   <td className="p-2 border">{item.km_berangkat ? Number(item.km_berangkat).toLocaleString("id-ID") : ""}</td>
                   <td className="p-2 border">{item.km_kembali ? Number(item.km_kembali).toLocaleString("id-ID") : ""}</td>
                   <td className="p-2 border">{item.snack_berangkat}</td>
                   <td className="p-2 border">{item.snack_kembali}</td>
                   <td className="p-2 border text-left">{item.keterangan}</td>
+                  <td className="border p-2">{item.user_id || "-"}</td>
                 </tr>
               ))
             )}

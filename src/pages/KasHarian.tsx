@@ -2,8 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiPrinter } from "react-icons/fi";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { DateRangePicker } from "react-date-range";
@@ -22,7 +21,7 @@ import { getCustomUserId } from "../lib/authUser";
 export default function KasHarian() {
   // Data
   const [data, setData] = useState<KasRow[]>([]);
-  const [filtered, setFiltered] = useState<KasRow[]>([]);
+  const [, setFiltered] = useState<KasRow[]>([]);
   const [dataWithSaldo, setDataWithSaldo] = useState<KasRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saldoAwalHistori, setSaldoAwalHistori] = useState(0);
@@ -289,15 +288,32 @@ export default function KasHarian() {
     }
   };
 
-  // Export Excel (filtered set)
+  // Export Excel (Set Manual sesuai frontend)
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filtered);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Kas Harian");
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, "KasHarian.xlsx");
-  };
+  exportTableToExcel(dataWithSaldo, {
+    filename: "KasHarian.xlsx",
+    sheetName: "Kas Harian",
+    columns: [
+      { label: "Tanggal", key: "tanggal", type: "date", format: (v) => new Date(v) },
+      { label: "Waktu", key: "waktu" },
+      { label: "No Bukti", key: "bukti_transaksi" },
+      { label: "Keterangan", key: "keterangan" },
+      { label: "Debet", key: "nominal", type: "currency", format: (v, r) => r?.jenis_transaksi === "debet" ? v : "" },
+      { label: "Kredit", key: "nominal", type: "currency", format: (v, r) => r?.jenis_transaksi === "kredit" ? v : "" },
+      { label: "Saldo", key: "saldo_akhir", type: "currency" },
+      { label: "Created At", key: "created_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+      { label: "User ID", key: "user_id" },
+      { label: "Updated At", key: "updated_at", type: "date", format: (v) => new Date(v) },
+    ],
+    prependRows: [
+      { keterangan: "Saldo Awal", saldo_akhir: saldoAwalHistori }
+    ],
+    appendRows: [
+      { keterangan: "Saldo Akhir", saldo_akhir: dataWithSaldo.at(-1)?.saldo_akhir }
+    ]
+  });
+};
+
 
   // Print (open print page) - open new tab with query (caller implement print route)
   const handlePrint = () => {

@@ -54,7 +54,7 @@ export default function App() {
         if (!path || !rawComponent) continue;
         if (!(accessSet.has(accessKey) || accessSet.has(labelKey))) continue;
 
-        const Component = lazy(resolvePageComponent(rawComponent));
+        const Component = lazy(() => resolvePageComponent(rawComponent)());
         routes.push({ path, access: [accessKey ?? "default"], component: Component });
       }
     }

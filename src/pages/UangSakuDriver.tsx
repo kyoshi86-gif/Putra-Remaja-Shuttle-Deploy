@@ -1,8 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiPrinter} from "react-icons/fi";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
+import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { insertWithAutoNomor } from "../lib/dbUtils";
 import { getCustomUserId } from "../lib/authUser";
 
@@ -204,12 +203,28 @@ export default function UangSakuDriver() {
 
   // --- EXPORT EXCEL ---
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filtered);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Uang Saku Driver");
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, "UangSakuDriver.xlsx");
+    exportTableToExcel(filtered, {
+      filename: "UangSakuDriver.xlsx",
+      sheetName: "Uang Saku Driver",
+      columns: [
+        { label: "Tanggal", key: "tanggal", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "No Uang Saku", key: "no_uang_saku" },
+        { label: "No Surat Jalan", key: "no_surat_jalan" },
+        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Driver", key: "driver" },
+        { label: "Crew", key: "crew" },
+        { label: "No Polisi", key: "no_polisi" },
+        { label: "Kode Unit", key: "kode_unit" },
+        { label: "Kode Rute", key: "kode_rute" },
+        { label: "BBM", key: "bbm", type: "currency" },
+        { label: "Uang Makan", key: "uang_makan", type: "currency" },
+        { label: "Parkir", key: "parkir", type: "currency" },
+        { label: "Jumlah", key: "jumlah", type: "currency" },
+        { label: "Kartu E-Toll", key: "kartu_etoll" },
+        { label: "Created At", key: "created_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+      ]
+    });
   };
 
   // --- Cetak Uang Saku ---

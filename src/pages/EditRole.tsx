@@ -36,18 +36,19 @@ export default function EditRole() {
 
       // Susun parent → child
       const parents = data.filter((m) => !m.parent);
-      const children = data.filter((m) => m.parent);
 
       const structure: Record<string, MenuItem[]> = {};
+
       parents.forEach((parent) => {
-        structure[parent.label] = children
-          .filter((child) => child.parent === parent.id)
-          .map((child) => ({
-            id: child.id,
-            label: child.label,
-            access: child.access,
-            parent: child.parent,
-          }));
+        const children = data.filter((child) => child.parent === parent.id);
+        const grandchildren = data.filter((g) => children.some((c) => g.parent === c.id));
+
+        structure[parent.label] = [...children, ...grandchildren].map((item) => ({
+          id: item.id,
+          label: item.label,
+          access: item.access,
+          parent: item.parent,
+        }));
       });
 
       setMenuStructure(structure);
