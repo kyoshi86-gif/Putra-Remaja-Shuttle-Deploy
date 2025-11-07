@@ -76,9 +76,7 @@
 
 /* ✅ Matikan responsive Tailwind jika perlu */
 @layer utilities {
-  @variants responsive {
-    .no-responsive {
-      @apply min-w-[1024px];
-    }
+  .no-responsive {
+    @apply min-w-[1024px];
   }
 }
