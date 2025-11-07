@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiPrinter } from "react-icons/fi";
-import { exportTableToExcel } from "../utils/exportTableToExcel";
+import { exportTableToExcel, type ColumnConfig } from "../utils/exportTableToExcel";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { DateRangePicker } from "react-date-range";
@@ -20,11 +20,9 @@ import { getCustomUserId } from "../lib/authUser";
 
 // --- helper untuk export excel ---
 export const toDate = (v: unknown): Date | "" => {
-  if (typeof v === "string" || typeof v === "number" || v instanceof Date) {
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? "" : d;
-  }
-  return "";
+  if (!v) return ""; // ⛔ null, undefined, empty string
+  const d = new Date(v as string | number | Date);
+  return isNaN(d.getTime()) ? "" : d;
 };
 
 export default function KasHarian() {
@@ -299,21 +297,51 @@ export default function KasHarian() {
 
   // Export Excel (Set Manual sesuai frontend)
   const handleExportExcel = () => {
+  console.log("🔍 Sample row:", dataWithSaldo[0]);
+
+  const columns: ColumnConfig[] = [
+  { label: "Tanggal", key: "tanggal", type: "date", format: toDate, formatString: "dd/mm/yyyy" },
+  { label: "Waktu", key: "waktu" },
+  { label: "No Bukti", key: "bukti_transaksi" },
+  { label: "Keterangan", key: "keterangan" },
+  {
+    label: "Debet",
+    key: "nominal",
+    type: "currency",
+    format: (v: unknown, r?: Record<string, unknown>) => r?.jenis_transaksi === "debet" ? v : ""
+  },
+  {
+    label: "Kredit",
+    key: "nominal",
+    type: "currency",
+    format: (v: unknown, r?: Record<string, unknown>) => r?.jenis_transaksi === "kredit" ? v : ""
+  },
+  { label: "Saldo", key: "saldo_akhir", type: "currency" },
+  { label: "Created At", key: "created_at", type: "date", format: toDate, formatString: "dd/mm/yyyy hh:mm:ss" },
+  { label: "User ID", key: "user_id" },
+  { label: "Updated At", key: "updated_at", type: "date", format: toDate, formatString: "dd/mm/yyyy hh:mm:ss" },
+];
+
+  const sampleRow = dataWithSaldo[0];
+  const normalized = columns.map((col) => {
+    let val = sampleRow[col.key as keyof typeof sampleRow];
+    if (col.format) val = col.format(val, sampleRow);
+    if (col.type === "date") {
+      const d = new Date(val as string | number | Date);
+      return isNaN(d.getTime()) ? "" : d;
+    }
+    if (col.type === "currency") {
+      return typeof val === "number" ? val : Number(val) || "";
+    }
+    return val ?? "";
+  });
+
+  console.log("🔍 Normalized row:", normalized);
+
   exportTableToExcel(dataWithSaldo, {
     filename: "KasHarian.xlsx",
     sheetName: "Kas Harian",
-    columns: [
-      { label: "Tanggal", key: "tanggal", type: "date", format: toDate },
-      { label: "Waktu", key: "waktu" },
-      { label: "No Bukti", key: "bukti_transaksi" },
-      { label: "Keterangan", key: "keterangan" },
-      { label: "Debet", key: "nominal", type: "currency", format: (v, r) => r?.jenis_transaksi === "debet" ? v : "" },
-      { label: "Kredit", key: "nominal", type: "currency", format: (v, r) => r?.jenis_transaksi === "kredit" ? v : "" },
-      { label: "Saldo", key: "saldo_akhir", type: "currency" },
-      { label: "Created At", key: "created_at", type: "date", format: toDate },
-      { label: "User ID", key: "user_id" },
-      { label: "Updated At", key: "updated_at", type: "date", format: toDate },
-    ],
+    columns,
     prependRows: [
       { keterangan: "Saldo Awal", saldo_akhir: saldoAwalHistori }
     ],

@@ -32,32 +32,24 @@ export function exportTableToExcel(
   const header = columns.map((col) => col.label);
 
   const normalizeRow = (row: Record<string, unknown>) =>
-    columns.map((col) => {
-      const raw = row[col.key as keyof typeof row];
-      const val = col.format ? col.format(raw, row) : raw;
-      if (col.type === "date") {
-        if (
-          typeof val === "string" ||
-          typeof val === "number" ||
-          val instanceof Date
-        ) {
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return "";
-          if (col.label === "Tanggal") {
-            return new Date(d.getFullYear(), d.getMonth(), d.getDate()); // jam 00:00:00
-          }
-          return d;
-        }
-        return ""; // fallback kalau tipe tidak cocok
-      }
-        return "";
+  columns.map((col) => {
+    let val = row[col.key];
 
-      if (col.type === "currency") {
-        return typeof val === "number" ? val : Number(val) || "";
-      }
+    if (col.format) {
+      val = col.format(val, row);
+    }
 
-      return val ?? "";
-    });
+    if (col.type === "date") {
+      const d = new Date(val as string | number | Date);
+      return isNaN(d.getTime()) ? "" : d;
+    }
+
+    if (col.type === "currency") {
+      return typeof val === "number" ? val : Number(val) || "";
+    }
+
+    return val !== undefined && val !== null ? val : "";
+  });
 
   const rows = [header, ...prependRows.map(normalizeRow), ...data.map(normalizeRow), ...appendRows.map(normalizeRow)];
   const sheet = XLSX.utils.aoa_to_sheet(rows);
