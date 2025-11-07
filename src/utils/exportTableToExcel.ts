@@ -4,7 +4,7 @@ import { saveAs } from "file-saver";
 export interface ColumnConfig {
   label: string;
   key: string;
-  format?: (value: any, row?: Record<string, any>) => any;
+  format?: (value: unknown, row?: Record<string, unknown>) => unknown;
   type?: "date" | "currency";
   formatString?: string;
 }
@@ -13,12 +13,12 @@ export interface ExportOptions {
   filename?: string;
   sheetName?: string;
   columns: ColumnConfig[];
-  prependRows?: Record<string, any>[];
-  appendRows?: Record<string, any>[];
+  prependRows?: Record<string, unknown>[];
+  appendRows?: Record<string, unknown>[];
 }
 
 export function exportTableToExcel(
-  data: Record<string, any>[],
+  data: Array<Record<string, unknown>>,
   options: ExportOptions
 ) {
   const {
@@ -31,19 +31,26 @@ export function exportTableToExcel(
 
   const header = columns.map((col) => col.label);
 
-  const normalizeRow = (row: Record<string, any>) =>
+  const normalizeRow = (row: Record<string, unknown>) =>
     columns.map((col) => {
-      const raw = row[col.key];
+      const raw = row[col.key as keyof typeof row];
       const val = col.format ? col.format(raw, row) : raw;
-
       if (col.type === "date") {
-        const d = new Date(val);
-        if (isNaN(d.getTime())) return "";
-        if (col.label === "Tanggal") {
-          return new Date(d.getFullYear(), d.getMonth(), d.getDate()); // jam 00:00:00
+        if (
+          typeof val === "string" ||
+          typeof val === "number" ||
+          val instanceof Date
+        ) {
+          const d = new Date(val);
+          if (isNaN(d.getTime())) return "";
+          if (col.label === "Tanggal") {
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate()); // jam 00:00:00
+          }
+          return d;
         }
-        return d;
+        return ""; // fallback kalau tipe tidak cocok
       }
+        return "";
 
       if (col.type === "currency") {
         return typeof val === "number" ? val : Number(val) || "";

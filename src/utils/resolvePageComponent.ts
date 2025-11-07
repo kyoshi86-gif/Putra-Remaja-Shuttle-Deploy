@@ -1,18 +1,28 @@
-export function resolvePageComponent(name: string): () => Promise<{ default: React.ComponentType<any> }> {
+export function resolvePageComponent(name: string): () => Promise<{ default: React.ComponentType<unknown> }> {
   const modules = import.meta.glob('/src/pages/**/*.{tsx,jsx}');
 
   const normalized = name.trim().replace(/^\/+/, '');
-  const path = `/src/pages/${normalized}.tsx`;
 
-  const loader = modules[path];
+  // 🔧 Tambahkan fallback ke PascalCase
+  const pascal = normalized
+    .split('-')
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join('');
 
-  if (!loader) {
-    console.warn(`❌ Component "${name}" not found at ${path}`);
-    return (() =>
-      import('../pages/NotFoundFallback.tsx')) as () => Promise<{
-        default: React.ComponentType<any>;
-      }>;
+  const candidates = [
+    `/src/pages/${normalized}.tsx`,
+    `/src/pages/${pascal}.tsx`,
+    `/src/pages/${normalized}/index.tsx`,
+    `/src/pages/${pascal}/index.tsx`,
+  ];
+
+  for (const path of candidates) {
+    const loader = modules[path];
+    if (loader) {
+      return loader as () => Promise<{ default: React.ComponentType<unknown> }>;
+    }
   }
 
-  return loader as () => Promise<{ default: React.ComponentType<any> }>;
+  console.warn(`❌ Component "${name}" not found in:`, candidates);
+  return () => import('../pages/NotFoundFallback.tsx');
 }

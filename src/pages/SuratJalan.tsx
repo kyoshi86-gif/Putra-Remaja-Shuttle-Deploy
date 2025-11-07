@@ -32,6 +32,15 @@ interface SuratJalanData {
   perpal_2x_rute?: string;
 }
 
+// === Di luar semua fungsi ===
+export const toDate = (v: unknown): Date | "" => {
+  if (typeof v === "string" || typeof v === "number" || v instanceof Date) {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? "" : d;
+  }
+  return "";
+};
+
 export default function SuratJalan() {
   const [data, setData] = useState<SuratJalanData[]>([]);
   const [filtered, setFiltered] = useState<SuratJalanData[]>([]);
@@ -250,8 +259,8 @@ export default function SuratJalan() {
       filename: "SuratJalan.xlsx",
       sheetName: "Surat Jalan",
       columns: [
-        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
-        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: toDate },
+        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: toDate },
         { label: "Driver", key: "driver" },
         { label: "Crew", key: "crew" },
         { label: "No Surat Jalan", key: "no_surat_jalan" },
@@ -262,10 +271,10 @@ export default function SuratJalan() {
         { label: "Snack Berangkat", key: "snack_berangkat" },
         { label: "Snack Kembali", key: "snack_kembali" },
         { label: "Keterangan", key: "keterangan" },
-        { label: "Created At", key: "created_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+        { label: "Created At", key: "created_at", type: "date", format: toDate },
         { label: "User ID", key: "user_id" },
-        { label: "Updated At", key: "updated_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
-      ]
+        { label: "Updated At", key: "updated_at", type: "date", format: toDate },
+      ],
     });
   };
 
@@ -335,7 +344,7 @@ export default function SuratJalan() {
     if (!error) fetchData();
   };
 
-  const parseNumber = (val: any): number | null => {
+  const parseNumber = (val: string | number | null | undefined): number | null => {
     const parsed = Number(String(val).replace(/[^\d.-]/g, ""));
     return Number.isNaN(parsed) ? null : parsed;
   };
@@ -384,9 +393,12 @@ export default function SuratJalan() {
     }
 
     // --- Bersihkan data numeric sesuai kolom baru ---
+    const rawData = Object.fromEntries(
+      Object.entries(formData).filter(([key]) => key !== "perpalAktif")
+    ) as Partial<SuratJalanData>;
 
     let cleanedData: Partial<SuratJalanData> = {
-      ...formData,
+      ...rawData,
       km_berangkat: parseNumber(formData.km_berangkat),
       km_kembali: parseNumber(formData.km_kembali),
       snack_berangkat: parseNumber(formData.snack_berangkat),

@@ -4,8 +4,9 @@ import {FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiPrinter} from "react-icons/
 import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { insertWithAutoNomor } from "../lib/dbUtils";
 import { getCustomUserId } from "../lib/authUser";
+import { toDate } from "./SuratJalan";
 
-interface UangSakuData {
+export interface UangSakuData {
   id: number;
   tanggal: string;
   no_surat_jalan: string;
@@ -23,6 +24,8 @@ interface UangSakuData {
   kartu_etoll: string;
   no_uang_saku: string;
   id_kas_harian?: number | null;
+
+  [key: string]: unknown; // ✅ tambahkan ini
 }
 
 export default function UangSakuDriver() {
@@ -207,11 +210,11 @@ export default function UangSakuDriver() {
       filename: "UangSakuDriver.xlsx",
       sheetName: "Uang Saku Driver",
       columns: [
-        { label: "Tanggal", key: "tanggal", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Tanggal", key: "tanggal", type: "date", format: toDate },
         { label: "No Uang Saku", key: "no_uang_saku" },
         { label: "No Surat Jalan", key: "no_surat_jalan" },
-        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
-        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: toDate },
+        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: toDate },
         { label: "Driver", key: "driver" },
         { label: "Crew", key: "crew" },
         { label: "No Polisi", key: "no_polisi" },
@@ -222,7 +225,7 @@ export default function UangSakuDriver() {
         { label: "Parkir", key: "parkir", type: "currency" },
         { label: "Jumlah", key: "jumlah", type: "currency" },
         { label: "Kartu E-Toll", key: "kartu_etoll" },
-        { label: "Created At", key: "created_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+        { label: "Created At", key: "created_at", type: "date", format: toDate },
       ]
     });
   };
@@ -328,7 +331,9 @@ export default function UangSakuDriver() {
 
     // --- Bersihkan numeric ---
     const numericFields = ["bbm", "uang_makan", "parkir", "jumlah"];
-    const cleanedData: Partial<Record<keyof UangSakuData, string | number | null>> = { ...formData };
+    const cleanedData = {
+      ...formData,
+    } as Partial<Record<keyof UangSakuData, string | number | null>>;
 
     numericFields.forEach((f) => {
       const key = f as keyof UangSakuData;

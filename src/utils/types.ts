@@ -20,5 +20,5 @@ export interface KasRow {
   kartu_etoll?: number | null;
   no_surat_jalan?: string | null;
   jumlah?: number | null;
-
+  [key: string]: unknown;
 }

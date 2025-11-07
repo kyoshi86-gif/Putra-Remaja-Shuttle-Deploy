@@ -26,7 +26,16 @@ interface PremiData {
   id_kas_harian?: number | null;
   user_id?: string;
   perpalAktif?: boolean;
+  [key: string]: unknown; // ✅ tambahkan ini
 }
+
+export const toDate = (v: unknown): Date | "" => {
+  if (typeof v === "string" || typeof v === "number" || v instanceof Date) {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? "" : d;
+  }
+  return "";
+};
 
 export default function PremiDriver() {
   const [data, setData] = useState<PremiData[]>([]);
@@ -494,11 +503,11 @@ export default function PremiDriver() {
       filename: "PremiDriver.xlsx",
       sheetName: "Premi Driver",
       columns: [
-        { label: "Tanggal", key: "tanggal", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Tanggal", key: "tanggal", type: "date", format: toDate },
         { label: "No Premi Driver", key: "no_premi_driver" },
         { label: "No Surat Jalan", key: "no_surat_jalan" },
-        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
-        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy" },
+        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: toDate },
+        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: toDate },
         { label: "Driver", key: "driver" },
         { label: "Crew", key: "crew" },
         { label: "No Polisi", key: "no_polisi" },
@@ -509,7 +518,7 @@ export default function PremiDriver() {
         { label: "Potongan", key: "potongan", type: "currency" },
         { label: "Jumlah", key: "jumlah", type: "currency" },
         { label: "Keterangan", key: "keterangan" },
-        { label: "Created At", key: "created_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+        { label: "Created At", key: "created_at", type: "date", format: toDate },
         { label: "User ID", key: "user_id" },
       ]
     });
@@ -562,22 +571,21 @@ export default function PremiDriver() {
     }
 
     // === Bersihkan angka ===
-    const { perpalAktif, ...formDataWithoutPerpalFlag } = formData;
+    const formDataCleaned = structuredClone(formData);
+    delete formDataCleaned.perpalAktif;
 
-    const cleanedData: Partial<Record<keyof PremiData, string | number | null>> = {
-      ...formDataWithoutPerpalFlag,
-    };
+    const cleanedData = Object.fromEntries(
+      Object.entries(formData).filter(([key]) => key !== "perpalAktif")
+    ) as Partial<Record<keyof PremiData, string | number | null>>;
 
     const numericFields: (keyof PremiData)[] = ["premi", "perpal"];
 
     for (const key of numericFields) {
       const raw = formData[key];
-
       const parsed =
         raw === "" || raw === undefined || raw === null
           ? null
           : Number(String(raw).replace(/[^\d.-]/g, ""));
-
       cleanedData[key] = Number.isNaN(parsed) ? null : parsed;
     }
 

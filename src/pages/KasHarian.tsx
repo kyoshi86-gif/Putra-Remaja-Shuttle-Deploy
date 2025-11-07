@@ -18,6 +18,15 @@ import type { Range } from "react-date-range";
 import PopupUangSakuDriver from "../components/forms/PopupUangSakuDriver";
 import { getCustomUserId } from "../lib/authUser";
 
+// --- helper untuk export excel ---
+export const toDate = (v: unknown): Date | "" => {
+  if (typeof v === "string" || typeof v === "number" || v instanceof Date) {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? "" : d;
+  }
+  return "";
+};
+
 export default function KasHarian() {
   // Data
   const [data, setData] = useState<KasRow[]>([]);
@@ -294,16 +303,16 @@ export default function KasHarian() {
     filename: "KasHarian.xlsx",
     sheetName: "Kas Harian",
     columns: [
-      { label: "Tanggal", key: "tanggal", type: "date", format: (v) => new Date(v) },
+      { label: "Tanggal", key: "tanggal", type: "date", format: toDate },
       { label: "Waktu", key: "waktu" },
       { label: "No Bukti", key: "bukti_transaksi" },
       { label: "Keterangan", key: "keterangan" },
       { label: "Debet", key: "nominal", type: "currency", format: (v, r) => r?.jenis_transaksi === "debet" ? v : "" },
       { label: "Kredit", key: "nominal", type: "currency", format: (v, r) => r?.jenis_transaksi === "kredit" ? v : "" },
       { label: "Saldo", key: "saldo_akhir", type: "currency" },
-      { label: "Created At", key: "created_at", type: "date", format: (v) => new Date(v), formatString: "dd/mm/yyyy hh:mm:ss" },
+      { label: "Created At", key: "created_at", type: "date", format: toDate },
       { label: "User ID", key: "user_id" },
-      { label: "Updated At", key: "updated_at", type: "date", format: (v) => new Date(v) },
+      { label: "Updated At", key: "updated_at", type: "date", format: toDate },
     ],
     prependRows: [
       { keterangan: "Saldo Awal", saldo_akhir: saldoAwalHistori }

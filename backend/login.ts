@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import "dotenv/config";
 import express, { Request, Response } from "express";
 import bcrypt from "bcryptjs";
