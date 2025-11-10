@@ -517,6 +517,13 @@ export default function KasHarian() {
 
   // --- Handler: Edit Kas yang berasal dari uang_saku_driver ---
   const handleEditKas = async (kasRow: KasRow) => {
+    // ⛔ Blokir edit untuk transaksi dari premi_driver
+    if (kasRow.sumber_tabel === "premi_driver") {
+      alert("Silahkan edit di halaman premi driver.");
+      return;
+    }
+
+    // 🔁 Edit untuk uang_saku_driver
     if (kasRow.sumber_tabel === "uang_saku_driver" && kasRow.sumber_id) {
       const { data, error } = await supabase
         .from("uang_saku_driver")
@@ -546,14 +553,14 @@ export default function KasHarian() {
       setFormMode("edit");
       setFormSource("uang_saku_driver");
       setShowForm(true);
-    } else {
-      setFormData({
-        ...kasRow,
-      });
-      setFormMode("edit");
-      setFormSource("kas_harian");
-      setShowForm(true);
+      return;
     }
+
+    // ✅ Edit transaksi kas_harian biasa
+    setFormData({ ...kasRow });
+    setFormMode("edit");
+    setFormSource("kas_harian");
+    setShowForm(true);
   };
 
   // --- Handler: Single Delete Kas dan sumbernya jika dari uang_saku_driver ---

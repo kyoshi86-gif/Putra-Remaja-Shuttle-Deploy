@@ -9,6 +9,7 @@ const Dashboard = lazy(resolvePageComponent("Dashboard"));
 const EditRole = lazy(resolvePageComponent("EditRole"));
 const CetakSuratJalan = lazy(resolvePageComponent("CetakSuratJalan"));
 const CetakUangSaku = lazy(resolvePageComponent("CetakUangSaku"));
+const CetakPremiDriver = lazy(resolvePageComponent("CetakPremiDriver"));
 
 interface CustomUser {
   id: string;
@@ -123,6 +124,14 @@ export default function App() {
                 element={
                   <RoleProtectedRoute skipAccessCheck>
                     <CetakUangSaku />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="/cetak-premi-driver"
+                element={
+                  <RoleProtectedRoute skipAccessCheck>
+                    <CetakPremiDriver />
                   </RoleProtectedRoute>
                 }
               />

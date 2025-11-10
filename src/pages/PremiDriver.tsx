@@ -925,6 +925,7 @@ export default function PremiDriver() {
     // ✅ Beri sinyal ke halaman Kas Harian agar refresh otomatis
     window.dispatchEvent(new Event("refresh-kas-harian"));
     setIsSubmitting(false); // ✅ buka kunci submit
+    return true;
   };
 
   //--- AUTO REFRESH TAPI GAGAL ---
@@ -1270,7 +1271,28 @@ export default function PremiDriver() {
               <FiX size={22} />
             </button>
             <h2 className="text-2xl font-semibold mb-4 text-center">Form Premi Driver</h2>
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+            
+            <form
+              onSubmit={async (e: React.FormEvent<HTMLFormElement>) => {
+                e.preventDefault();
+
+                const success = await handleSubmit(e); // ✅ kirim 'e' agar sesuai definisi fungsi
+                if (!success) return; // kalau gagal, stop
+
+                const confirmPrint = window.confirm("Cetak Bukti Premi Driver?");
+                if (confirmPrint) {
+                  // Langsung buka tab cetak dan auto print tanpa popup ukuran
+                  window.open(
+                    `/cetak-premi-driver?no=${formData.no_premi_driver}&autoPrint=true`,
+                    "_blank"
+                  );
+                }
+
+                // Tutup popup form setelah simpan
+                setShowForm(false);
+              }}
+              className="grid grid-cols-2 gap-4 pb-6"
+            >
               <div className="col-span-2">
                 <label>No Premi Driver</label>
                 <input

@@ -24,12 +24,13 @@ interface SuratJalanData {
   snack_kembali: number | null | undefined;
   keterangan: string;
   user_id?: string;
-  perpal_1x_keterangan?: string;
-  perpal_2x_keterangan?: string;
-  perpal_1x_tanggal?: string;
-  perpal_1x_rute?: string;
-  perpal_2x_tanggal?: string;
-  perpal_2x_rute?: string;
+  perpal_1x_tanggal?: string | null;
+  perpal_1x_rute?: string | null;
+  perpal_1x_keterangan?: string | null;
+  perpal_2x_tanggal?: string | null;
+  perpal_2x_rute?: string | null;
+  perpal_2x_keterangan?: string | null;
+  [key: string]: unknown;
 }
 
 // === Di luar semua fungsi ===
@@ -318,7 +319,7 @@ export default function SuratJalan() {
 
     setFormData(cleanItem);
     setShowForm(true);
-    checkIfUsedInUangSaku(item.no_surat_jalan);
+    checkIfUsedInPremiDriver(item.no_surat_jalan);
   };
 
   // --- Delete ---
@@ -417,15 +418,34 @@ export default function SuratJalan() {
     numericFields.forEach((f) => {
       const key = f as keyof SuratJalanData;
       const val = cleanedData[key];
-      const parsed = val === "" || val === undefined || val === null
-        ? null
-        : Number(String(val).replace(/[^\d.-]/g, ""));
-      cleanedData.km_berangkat = Number.isNaN(parsed) ? undefined : parsed;
+      const parsed =
+        val === "" || val === undefined || val === null
+          ? null
+          : Number(String(val).replace(/[^\d.-]/g, ""));
+      // set ke field yang sesuai (tidak selalu km_berangkat)
+      (cleanedData as any)[key] = Number.isNaN(parsed) ? undefined : parsed;
     });
 
-    // ⬅️ Tambahkan ini
-    cleanedData.perpal_1x_keterangan = formData.perpal_1x_keterangan || undefined;
-    cleanedData.perpal_2x_keterangan = formData.perpal_2x_keterangan || undefined;
+    // Pastikan hanya satu jenis perpal yang disimpan (1x atau 2x)
+    if (cleanedData.perpal_2x_tanggal && cleanedData.perpal_2x_tanggal.toString().trim() !== "") {
+      // user memilih perpal 2x -> kosongkan perpal 1x
+      cleanedData.perpal_1x_tanggal = null;
+      cleanedData.perpal_1x_rute = null;
+      cleanedData.perpal_1x_keterangan = null;
+    } else if (cleanedData.perpal_1x_tanggal && cleanedData.perpal_1x_tanggal.toString().trim() !== "") {
+      // user memilih perpal 1x -> kosongkan perpal 2x
+      cleanedData.perpal_2x_tanggal = null;
+      cleanedData.perpal_2x_rute = null;
+      cleanedData.perpal_2x_keterangan = null;
+    } else {
+      // tidak ada perpal sama sekali
+      cleanedData.perpal_1x_tanggal = null;
+      cleanedData.perpal_1x_rute = null;
+      cleanedData.perpal_1x_keterangan = null;
+      cleanedData.perpal_2x_tanggal = null;
+      cleanedData.perpal_2x_rute = null;
+      cleanedData.perpal_2x_keterangan = null;
+    }
 
     // --- Simpan atau update ---
     const isEdit = formData.id && Number(formData.id) !== 0;
@@ -523,20 +543,41 @@ export default function SuratJalan() {
     }));
   };
 
-  // --- FUNGSI PENGECEKAN ---
-  const checkIfUsedInUangSaku = async (no_surat_jalan: string) => {
-    const { data } = await supabase
-      .from("uang_saku_driver")
-      .select("id")
-      .eq("no_surat_jalan", no_surat_jalan)
-      .limit(1);
+  // --- FUNGSI PENGECEKAN: Apakah SJ sudah diproses di premi_driver ---
+  const checkIfUsedInPremiDriver = async (no_surat_jalan: string) => {
+    if (!no_surat_jalan) {
+      setIsLocked(false);
+      return;
+    }
 
-    setIsLocked(Array.isArray(data) && data.length > 0);
+    try {
+      const { data: premiData, error } = await supabase
+        .from("premi_driver")
+        .select("no_surat_jalan") // ⬅️ ubah sesuai nama kolom aslinya
+        .not("no_surat_jalan", "is", null);
+
+      if (error) throw error;
+
+      const target = no_surat_jalan.trim().toUpperCase();
+
+      const found = premiData?.some((row) => {
+        const value = String(row.no_surat_jalan || "").trim().toUpperCase();
+        // bisa jadi ada lebih dari satu SJ dipisah koma
+        return value.split(",").map((s) => s.trim()).includes(target);
+      });
+
+      console.log("🧩 SJ:", target, "→ Locked:", found);
+      setIsLocked(found ?? false);
+    } catch (err) {
+      console.error("❌ Gagal cek premi_driver:", err);
+      setIsLocked(false);
+    }
   };
 
   //-- reset --
    const handleCloseForm = () => {
     setFormData(defaultFormData); // reset semua isi form
+    setIsLocked(false);            // reset status kunci
     setShowForm(false);            // sembunyikan pop-up
     };
 
@@ -733,13 +774,13 @@ export default function SuratJalan() {
                 </select>
               </div>
 
-              {/* Tombol Perpal */}
+              {/* === Tombol Perpal === */}
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={!canTambahPerpal}
+                  disabled={!canTambahPerpal || isLocked}
                   onClick={() =>
-                    canTambahPerpal &&
+                    canTambahPerpal && !isLocked &&
                     setFormData((prev) => ({
                       ...prev,
                       perpal_1x_tanggal: "",
@@ -749,9 +790,9 @@ export default function SuratJalan() {
                     }))
                   }
                   className={`px-2 py-1 rounded text-sm text-white ${
-                    canTambahPerpal
-                      ? "bg-yellow-500 hover:bg-yellow-600"
-                      : "bg-gray-300 cursor-not-allowed"
+                    !canTambahPerpal || isLocked
+                      ? "bg-gray-300 cursor-not-allowed"
+                      : "bg-yellow-500 hover:bg-yellow-600"
                   }`}
                 >
                   Tambah Perpal 1x
@@ -759,9 +800,9 @@ export default function SuratJalan() {
 
                 <button
                   type="button"
-                  disabled={!canTambahPerpal}
+                  disabled={!canTambahPerpal || isLocked}
                   onClick={() =>
-                    canTambahPerpal &&
+                    canTambahPerpal && !isLocked &&
                     setFormData((prev) => ({
                       ...prev,
                       perpal_2x_tanggal: "",
@@ -771,9 +812,9 @@ export default function SuratJalan() {
                     }))
                   }
                   className={`px-2 py-1 rounded text-sm text-white ${
-                    canTambahPerpal
-                      ? "bg-yellow-600 hover:bg-yellow-700"
-                      : "bg-gray-300 cursor-not-allowed"
+                    !canTambahPerpal || isLocked
+                      ? "bg-gray-300 cursor-not-allowed"
+                      : "bg-yellow-600 hover:bg-yellow-700"
                   }`}
                 >
                   Tambah Perpal 2x
@@ -791,29 +832,31 @@ export default function SuratJalan() {
                   <input
                     type="date"
                     value={formData.perpal_1x_tanggal ?? ""}
+                    readOnly={isLocked}
+                    disabled={isLocked}
+                    className={`border px-2 py-1 text-sm w-full ${
+                      isLocked ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                    }`}
                     onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        perpal_1x_tanggal: e.target.value,
-                      }))
+                      !isLocked &&
+                      setFormData((prev) => ({ ...prev, perpal_1x_tanggal: e.target.value }))
                     }
-                    onFocus={(e) => e.target.showPicker?.()}
-                    className="border px-2 py-1 text-sm w-full"
                   />
                 </div>
 
-                {/* Label Kode Rute Baru + select */}
+                {/* Kode Rute Baru */}
                 <div className="w-1/3">
                   <label className="block font-semibold mb-1">Kode Rute Baru</label>
                   <select
                     value={formData.perpal_1x_rute ?? ""}
+                    disabled={isLocked}
+                    className={`border px-2 py-1 text-sm w-full ${
+                      isLocked ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                    }`}
                     onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        perpal_1x_rute: e.target.value,
-                      }))
+                      !isLocked &&
+                      setFormData((prev) => ({ ...prev, perpal_1x_rute: e.target.value }))
                     }
-                    className="border px-2 py-1 text-sm w-full"
                   >
                     <option value="">Pilih Rute Aktif</option>
                     {rute.map((r) => (
@@ -824,17 +867,19 @@ export default function SuratJalan() {
                   </select>
                 </div>
 
-                {/* Tombol tong */}
-                <div className="mt-6">
-                  <button
-                    type="button"
-                    onClick={handleCancelPerpal}
-                    className="text-red-500 text-sm"
-                    title="Batalkan Perpal"
-                  >
-                    <FiTrash2 />
-                  </button>
-                </div>
+                {/* Tombol tong hanya muncul jika belum diproses */}
+                {!isLocked && (
+                  <div className="mt-6">
+                    <button
+                      type="button"
+                      onClick={handleCancelPerpal}
+                      className="text-red-500 text-sm hover:text-red-700"
+                      title="Batalkan Perpal"
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -842,35 +887,35 @@ export default function SuratJalan() {
           {formData.perpal_2x_tanggal !== undefined && (
           <div className="mb-2">
             <div className="flex gap-2 items-start">
-              {/* Label Perpal 2x + input tanggal */}
               <div className="w-1/2">
                 <label className="block font-semibold mb-1">Perpal 2x</label>
                 <input
                   type="date"
                   value={formData.perpal_2x_tanggal ?? ""}
+                  readOnly={isLocked}
+                  disabled={isLocked}
+                  className={`border px-2 py-1 text-sm w-full ${
+                    isLocked ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                  }`}
                   onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      perpal_2x_tanggal: e.target.value,
-                    }))
+                    !isLocked &&
+                    setFormData((prev) => ({ ...prev, perpal_2x_tanggal: e.target.value }))
                   }
-                  onFocus={(e) => e.target.showPicker?.()}
-                  className="border px-2 py-1 text-sm w-full"
                 />
               </div>
 
-              {/* Label Kode Rute Baru + select */}
               <div className="w-1/3">
                 <label className="block font-semibold mb-1">Kode Rute Baru</label>
                 <select
                   value={formData.perpal_2x_rute ?? ""}
+                  disabled={isLocked}
+                  className={`border px-2 py-1 text-sm w-full ${
+                    isLocked ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                  }`}
                   onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      perpal_2x_rute: e.target.value,
-                    }))
+                    !isLocked &&
+                    setFormData((prev) => ({ ...prev, perpal_2x_rute: e.target.value }))
                   }
-                  className="border px-2 py-1 text-sm w-full"
                 >
                   <option value="">Pilih Rute Aktif</option>
                   {rute.map((r) => (
@@ -881,17 +926,19 @@ export default function SuratJalan() {
                 </select>
               </div>
 
-              {/* Tombol tong */}
-              <div className="mt-6">
-                <button
-                  type="button"
-                  onClick={handleCancelPerpal}
-                  className="text-red-500 text-sm"
-                  title="Batalkan Perpal"
-                >
-                  <FiTrash2 />
-                </button>
-              </div>
+              {/* Tombol tong hanya muncul jika belum diproses */}
+              {!isLocked && (
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={handleCancelPerpal}
+                    className="text-red-500 text-sm hover:text-red-700"
+                    title="Batalkan Perpal"
+                  >
+                    <FiTrash2 />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1165,7 +1212,10 @@ export default function SuratJalan() {
                   <td className="p-2 border">{item.no_polisi}</td>
                   <td className="px-3 py-2">
                     {item.kode_rute}
-                    {(item.perpal_1x_tanggal || item.perpal_2x_tanggal) && (
+                    {(
+                      (item.perpal_1x_tanggal && item.perpal_1x_tanggal.trim() !== "") ||
+                      (item.perpal_2x_tanggal && item.perpal_2x_tanggal.trim() !== "")
+                    ) && (
                       <span
                         title="Ada Perpal"
                         className="ml-2 inline-block text-xs bg-yellow-500 text-white px-1.5 py-0.5 rounded font-bold"
@@ -1173,6 +1223,7 @@ export default function SuratJalan() {
                         🅿️
                       </span>
                     )}
+
                   </td>
                   <td className="p-2 border">{item.km_berangkat ? Number(item.km_berangkat).toLocaleString("id-ID") : ""}</td>
                   <td className="p-2 border">{item.km_kembali ? Number(item.km_kembali).toLocaleString("id-ID") : ""}</td>
