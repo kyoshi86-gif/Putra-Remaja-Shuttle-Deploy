@@ -51,10 +51,11 @@ export default function SuratJalan() {
   const [loading, setLoading] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [, setIsUsedInSaku] = useState(false);
+  const [isUsedInPremi, setIsUsedInPremi] = useState(false);
   const [canTambahPerpal, setCanTambahPerpal] = useState(false);
   useEffect(() => {
     hasAccess("surat_jalan.tambah_perpal").then((result) => {
-      console.log("✅ Akses tambah perpal:", result);
       setCanTambahPerpal(result);
     });
   }, []);
@@ -128,7 +129,7 @@ export default function SuratJalan() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const itemsPerPage = 30;
 
   // --- Fetch data ---
   const fetchData = async () => {
@@ -319,7 +320,7 @@ export default function SuratJalan() {
 
     setFormData(cleanItem);
     setShowForm(true);
-    checkIfUsedInPremiDriver(item.no_surat_jalan);
+    checkIfUsedInModules(item.no_surat_jalan);
   };
 
   // --- Delete ---
@@ -411,8 +412,18 @@ export default function SuratJalan() {
       snack_berangkat: parseNumber(formData.snack_berangkat),
       snack_kembali: parseNumber(formData.snack_kembali),
     };
+
     cleanedData = cleanPerpalFields(cleanedData);
-    
+
+    if (isUsedInPremi) {
+      cleanedData.perpal_1x_tanggal = null;
+      cleanedData.perpal_1x_rute = null;
+      cleanedData.perpal_1x_keterangan = null;
+      cleanedData.perpal_2x_tanggal = null;
+      cleanedData.perpal_2x_rute = null;
+      cleanedData.perpal_2x_keterangan = null;
+    }
+
     // Bersihkan angka
   const numericFields: Array<keyof SuratJalanData> = [
     "km_berangkat",
@@ -558,33 +569,39 @@ export default function SuratJalan() {
     }));
   };
 
-  // --- FUNGSI PENGECEKAN: Apakah SJ sudah diproses di premi_driver ---
-  const checkIfUsedInPremiDriver = async (no_surat_jalan: string) => {
+  // --- FUNGSI PENGECEKAN: Apakah SJ sudah diproses di Uangsakudriver ---
+  const checkIfUsedInModules = async (no_surat_jalan: string) => {
     if (!no_surat_jalan) {
+      setIsUsedInSaku(false);
+      setIsUsedInPremi(false);
       setIsLocked(false);
       return;
     }
 
     try {
-      const { data: premiData, error } = await supabase
-        .from("premi_driver")
-        .select("no_surat_jalan") // ⬅️ ubah sesuai nama kolom aslinya
-        .not("no_surat_jalan", "is", null);
+      const [sakuRes, premiRes] = await Promise.all([
+        supabase
+          .from("uang_saku_driver")
+          .select("id")
+          .eq("no_surat_jalan", no_surat_jalan)
+          .limit(1),
+        supabase
+          .from("premi_driver")
+          .select("no_surat_jalan")
+          .eq("no_surat_jalan", no_surat_jalan)
+          .limit(1),
+      ]);
 
-      if (error) throw error;
+      const usedInSaku = (sakuRes.data?.length ?? 0) > 0;
+      const usedInPremi = (premiRes.data?.length ?? 0) > 0;
 
-      const target = no_surat_jalan.trim().toUpperCase();
-
-      const found = premiData?.some((row) => {
-        const value = String(row.no_surat_jalan || "").trim().toUpperCase();
-        // bisa jadi ada lebih dari satu SJ dipisah koma
-        return value.split(",").map((s) => s.trim()).includes(target);
-      });
-
-      console.log("🧩 SJ:", target, "→ Locked:", found);
-      setIsLocked(found ?? false);
+      setIsUsedInSaku(usedInSaku);
+      setIsUsedInPremi(usedInPremi);
+      setIsLocked(usedInSaku); // tetap kunci field utama
     } catch (err) {
-      console.error("❌ Gagal cek premi_driver:", err);
+      console.error("❌ Gagal cek SJ:", err);
+      setIsUsedInSaku(false);
+      setIsUsedInPremi(false);
       setIsLocked(false);
     }
   };
@@ -793,9 +810,9 @@ export default function SuratJalan() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={!canTambahPerpal || isLocked}
+                  disabled={!canTambahPerpal || isUsedInPremi}
                   onClick={() =>
-                    canTambahPerpal && !isLocked &&
+                    canTambahPerpal && !isUsedInPremi &&
                     setFormData((prev) => ({
                       ...prev,
                       perpal_1x_tanggal: "",
@@ -805,7 +822,7 @@ export default function SuratJalan() {
                     }))
                   }
                   className={`px-2 py-1 rounded text-sm text-white ${
-                    !canTambahPerpal || isLocked
+                    !canTambahPerpal || isUsedInPremi
                       ? "bg-gray-300 cursor-not-allowed"
                       : "bg-yellow-500 hover:bg-yellow-600"
                   }`}
@@ -815,9 +832,9 @@ export default function SuratJalan() {
 
                 <button
                   type="button"
-                  disabled={!canTambahPerpal || isLocked}
+                  disabled={!canTambahPerpal || isUsedInPremi}
                   onClick={() =>
-                    canTambahPerpal && !isLocked &&
+                    canTambahPerpal && !isUsedInPremi &&
                     setFormData((prev) => ({
                       ...prev,
                       perpal_2x_tanggal: "",
@@ -827,7 +844,7 @@ export default function SuratJalan() {
                     }))
                   }
                   className={`px-2 py-1 rounded text-sm text-white ${
-                    !canTambahPerpal || isLocked
+                    !canTambahPerpal || isUsedInPremi
                       ? "bg-gray-300 cursor-not-allowed"
                       : "bg-yellow-600 hover:bg-yellow-700"
                   }`}
@@ -847,13 +864,13 @@ export default function SuratJalan() {
                   <input
                     type="date"
                     value={formData.perpal_1x_tanggal ?? ""}
-                    readOnly={isLocked}
-                    disabled={isLocked}
+                    disabled={isUsedInPremi}
+                    readOnly={isUsedInPremi}
                     className={`border px-2 py-1 text-sm w-full ${
-                      isLocked ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                      isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
                     }`}
                     onChange={(e) =>
-                      !isLocked &&
+                      !isUsedInPremi &&
                       setFormData((prev) => ({ ...prev, perpal_1x_tanggal: e.target.value }))
                     }
                   />
@@ -864,12 +881,12 @@ export default function SuratJalan() {
                   <label className="block font-semibold mb-1">Kode Rute Baru</label>
                   <select
                     value={formData.perpal_1x_rute ?? ""}
-                    disabled={isLocked}
+                    disabled={isUsedInPremi}
                     className={`border px-2 py-1 text-sm w-full ${
-                      isLocked ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                      isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
                     }`}
                     onChange={(e) =>
-                      !isLocked &&
+                      !isUsedInPremi &&
                       setFormData((prev) => ({ ...prev, perpal_1x_rute: e.target.value }))
                     }
                   >
@@ -883,7 +900,7 @@ export default function SuratJalan() {
                 </div>
 
                 {/* Tombol tong hanya muncul jika belum diproses */}
-                {!isLocked && (
+                {!isUsedInPremi && (
                   <div className="mt-6">
                     <button
                       type="button"
@@ -907,13 +924,13 @@ export default function SuratJalan() {
                 <input
                   type="date"
                   value={formData.perpal_2x_tanggal ?? ""}
-                  readOnly={isLocked}
-                  disabled={isLocked}
+                   disabled={isUsedInPremi}
+                   readOnly={isUsedInPremi}
                   className={`border px-2 py-1 text-sm w-full ${
-                    isLocked ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                    isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
                   }`}
                   onChange={(e) =>
-                    !isLocked &&
+                    !isUsedInPremi &&
                     setFormData((prev) => ({ ...prev, perpal_2x_tanggal: e.target.value }))
                   }
                 />
@@ -923,12 +940,12 @@ export default function SuratJalan() {
                 <label className="block font-semibold mb-1">Kode Rute Baru</label>
                 <select
                   value={formData.perpal_2x_rute ?? ""}
-                  disabled={isLocked}
+                  disabled={isUsedInPremi}
                   className={`border px-2 py-1 text-sm w-full ${
-                    isLocked ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                    isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
                   }`}
                   onChange={(e) =>
-                    !isLocked &&
+                    !isUsedInPremi &&
                     setFormData((prev) => ({ ...prev, perpal_2x_rute: e.target.value }))
                   }
                 >
@@ -942,7 +959,7 @@ export default function SuratJalan() {
               </div>
 
               {/* Tombol tong hanya muncul jika belum diproses */}
-              {!isLocked && (
+              {!isUsedInPremi && (
                 <div className="mt-6">
                   <button
                     type="button"

@@ -223,6 +223,23 @@ export default function Driver() {
     fetchData();
   };
 
+  const handleCancel = () => {
+    setFormData({ ...emptyDriver });
+    setShowForm(false);
+  };
+
+  //-- HANDLE ESC --
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleCancel(); // ⬅️ panggil fungsi batal
+      }
+    };
+
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
+
   return (
     <div className="p-4 bg-white rounded shadow">
       {/* Form Pop-up */}
@@ -375,6 +392,14 @@ export default function Driver() {
                 className="col-span-2 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
               >
                 Simpan
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="col-span-2 bg-gray-400 text-white py-2 rounded hover:bg-gray-500"
+              >
+                Batal
               </button>
             </form>
           </div>
