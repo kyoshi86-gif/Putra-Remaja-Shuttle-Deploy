@@ -4,7 +4,6 @@ import { supabase } from "../lib/supabaseClient";
 
 export default function CetakUangSaku() {
   const [searchParams] = useSearchParams();
-  const noUangSaku = searchParams.get("no");
   const autoPrint = searchParams.get("autoPrint") === "true";
 
   interface UangSakuRow {
@@ -52,39 +51,39 @@ export default function CetakUangSaku() {
   }, []);
 
   // === FETCH DATA DARI SUPABASE ===
+  const normalizeNomor = (v: string | null) => {
+    if (!v) return "";
+    return v.trim().replace(/^US-/, "US").toUpperCase(); // hilangkan strip setelah US
+  }
+
   useEffect(() => {
     const fetchData = async () => {
+      const raw = searchParams.get("no");
+      const noUangSaku = normalizeNomor(raw);
       if (!noUangSaku) return;
 
-      try {
-        const { data, error } = await supabase
-          .from("uang_saku_driver")
-          .select("*")
-          .eq("no_uang_saku", noUangSaku);
+      const { data, error } = await supabase
+        .from("uang_saku_driver")
+        .select("*")
+        .eq("no_uang_saku", noUangSaku)
+        .maybeSingle();
 
-        if (error) {
-          console.error("Gagal ambil data:", error.message);
-          return;
-        }
-
-        if (!data || data.length === 0) {
-          console.warn("Tidak ditemukan data uang saku:", noUangSaku);
-          setData(null);
-          return;
-        }
-
-        if (data.length > 1) {
-          console.warn(`Peringatan: ada ${data.length} baris untuk no_uang_saku = ${noUangSaku}`);
-        }
-
-        setData(data[0]);
-      } catch (err) {
-        console.error("Kesalahan saat ambil data:", err);
+      if (error) {
+        console.error("❌ Gagal ambil data:", error.message);
+        return;
       }
+
+      if (!data) {
+        console.warn("❌ Tidak ditemukan data uang saku:", noUangSaku);
+        setData(null);
+        return;
+      }
+
+      setData(data);
     };
 
     fetchData();
-  }, [noUangSaku]);
+  }, [searchParams]);
 
   // === AUTOPRINT ===
   useEffect(() => {
@@ -223,7 +222,7 @@ export default function CetakUangSaku() {
                 </div>
             </td>
             <td className="border border-black px-2 py-1">
-                <div className="flex justify-between">
+                <div className="  ">
                 <span>Rp.</span>
                 <span>{formatRupiah(data.uang_makan)}</span>
                 </div>
@@ -291,16 +290,15 @@ export default function CetakUangSaku() {
         Dicetak: {new Date().toLocaleString("id-ID")}
       </p>
 
-      <style>{`
-        @media print {
+      <style media="print">{`
           @page {
-            size: A5 landscape;
-            margin: 4mm 8mm 0mm 4mm;
-          }
+          size: A5 portrait; /* ✅ ubah ke portrait */
+          margin: 2mm 2mm 2mm 2mm; /* ✅ margin lebih proporsional untuk A5 */
+        }
 
           html, body {
-            width: 210mm;
-            height: 148mm;
+            width: 148mm;
+            height: 210mm;
             margin: 0;
             padding: 0;
             font-family: Arial, Helvetica, sans-serif;
@@ -319,6 +317,12 @@ export default function CetakUangSaku() {
             line-height: 1.2 !important;
             max-height: 138mm !important;
             overflow: hidden !important;
+          }
+
+          body .print-container {
+            transform: translateX(-2mm) !important; /* 🔹 geser semua isi ke kiri sedikit */
+            width: calc(80% + 2mm) !important;     /* 🔹 biar tidak potong kanan */
+            box-sizing: border-box !important;
           }
 
           table {

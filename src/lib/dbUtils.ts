@@ -6,8 +6,12 @@ interface InsertWithAutoNomorParams {
   data: Record<string, unknown>;
   nomorField: string;
   previewOnly?: boolean;
-  tanggal?: string; // opsional, default: hari ini
-  excludeFields?: string[]; // opsional: kolom yang harus dihapus dari payload
+  tanggal?: string; // opsional
+  excludeFields?: string[];
+  monthlyReset?: boolean; // ✅ reset per bulan
+  digitCount?: number;    // jumlah digit urutan
+  resetAfterMax?: boolean; // ✅ reset otomatis setelah max tercapai
+  maxSeq?: number;        // ✅ batas maksimal urutan sebelum reset
 }
 
 export async function insertWithAutoNomor({
@@ -18,60 +22,56 @@ export async function insertWithAutoNomor({
   previewOnly = false,
   tanggal,
   excludeFields = [],
+  monthlyReset = true,
+  digitCount = 3,
+  resetAfterMax = false,
+  maxSeq = 999, // ✅ batas default
 }: InsertWithAutoNomorParams) {
   try {
     const today = tanggal ? new Date(tanggal) : new Date();
     const yy = String(today.getFullYear()).slice(2);
     const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    const datePart = `${yy}${mm}${dd}`;
 
-    let nextSeq = "001";
+    const periodPart = monthlyReset ? `${mm}${yy}` : `${mm}${yy}`; // tetap sertakan agar unik
+    let nextSeq = 1;
 
+    // 🔍 Ambil nomor terakhir
     const { data: lastRecords, error } = await supabase
       .from(table)
       .select(nomorField)
-      .like(nomorField, `${prefix}${datePart}-%`)
+      .like(nomorField, `${prefix}%${periodPart}`)
       .order(nomorField, { ascending: false })
       .limit(1);
 
-    if (error) {
-      return { success: false, error: error.message };
+    if (error) return { success: false, error: error.message };
+
+    if (lastRecords?.length > 0 && typeof lastRecords[0] === "object" && lastRecords[0] !== null) {
+      const firstRow = lastRecords[0] as Record<string, unknown>;
+      const lastNomor = String(firstRow[nomorField] ?? "");
+      const match = lastNomor.match(new RegExp(`${prefix}(\\d+)-`));
+      if (match?.[1]) {
+        nextSeq = parseInt(match[1]) + 1;
+        if (resetAfterMax && nextSeq > maxSeq) nextSeq = 1;
+      }
     }
 
-    if (lastRecords && lastRecords.length > 0) {
-      const firstRow = lastRecords[0] as unknown as Record<string, unknown>;
-      const rawNomor = firstRow?.[nomorField];
-      const lastNomor = typeof rawNomor === "string" ? rawNomor : "";
-      const parts = lastNomor.split("-");
-      const lastSeqNum = parseInt(parts[2]);
-      nextSeq = (lastSeqNum + 1).toString().padStart(3, "0");
-    }
+    const nomorBaru = `${prefix}${String(nextSeq).padStart(digitCount, "0")}-${periodPart}`;
 
-    const nextNomor = `${prefix}${datePart}-${nextSeq}`;
+    if (previewOnly) return { success: true, nomor: nomorBaru };
 
-    if (previewOnly) {
-      return { success: true, nomor: nextNomor };
-    }
+    // 🧹 Bersihkan payload sebelum insert
+    const rawData = { ...data, [nomorField]: nomorBaru };
+    excludeFields.forEach((f) => delete rawData[f]);
+    const safeData = Object.fromEntries(Object.entries(rawData).filter(([, v]) => v !== undefined));
 
-    // Bersihkan payload
-    const rawData = { ...data, [nomorField]: nextNomor };
-    excludeFields.forEach((field) => delete rawData[field]);
-
-    const safeData = Object.fromEntries(
-      Object.entries(rawData).filter(([, v]) => v !== undefined)
-    );
-
-    console.log("✅ Final safeData yang dikirim ke Supabase:", JSON.stringify(safeData, null, 2));
-
-    const { data: insertedRows, error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from(table)
       .insert([safeData])
-      .select("id"); // ✅ ambil id dari hasil insert
+      .select("id");
 
     if (insertError) return { success: false, error: insertError.message };
 
-    return { success: true, nomor: nextNomor, id: insertedRows?.[0]?.id ?? null, };
+    return { success: true, nomor: nomorBaru, id: inserted?.[0]?.id ?? null };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, error: message };

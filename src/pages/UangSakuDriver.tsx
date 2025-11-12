@@ -201,6 +201,7 @@ export default function UangSakuDriver() {
     else {
       setSelected([]);
       fetchData();
+      await fetchSjList(); 
     }
   };
 
@@ -299,6 +300,7 @@ export default function UangSakuDriver() {
     alert("❌ Gagal hapus: " + deleteError.message);
   } else {
     fetchData(); // refresh tampilan
+    await fetchSjList();
   }
 };
 
@@ -448,10 +450,14 @@ export default function UangSakuDriver() {
 
       const result = await insertWithAutoNomor({
         table: "uang_saku_driver",
-        prefix: "US-",
-        data: cleanedData,
+        prefix: "US",
         nomorField: "no_uang_saku",
+        data: cleanedData,
         previewOnly: false,
+        monthlyReset: false,
+        resetAfterMax: true,  // ✅ reset otomatis setelah 999
+        maxSeq: 999,
+        digitCount: 3,
       });
 
       if (!result.success) {

@@ -6,7 +6,22 @@ export default function CetakPremiDriver() {
   const [searchParams] = useSearchParams();
   const noPD = searchParams.get("no");
   const autoPrint = searchParams.get("autoPrint") === "true";
-  const [suratJalan, setSuratJalan] = useState<any>(null);
+
+  interface SuratJalanRow {
+    no_surat_jalan: string;
+    kode_rute: string;
+    kode_unit: string;
+    no_polisi: string;
+    driver: string;
+    crew: string;
+    perpal_1x_tanggal?: string;
+    perpal_1x_rute?: string;
+    perpal_2x_tanggal?: string;
+    perpal_2x_rute?: string;
+    // tambahkan field lain jika perlu
+  }
+
+  const [suratJalan, setSuratJalan] = useState<SuratJalanRow | null>(null); // ✅
 
   interface CustomUser {
     id: string;
@@ -15,7 +30,26 @@ export default function CetakPremiDriver() {
   }
 
   const [customUser, setCustomUser] = useState<CustomUser | null>(null);
-  const [data, setData] = useState<any>(null);
+
+  interface PremiDriverData {
+    no_premi_driver: string;
+    tanggal: string;
+    no_surat_jalan: string;
+    kode_unit: string;
+    kode_rute: string;
+    no_polisi: string;
+    driver: string;
+    crew: string;
+    totalPremi: number;
+    totalPerpal: number;
+    potonganList: { keterangan: string; nominal: number }[];
+    subTotalA: number;
+    subTotalB: number;
+    takeHomePay: number;
+  }
+
+  const [data, setData] = useState<PremiDriverData | null>(null); // ✅
+
   const [saku, setSaku] = useState({
     bbm: 0,
     makan: 0,
@@ -43,10 +77,17 @@ export default function CetakPremiDriver() {
         .from("premi_driver")
         .select("*")
         .eq("no_premi_driver", noPD)
-        .single();
+        .order("id", { ascending: false }) // ambil yang terbaru kalau duplikat
+        .limit(1)
+        .maybeSingle();
 
-      if (err1 || !pdData) {
-        console.error("❌ Gagal ambil data premi_driver:", err1?.message);
+      if (!pdData) {
+        console.error("❌ Data premi_driver kosong untuk:", noPD);
+        return;
+      }
+
+      if (err1) {
+        console.error("❌ Supabase error:", err1.message || err1);
         return;
       }
 
@@ -156,7 +197,7 @@ export default function CetakPremiDriver() {
 
   // ✅ Format dengan prefix Rp dan default 0 bila undefined
   const formatRp = (num: number | null | undefined) =>
-    `Rp ${Number(num || 0).toLocaleString("id-ID")}`;
+    `${Number(num || 0).toLocaleString("id-ID")}`;
 
   // ✅ Tambahkan fungsi ini di bawah formatRp
   const formatTanggal = (tgl: string | Date | null | undefined) => {
@@ -174,7 +215,7 @@ export default function CetakPremiDriver() {
     }
   };
 
-  const getPerpalKeterangan = (sj: any) => {
+  const getPerpalKeterangan = (sj: SuratJalanRow | null) => {
     if (!sj) return "";
     if (sj.perpal_2x_tanggal && sj.perpal_2x_rute) {
       return `[2x] ${formatTanggal(sj.perpal_2x_tanggal)} ${sj.perpal_2x_rute}`;
@@ -204,7 +245,7 @@ export default function CetakPremiDriver() {
       <h2 className="text-center font-bold underline mb-1 text-[16px]">
         FORM PREMI DRIVER
       </h2>
-      <p className="text-center font-semibold mb-4 text-[14px]">
+      <p className="text-center font-semibold mb-6 text-[14px]">
         NO. {data.no_premi_driver}
       </p>
 
@@ -221,7 +262,7 @@ export default function CetakPremiDriver() {
           <b>: {data.no_surat_jalan}</b>
         </div>
 
-        <div className="grid grid-cols-[80px_1fr] gap-y-[2px]">
+        <div className="grid grid-cols-[60px_1fr] gap-y-[2px]">
           <span>Rute</span>
           <b>: {data.kode_rute}</b>
 
@@ -252,7 +293,7 @@ export default function CetakPremiDriver() {
         {/* REALISASI SAKU DRIVER */}
         <div>
           <b>Realisasi Saku Driver</b>
-          <table className="w-full border text-[11px] mt-1">
+          <table className="w-full border px-2 text-[11px] mt-1">
             <thead>
               <tr>
                 <th className="border px-2 w-[100px]">Keterangan</th>
@@ -262,15 +303,24 @@ export default function CetakPremiDriver() {
             <tbody>
               <tr>
                 <td className="border px-2 text-left">BBM</td>
-                <td className="border px-2 text-right">{formatRp(saku.bbm)}</td>
+                <td className="border px-2 text-right">
+                    <span className="float-left">Rp.</span>
+                    {formatRp(saku.bbm)}
+                </td>
               </tr>
               <tr>
                 <td className="border px-2 text-left">Biaya Makan</td>
-                <td className="border px-2 text-right">{formatRp(saku.makan)}</td>
+                <td className="border px-2 text-right">
+                    <span className="float-left">Rp.</span>
+                    {formatRp(saku.makan)}
+                </td>
               </tr>
               <tr>
                 <td className="border px-2 text-left">Parkir</td>
-                <td className="border px-2 text-right">{formatRp(saku.parkir)}</td>
+                <td className="border px-2 text-right">
+                    <span className="float-left">Rp.</span>
+                    {formatRp(saku.parkir)}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -291,14 +341,20 @@ export default function CetakPremiDriver() {
           <tr>
             <td className="border px-2 text-center">1</td>
             <td className="border px-2 text-left">Premi Driver</td>
-            <td className="border px-2 text-right">{formatRp(data.totalPremi)}</td>
+            <td className="border px-2 text-right">
+                <span className="float-left">Rp.</span>
+                {formatRp(data.totalPremi)}
+            </td>
             <td className="border px-2"></td>
           </tr>
           {data.totalPerpal > 0 && (
             <tr>
               <td className="border px-2 text-center">2</td>
               <td className="border px-2 text-left">Perpal {getPerpalKeterangan(suratJalan)}</td>
-              <td className="border px-2 text-right">{formatRp(data.totalPerpal)}</td>
+              <td className="border px-2 text-right">
+                <span className="float-left">Rp.</span>
+                {formatRp(data.totalPerpal)}
+              </td>
               <td className="border px-2"></td>
             </tr>
           )}
@@ -307,7 +363,8 @@ export default function CetakPremiDriver() {
             <td className="border px-2 text-right font-semibold"></td>
             <td className="border px-2 text-right font-semibold">Total A</td>
             <td className="border px-2 text-right font-semibold">
-             {formatRp(data.subTotalA)}
+                <span className="float-left">Rp.</span>
+                {formatRp(data.subTotalA)}
             </td>
           </tr>
         </tbody>
@@ -325,11 +382,12 @@ export default function CetakPremiDriver() {
             </tr>
           </thead>
           <tbody>
-            {data.potonganList.map((p: any, i: number) => (
+            {data.potonganList.map((p, i) => (
               <tr key={i}>
                 <td className="border px-2 text-center">{i + 1}</td>
                 <td className="border px-2 text-left">{p.keterangan}</td>
-                <td className="border px-2 text-right">{formatRp(p.nominal)}</td>
+                <td className="border px-2 text-right">
+                <span className="float-left">Rp.</span>{formatRp(p.nominal)}</td>
                 <td className="border px-2"></td>
               </tr>
             ))}
@@ -338,6 +396,7 @@ export default function CetakPremiDriver() {
               <td className="border px-2 text-right font-semibold"></td>
               <td className="border px-2 text-right font-semibold">Total B</td>
               <td className="border px-2 text-right font-semibold">
+                 <span className="float-left">Rp.</span>
                 {formatRp(data.subTotalB)}
               </td>
             </tr>
@@ -353,6 +412,7 @@ export default function CetakPremiDriver() {
                 TAKE HOME PAY (A - B)
               </td>
               <td className="border-2 border-black text-right font-bold text-[16px] w-[152px]">
+                 <span className="float-left">Rp.</span>
                 {formatRp(data.takeHomePay)}
               </td>
             </tr>
@@ -385,60 +445,51 @@ export default function CetakPremiDriver() {
         Dicetak: {new Date().toLocaleString("id-ID")}
       </p>
 
-      <style>{`
+      <style media="print">{`
       @media print {
           @page {
-            size: A5 landscape;
-            margin: 4mm 6mm 2mm 4mm;
-          }
+          size: A5 portrait; /* ✅ ubah ke portrait */
+          margin: 2mm 2mm 2mm 2mm; /* ✅ margin lebih proporsional untuk A5 */
+        }
 
           html, body {
-            width: 210mm;
-            height: 148mm;
+            width: 148mm;
+            height: 210mm;
             margin: 0;
             padding: 0;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 10pt;
-            line-height: 1.15;
+            font-size: 9pt;
+            line-height: 1.1;
             overflow: hidden !important;
           }
 
-          * {
+           * {
+            box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
 
-          .print-container {
-            font-size: 10pt !important;
-            line-height: 1.2 !important;
-            max-height: 136mm !important;
+          /* Kontainer utama */
+          .print-sheet {
+            width: 218mm !important; /* pas di dalam margin A5 */
+            max-height: 200mm !important; /* batasi tinggi agar 1 halaman */
+            margin: 0 auto !important;
+            transform: translateX(-26mm); /* geser dikit kiri supaya border kanan aman */
             overflow: hidden !important;
-          }
-
-          .print-container p.text-center.font-semibold {
-            margin-bottom: 6px !important;
-          }
-
-          .h-[40px] {
-            height: 60px !important;
+            font-size: 9pt !important;
+            line-height: 1.15 !important;
           }
 
           h1, h2, h3, h4, h5, h6,
           .text-[13px], .text-[12px], .text-[11px], .text-[10px], .text-[9px] {
-            font-size: 10pt !important;
+            font-size: 9pt !important;
             line-height: 1.2 !important;
-          }
-
-          table {
-            width: 100% !important;
-            border-collapse: collapse;
-            font-size: 10pt;
           }
 
           td, th {
             border: 1px solid black;
             padding: 2px 4px;
-            font-size: 10pt;
+            font-size: 9pt;
           }
           
           .gborder {
@@ -446,10 +497,11 @@ export default function CetakPremiDriver() {
             border-top: hidden;
             border-bottom: hidden;
             padding: 2px 4px;
-            font-size: 10pt;
+            font-size: 9pt;
          }
 
-          .mb-1, .mb-2, .mt-1, .mt-2 {
+          /* Hapus margin berlebihan */
+          .mb-4, .mb-3, .mb-2, .mb-1, .mt-1, .mt-2 {
             margin-top: 2px !important;
             margin-bottom: 2px !important;
           }
@@ -462,18 +514,6 @@ export default function CetakPremiDriver() {
             gap: 2px !important;
           }
 
-          .leading-tight {
-            line-height: 1.2 !important;
-          }
-
-          .text-[10px], .text-[11px], .text-[12px], .text-[13px] {
-            font-size: 9pt !important;
-          }
-
-          .text-[9px] {
-            font-size: 8pt !important;
-          }
-
           .text-right {
             text-align: right !important;
           }
@@ -481,7 +521,10 @@ export default function CetakPremiDriver() {
           .italic {
             font-style: italic !important;
           }
-
+        /* Tabel tanda tangan jangan terlalu tinggi */
+          .h-[120px] {
+            height: 80px !important;
+          }
         }
     `}</style>
     </div>

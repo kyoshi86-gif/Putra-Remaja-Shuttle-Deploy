@@ -2,8 +2,8 @@ import { useRef, useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiPrinter } from "react-icons/fi";
 import { exportTableToExcel } from "../utils/exportTableToExcel";
-import { insertWithAutoNomor } from "../lib/dbUtils";
 import { getCustomUserId } from "../lib/authUser";
+import { insertWithAutoNomor } from "../lib/dbUtils";
 import { hasAccess } from "../lib/hasAccess";
 
 
@@ -393,6 +393,12 @@ export default function SuratJalan() {
       }
     }
 
+    // ✅ Validasi format nomor SJ
+    if (!/^SJ\d{3}-\d{4}$/.test(formData.no_surat_jalan)) {
+      alert("Format nomor surat jalan tidak valid!");
+      return false;
+    }
+
     // --- Bersihkan data numeric sesuai kolom baru ---
     const rawData = Object.fromEntries(
       Object.entries(formData).filter(([key]) => key !== "perpalAktif")
@@ -423,7 +429,7 @@ export default function SuratJalan() {
           ? null
           : Number(String(val).replace(/[^\d.-]/g, ""));
       // set ke field yang sesuai (tidak selalu km_berangkat)
-      (cleanedData as any)[key] = Number.isNaN(parsed) ? undefined : parsed;
+      (cleanedData as Partial<SuratJalanData>)[key] = Number.isNaN(parsed) ? undefined : parsed;
     });
 
     // Pastikan hanya satu jenis perpal yang disimpan (1x atau 2x)
@@ -453,20 +459,29 @@ export default function SuratJalan() {
     let dbError = null;
 
     if (isEdit) {
+      // === MODE EDIT ===
       const { error } = await supabase
         .from("surat_jalan")
         .update({ ...cleanedData, no_surat_jalan: finalNomor, user_id: userId })
         .eq("id", formData.id);
+
       dbError = error;
     } else {
-      delete cleanedData.id; // ⬅️ Wajib untuk mencegah konflik id=0
+      // === MODE TAMBAH BARU ===
+      delete cleanedData.id;
 
       const result = await insertWithAutoNomor({
-          table: "surat_jalan",
-          prefix: "SJ-",
-          data: { ...cleanedData, user_id: userId },
-          nomorField: "no_surat_jalan",
-        });
+        table: "surat_jalan",
+        prefix: "SJ",
+        nomorField: "no_surat_jalan",
+        data: {
+          ...cleanedData,
+          user_id: userId,
+        },
+        monthlyReset: true,   // ✅ reset per bulan
+        resetAfterMax: false, // ✅ tidak perlu reset setelah 999
+        digitCount: 3,        // ✅ agar bisa sampai SJ999
+      });
 
       if (!result.success) {
         alert("❌ Gagal menyimpan: " + result.error);
@@ -1054,34 +1069,30 @@ export default function SuratJalan() {
           <button
             onClick={async () => {
               try {
-                const now = new Date();
-                const yy = String(now.getFullYear()).slice(2);
-                const mm = String(now.getMonth() + 1).padStart(2, "0");
-                const dd = String(now.getDate()).padStart(2, "0");
-                const tanggal = `${yy}${mm}${dd}`; // ⬅️ Format: YYMMDD
-                const prefix = `SJ-${tanggal}-`;
-
-                // Ambil urutan maksimum dari Supabase
-                const { data, error } = await supabase.rpc("get_max_sj_urutan", {
-                  tanggal_prefix: prefix,
+                // 🔹 Panggil fungsi auto nomor
+                const result = await insertWithAutoNomor({
+                  table: "surat_jalan",
+                  prefix: "SJ",
+                  nomorField: "no_surat_jalan",
+                  data: {}, // belum insert, hanya preview
+                  previewOnly: true, // hanya generate nomor
                 });
 
-                if (error) throw error;
+                if (!result.success) {
+                  alert("❌ Gagal membuat nomor otomatis: " + result.error);
+                  return;
+                }
 
-                const maxUrutan = typeof data === "number" && !isNaN(data) ? data : 0;
-                const nextUrutan = String(maxUrutan + 1).padStart(3, "0");
-                const nomorBaru = `${prefix}${nextUrutan}`; // Contoh: SJ-251024-001
-
+                // 🔹 Tampilkan nomor baru ke form
                 setFormData({
                   ...defaultFormData,
-                  no_surat_jalan: nomorBaru,
+                  no_surat_jalan: result.nomor!,
                 });
 
                 setShowForm(true);
               } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);
-                console.error("Gagal membuat nomor SJ:", message);
-                alert("Terjadi kesalahan saat membuat nomor surat jalan.");
+                alert("Terjadi kesalahan saat membuat nomor Surat Jalan: " + message);
               }
             }}
             className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"

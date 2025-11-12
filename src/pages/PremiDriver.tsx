@@ -639,6 +639,10 @@ export default function PremiDriver() {
         data: cleanedData,
         excludeFields: [],
         previewOnly: false,
+        monthlyReset: false,  // ⛔ tidak reset tiap bulan
+        resetAfterMax: true,  // ✅ reset setelah 999
+        maxSeq: 999,
+        digitCount: 3,
       });
 
       if (!result.success) {

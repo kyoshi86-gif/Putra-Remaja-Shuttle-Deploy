@@ -75,6 +75,27 @@ useEffect(() => {
   }, [data, autoPrint]);
 
   useEffect(() => {
+  if (!data) return;
+
+  // Buat style khusus hanya untuk print
+  const styleEl = document.createElement("style");
+  styleEl.setAttribute("media", "print");
+  styleEl.innerHTML = `
+    .grid.grid-cols-3 > div.border.border-black.p-1 {
+      margin-left: -4mm !important;
+      width: calc(100% + 3mm) !important;
+    }
+  `;
+  document.head.appendChild(styleEl);
+
+  // Bersihkan setelah print
+  return () => {
+    document.head.removeChild(styleEl);
+  };
+}, [data]);
+
+
+  useEffect(() => {
   const fetchData = async () => {
     if (!noSurat) return;
 
@@ -130,7 +151,7 @@ useEffect(() => {
   ];
 
   return (
-    <div className="a5-sheet print-sheet print-container font-sans p-4 bg-white text-[12px]">
+    <div className="print-container font-sans p-4 bg-white text-[12px]">
       {/* HEADER */}
       <div className="flex justify-between items-start border-b border-black mb-1">
         <div>
@@ -155,7 +176,7 @@ useEffect(() => {
       {/* INFO UTAMA */}
       <div className="grid grid-cols-3 gap-2 mb-2 text-[11px]">
         {/* KOLOM 1: Kode Unit, No Polisi, Tanggal */}
-        <div className="grid grid-cols-[100px_1fr] gap-y-[2px]">
+        <div className="grid grid-cols-[80px_1fr] gap-y-[2px]">
           <div className="contents">
             <span className="text-left">Kode Unit</span>
             <b>: {data.kode_unit}</b>
@@ -185,7 +206,7 @@ useEffect(() => {
         </div>
 
         {/* KOLOM 2: Rute, Driver, Crew */}
-        <div className="grid grid-cols-[100px_1fr] gap-y-[2px]">
+        <div className="grid grid-cols-[40px_1fr] gap-y-[2px]">
           <div className="contents">
             <span className="text-left">Rute</span>
             <b>: {data.kode_rute}</b>
@@ -218,7 +239,7 @@ useEffect(() => {
           <tbody>
             <tr>
               <td className="border border-black">Snack Berangkat</td>
-              <td className="border border-black text-left px-4">{data.snack_berangkat || ""}</td>
+              <td className="border border-black text-left px-4 w-[200px]">{data.snack_berangkat || ""}</td>
             </tr>
             <tr>
               <td className="border border-black">Snack Kembali</td>
@@ -321,16 +342,15 @@ useEffect(() => {
         Dicetak: {new Date().toLocaleString("id-ID")}
       </p>
 
-      <style>{`
-        @media print {
-          @page {
-            size: A5 landscape;
-            margin: 4mm 6mm 2mm 4mm;
-          }
+      <style media="print">{`
+        @page {
+          size: A5 portrait; /* ✅ ubah ke portrait */
+          margin: 2mm 2mm 2mm 2mm; /* ✅ margin lebih proporsional untuk A5 */
+        }
 
           html, body {
-            width: 210mm;
-            height: 148mm;
+            width: 148mm;
+            height: 210mm;
             margin: 0;
             padding: 0;
             font-family: Arial, Helvetica, sans-serif;
@@ -347,8 +367,14 @@ useEffect(() => {
           .print-container {
             font-size: 9pt !important;
             line-height: 1.2 !important;
-            max-height: 136mm !important;
+            max-height: 195mm !important;
             overflow: hidden !important;
+          }
+
+          body .print-container {
+            transform: translateX(-2mm) !important; /* 🔹 geser semua isi ke kiri sedikit */
+            width: calc(80% + 2mm) !important;     /* 🔹 biar tidak potong kanan */
+            box-sizing: border-box !important;
           }
 
           .print-container p.text-center.font-semibold {
@@ -359,47 +385,82 @@ useEffect(() => {
             height: 60px !important;
           }
 
+          /* Heading & teks umum */
           h1, h2, h3, h4, h5, h6,
           .text-[13px], .text-[12px], .text-[11px], .text-[10px], .text-[9px] {
             font-size: 9pt !important;
             line-height: 1.2 !important;
           }
 
-          table {
-            width: 100% !important;
-            border-collapse: collapse;
-            font-size: 9pt;
+          /* === Grid utama tabel tengah === */
+          .grid.grid-cols-2 {
+            grid-template-columns: 1fr 1.2fr !important; /* 🔹 snack lebih sempit */
+            gap: 2mm !important;
           }
 
+          /* Tabel snack lebih kecil */
+          .grid.grid-cols-2 > table {
+            font-size: 7.5pt !important;
+          }
+
+          .grid.grid-cols-2 > table td,
+          .grid.grid-cols-2 > table th {
+            witdh: 100px !important;
+            font-size: 7.5pt !important;
+          }
+
+          /* Dua tabel kanan (Perlengkapan & Kebersihan) */
+          .grid.grid-cols-2 > div.grid.grid-cols-2 {
+            grid-template-columns: 1fr 1fr !important; /* tetap sejajar */
+            gap: 1.5mm !important;
+            width: 100% !important;
+          }
+
+          .grid.grid-cols-2 > div.grid.grid-cols-2 table {
+            font-size: 7.6pt !important;
+          }
+
+          .grid.grid-cols-2 > div.grid.grid-cols-2 th {
+            background-color: #f3f3f3 !important;
+            font-weight: bold;
+            text-align: center;
+            font-size: 7.6pt !important;
+            padding: 1px !important;
+          }
+
+          .grid.grid-cols-2 > div.grid.grid-cols-2 td, 
+            padding: 4px 6px !important;
+            width: 80% !important;
+          }
+
+           .grid.grid-cols-3 {
+            display: flex !important;
+            justify-content: space-between !important;
+          }
+    
           td, th {
             border: 1px solid black;
             padding: 1px 2px;
             font-size: 9pt;
           }
 
+           /* Jarak antar elemen */
           .mb-1, .mb-2, .mt-1, .mt-2 {
             margin-top: 2px !important;
             margin-bottom: 2px !important;
           }
 
           .gap-2 {
-            gap: 4px !important;
+            gap: 2mm !important;
           }
 
           .gap-1 {
-            gap: 2px !important;
+            gap: 2mm !important;
           }
 
-          .leading-tight {
-            line-height: 1.2 !important;
-          }
-
-          .text-[10px], .text-[11px], .text-[12px], .text-[13px] {
-            font-size: 9pt !important;
-          }
-
-          .text-[9px] {
-            font-size: 8pt !important;
+          /* Tabel tanda tangan */
+          tr.h-[90px] {
+            height: 55px !important;
           }
 
           .text-right {
