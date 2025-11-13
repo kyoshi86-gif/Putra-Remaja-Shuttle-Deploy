@@ -201,7 +201,7 @@ export default function CetakUangSaku() {
       </div>
 
       {/* TABEL BIAYA */}
-      <p className="border-t border-b text-[12px] mb-3 leading-[30px]">
+      <p className="line1 border-t border-b text-[14px] mb-3 leading-[30px]">
         <b>No. Surat Jalan :</b> {data.no_surat_jalan}
       </p>
       <table className="w-full border text-[14px] mt-2">
@@ -245,7 +245,7 @@ export default function CetakUangSaku() {
 
 
       {/* INFORMASI TAMBAHAN */}
-      <div className="text-[11px] mb-3 ">
+      <div className="line1 text-[14px] mb-3 ">
         <p className="leading-[50px]">
           <b>Kartu Etol :</b> {data.kartu_etoll || "-"}
         </p>
@@ -274,7 +274,7 @@ export default function CetakUangSaku() {
 
         </thead>
         <tbody>
-          <tr className="h-[80px] align-bottom">
+          <tr className="h-[100px] align-bottom">
             <td className="border px-2 py-1 text-center align-bottom">
               {data.driver}
             </td>
@@ -292,18 +292,18 @@ export default function CetakUangSaku() {
 
       <style media="print">{`
           @page {
-          size: A5 portrait; /* ✅ ubah ke portrait */
-          margin: 2mm 2mm 2mm 2mm; /* ✅ margin lebih proporsional untuk A5 */
+          size: A4 portrait; /* ✅ ubah ke portrait */
+          margin: 2mm 4mm 2mm 4mm; /* ✅ margin lebih proporsional untuk A5 */
         }
 
           html, body {
-            width: 148mm;
-            height: 210mm;
+            width: 210mm;
+            height: 297mm;
             margin: 0;
             padding: 0;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 9pt;
-            line-height: 1.2;
+            font-size: 12pt;
+            line-height: 1.15;
             overflow: hidden !important;
           }
 
@@ -313,27 +313,54 @@ export default function CetakUangSaku() {
           }
 
           .print-container {
-            font-size: 9pt !important;
-            line-height: 1.2 !important;
-            max-height: 138mm !important;
+            font-size: 12pt !important;
+            line-height: 1.15 !important;
+            max-height: 195mm !important;
             overflow: hidden !important;
           }
 
           body .print-container {
             transform: translateX(-2mm) !important; /* 🔹 geser semua isi ke kiri sedikit */
-            width: calc(80% + 2mm) !important;     /* 🔹 biar tidak potong kanan */
+            width: calc(100% + 4mm) !important;     /* 🔹 biar tidak potong kanan */
             box-sizing: border-box !important;
+          }
+
+          /* === Tambah jarak JUDUL === */
+          h2.text-center.font-bold.underline.mb-1 {
+            font-size: 16pt !important;
+          }
+
+          /* === Tambah jarak antara NO SJ dan INFO UTAMA === */
+          p.text-center.font-semibold.mb-2 {
+            font-size: 14pt !important;
+            margin-bottom: 10mm !important; /* 🔹 dari sebelumnya 4px jadi 10mm */
+          }
+
+          /* === INFO UTAMA === */
+          .grid.grid-cols-2 > div {
+            font-size: 12pt !important; /* 🔹 ukuran teks utama lebih besar */
+            line-height: 1.25 !important;
+          }
+
+          /* Beri jarak sedikit biar tidak padat */
+          .grid.grid-cols-2 {
+            margin-bottom: 6mm !important;
+          }
+
+          .line1 {
+            font-size: 14pt !important;
           }
 
           table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9pt;
+            font-size: 14pt;
           }
 
           td, th {
             border: 1px solid black;
             padding: 1px 3px;
+            font-size: 14pt;
           }
 
           .text-right {

@@ -351,25 +351,151 @@ export default function KasHarian() {
   });
 };
 
+  // ganti fungsi handlePrint lama dengan ini
+  const handlePrint = (startDate: Date, endDate: Date) => {
+    const table = document.querySelector("table");
+    if (!table) return alert("Tabel tidak ditemukan!");
 
-  // Print (open print page) - open new tab with query (caller implement print route)
-  const handlePrint = () => {
-    // if selected none, print all filtered; else print selected
-    let ids = selected;
-    if (ids.length === 0) {
-      // pass date range & other params
-      const from = toWIBDateString(range[0].startDate ?? new Date());
-      const to = toWIBDateString(range[0].endDate ?? new Date());
-      const params = new URLSearchParams();
-      params.set("from", from);
-      params.set("to", to);
-      window.open(`/cetak-kas-harian?${params.toString()}`, "_blank");
+    // Clone tabel agar tidak ubah tampilan utama
+    const clonedTable = table.cloneNode(true) as HTMLElement;
+
+    // --- Hapus kolom checkbox, aksi, jenis ---
+    const removeColumns = (tableEl: HTMLElement) => {
+      const ths = Array.from(tableEl.querySelectorAll("thead th"));
+      const removeIndexes: number[] = [];
+
+      ths.forEach((th, i) => {
+        const text = (th.textContent || "").toLowerCase().trim();
+        const hasCheckbox = !!th.querySelector("input[type='checkbox']");
+        if (hasCheckbox || text === "aksi" || text === "jenis" || text === "") {
+          removeIndexes.push(i);
+        }
+      });
+
+      tableEl.querySelectorAll("tr").forEach((tr) => {
+        removeIndexes
+          .sort((a, b) => b - a)
+          .forEach((idx) => {
+            if (tr.children[idx]) tr.children[idx].remove();
+          });
+      });
+    };
+    removeColumns(clonedTable);
+
+    // Ambil date range
+    let dateRange = "Date range tidak tersedia";
+    try {
+      if (startDate && endDate) {
+        dateRange = `${format(startDate, "dd MMM yy")} - ${format(endDate, "dd MMM yy")}`;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // === CSS cetak dengan lebar kolom disesuaikan ===
+    const printHTML = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Print Kas Harian</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm 6mm; }
+            html, body {
+              margin: 0;
+              padding: 0;
+              font-family: Arial, Helvetica, sans-serif;
+              color: #000;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed; /* penting agar width kolom dipatuhi */
+              word-wrap: break-word;
+            }
+
+            /* 🧩 Atur proporsi kolom */
+            table colgroup col:nth-child(1) { width: 10%; }   /* tanggal */
+            table colgroup col:nth-child(2) { width: 10%; }   /* waktu */
+            table colgroup col:nth-child(3) { width: 15%; }   /* no bukti */
+            table colgroup col:nth-child(4) { width: 60%; }  /* keterangan */
+            table colgroup col:nth-child(5) { width: 9%; }  /* debet */
+            table colgroup col:nth-child(6) { width: 9%; }  /* kredit */
+            table colgroup col:nth-child(7) { width: 9%; }  /* saldo */
+            table colgroup col:nth-child(8) { width: 5%; }  /* user id */
+            table colgroup col:nth-child(9) { width: 10%; }  /* updated at */
+
+            thead th {
+              border: 1px solid #000 !important;
+              padding: 6px !important;
+              background: #fff !important;
+              color: #000 !important;
+              font-weight: bold !important;
+              text-align: center !important;
+              font-size: 12px !important;
+            }
+
+            table td {
+              border: 1px solid #000 !important;
+              padding: 6px 8px !important;
+              vertical-align: middle !important;
+              font-size: 12px !important;
+            }
+
+            td.tengah, th.tengah { text-align: center !important; }
+            td.kanan, th.kanan { text-align: right !important; }
+            td.text-left, th.text-left, td.keterangan { text-align: left !important; }
+
+            td.kanan { white-space: nowrap; }
+
+            button, input[type="checkbox"], .no-print { display: none !important; }
+
+            tbody tr:nth-child(even) td { background: #fafafa !important; }
+
+            h2 {
+              text-align: center;
+              margin: 4px 0 6px 0;
+              font-size: 16px;
+            }
+
+            .daterange {
+              margin: 0 0 6px 4px;
+              font-size: 12px;
+              font-style: italic;
+            }
+          </style>
+        </head>
+        <body>
+          <h2>Kas Harian</h2>
+          <div class="daterange">Date range : ${dateRange}</div>
+          <table>
+            <colgroup>
+              <col /><col /><col /><col /><col /><col /><col /><col /><col />
+            </colgroup>
+            ${clonedTable.innerHTML}
+          </table>
+        </body>
+      </html>
+    `;
+
+    // Buka jendela print
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("❌ Pop-up diblokir. Izinkan pop-up untuk print preview.");
       return;
     }
-    // print selected ids (first one for example)
-    const q = ids.join(",");
-    window.open(`/cetak-kas-harian?ids=${q}`, "_blank");
+
+    printWindow.document.open();
+    printWindow.document.write(printHTML);
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      printWindow.focus();
+      setTimeout(() => printWindow.print(), 300);
+    };
   };
+
 
   // Open form for Kas Masuk / Keluar
   const openForm = (mode: "add_debet" | "add_kredit", row?: KasRow) => {
@@ -833,7 +959,7 @@ export default function KasHarian() {
             </button>
 
             <button
-              onClick={handlePrint}
+              onClick={() => handlePrint(range[0].startDate!, range[0].endDate!)}
               className="flex items-center gap-2 bg-orange-500 text-white px-3 py-1 rounded"
             >
               <FiPrinter /> Cetak
@@ -931,18 +1057,18 @@ export default function KasHarian() {
                             </button>
                           </div>
                         </td>
-                        <td className="p-2 border">
+                        <td className="tengah p-2 border">
                           {row.tanggal ? toWIBDateString(new Date(row.tanggal), "display") : ""}
                         </td>
-                        <td className="p-2 border">{row.waktu ? toWIBTimeString(row.waktu) : ""}</td>
-                        <td className="p-2 border">{row.bukti_transaksi}</td>
+                        <td className="tengah p-2 border">{row.waktu ? toWIBTimeString(row.waktu) : ""}</td>
+                        <td className="tengah p-2 border">{row.bukti_transaksi}</td>
                         <td className="p-2 border text-left">{row.keterangan}</td>
                         <td className="p-2 border">{row.jenis_transaksi}</td>
-                        <td className="p-2 border">{row.jenis_transaksi === "debet" ? fmt(row.nominal) : ""}</td>
-                        <td className="p-2 border">{row.jenis_transaksi === "kredit" ? fmt(row.nominal) : ""}</td>
-                        <td className="p-2 border">{fmt(row.saldo_akhir)}</td>
-                        <td className="p-2 border">{row.user_id}</td>
-                        <td className="p-2 border">
+                        <td className="kanan p-2 border">{row.jenis_transaksi === "debet" ? fmt(row.nominal) : ""}</td>
+                        <td className="kanan p-2 border">{row.jenis_transaksi === "kredit" ? fmt(row.nominal) : ""}</td>
+                        <td className="kanan p-2 border">{fmt(row.saldo_akhir)}</td>
+                        <td className="tengah p-2 border">{row.user_id}</td>
+                        <td className="tengah p-2 border">
                           {row.updated_at ? getWIBTimestampFromUTC(row.updated_at) : ""}
                         </td>
                       </tr>
@@ -1132,6 +1258,58 @@ export default function KasHarian() {
           </div>
         </div>
       )}
+
+      {createPortal(
+      <style>
+        {`
+        @media print {
+          /* Pakai selector lebih spesifik untuk menimpa Tailwind */
+          td.tengah, th.tengah {
+            text-align: center !important;
+          }
+          td.kanan, th.kanan {
+            text-align: right !important;
+          }
+          td.text-left, th.text-left {
+            text-align: left !important;
+          }
+
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+
+          table th, table td {
+            font-size: 12px !important;
+            padding: 4px 6px !important;
+            vertical-align: middle !important;
+            border: 1px solid black !important;
+          }
+
+          /* Header tabel */
+          table thead th {
+            background: white !important;
+            color: black !important;
+            font-weight: bold !important;
+            text-align: center !important;
+          }
+
+          /* Hapus kolom checkbox & aksi saat print */
+          th:nth-child(1),
+          td:nth-child(1),
+          th:has(input[type="checkbox"]),
+          td:has(input[type="checkbox"]),
+          th:contains("Aksi"),
+          td:contains("Aksi"),
+          th:contains("Jenis"),
+          td:contains("Jenis") {
+            display: none !important;
+          }
+        }
+        `}
+      </style>,
+      document.head
+    )}
     </div>
   );
 }

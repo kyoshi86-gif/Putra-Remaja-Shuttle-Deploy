@@ -441,7 +441,6 @@ useEffect(() => {
           /* === Tambah jarak JUDUL === */
           h2.text-center.font-bold.underline.mb-1 {
             font-size: 16pt !important;
-            
           }
 
           /* === Tambah jarak antara NO SJ dan INFO UTAMA === */

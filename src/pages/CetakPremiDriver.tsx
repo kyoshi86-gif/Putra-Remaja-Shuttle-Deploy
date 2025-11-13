@@ -411,7 +411,7 @@ export default function CetakPremiDriver() {
               <td colSpan={3} className="gborder border px-2 text-right font-bold">
                 TAKE HOME PAY (A - B)
               </td>
-              <td className="border-2 border-black text-right font-bold text-[16px] w-[152px]">
+              <td className="border-2 border-black text-right font-bold text-[18px] w-[152px]">
                  <span className="float-left">Rp.</span>
                 {formatRp(data.takeHomePay)}
               </td>
@@ -448,17 +448,17 @@ export default function CetakPremiDriver() {
       <style media="print">{`
       @media print {
           @page {
-          size: A5 portrait; /* ✅ ubah ke portrait */
-          margin: 2mm 2mm 2mm 2mm; /* ✅ margin lebih proporsional untuk A5 */
+          size: A4 portrait; /* ✅ ubah ke portrait */
+          margin: 2mm 4mm 2mm 4mm; /* ✅ margin lebih proporsional untuk A5 */
         }
 
           html, body {
-            width: 148mm;
-            height: 210mm;
+            width: 210mm;
+            height: 297mm;
             margin: 0;
             padding: 0;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 9pt;
+            font-size: 10pt;
             line-height: 1.1;
             overflow: hidden !important;
           }
@@ -471,12 +471,12 @@ export default function CetakPremiDriver() {
 
           /* Kontainer utama */
           .print-sheet {
-            width: 218mm !important; /* pas di dalam margin A5 */
-            max-height: 200mm !important; /* batasi tinggi agar 1 halaman */
+            width: calc(100% + 4mm) !important; /* pas di dalam margin A4 */
+            max-height: 195mm !important; /* batasi tinggi agar 1 halaman */
             margin: 0 auto !important;
-            transform: translateX(-26mm); /* geser dikit kiri supaya border kanan aman */
+            transform: translateX(-2mm); /* geser dikit kiri supaya border kanan aman */
             overflow: hidden !important;
-            font-size: 9pt !important;
+            font-size: 10pt !important;
             line-height: 1.15 !important;
           }
 
@@ -486,10 +486,27 @@ export default function CetakPremiDriver() {
             line-height: 1.2 !important;
           }
 
+          /* === Tambah jarak JUDUL === */
+          h2.text-center.font-bold.underline.mb-1 {
+            font-size: 16pt !important;
+          }
+
+          /* === Tambah jarak antara NO SJ dan INFO UTAMA === */
+          p.text-center.font-semibold.mb-6 {
+            font-size: 14pt !important;
+            margin-bottom: 10mm !important; /* 🔹 dari sebelumnya 4px jadi 10mm */
+          }
+
+          /* === INFO UTAMA === */
+          .grid.grid-cols-3 > div {
+            font-size: 10pt !important; /* 🔹 ukuran teks utama lebih besar */
+            line-height: 1 !important;
+          }
+
           td, th {
             border: 1px solid black;
             padding: 2px 4px;
-            font-size: 9pt;
+            font-size: 10pt;
           }
           
           .gborder {
@@ -497,7 +514,7 @@ export default function CetakPremiDriver() {
             border-top: hidden;
             border-bottom: hidden;
             padding: 2px 4px;
-            font-size: 9pt;
+            font-size: 10pt;
          }
 
           /* Hapus margin berlebihan */
