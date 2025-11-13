@@ -301,10 +301,10 @@ useEffect(() => {
       </div>
 
       {/* Catatan / Penting */}
-      <div className="border-t border-b py-1 text-[11px] mb-2">
+      <div className="border-t border-b py-1 text-[12px] mb-2">
         <b>NOTED : JIKA ADA KENDALA SELAMA PERJALANAN, MOHON HUBUNGI NOMOR 0811-2974-579</b>
       </div>
-      <div className="border-t border-b py-1 text-center text-[12px] mb-2">
+      <div className="border-t border-b py-1 text-center text-[14px] mb-2">
         <b>"Keselamatan adalah Utama, Kejujuran adalah Prioritas"</b>
       </div>
 
@@ -323,7 +323,7 @@ useEffect(() => {
           </tr>
         </thead>
         <tbody>
-          <tr className="h-[90px] align-bottom">
+          <tr className="h-[100px] align-bottom">
             <td className="border px-8 py-1 text-center align-bottom">
               <span>{data.driver}</span>
             </td>
@@ -354,7 +354,7 @@ useEffect(() => {
             margin: 0;
             padding: 0;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 10pt;
+            font-size: 12pt;
             line-height: 1.15;
             overflow: hidden !important;
           }
@@ -365,7 +365,7 @@ useEffect(() => {
           }
 
           .print-container {
-            font-size: 10pt !important;
+            font-size: 12pt !important;
             line-height: 1.2 !important;
             max-height: 195mm !important;
             overflow: hidden !important;
@@ -400,13 +400,13 @@ useEffect(() => {
 
           /* Tabel snack lebih kecil */
           .grid.grid-cols-2 > table {
-            font-size: 10pt !important;
+            font-size: 12pt !important;
           }
 
           .grid.grid-cols-2 > table td,
           .grid.grid-cols-2 > table th {
             witdh: 100px !important;
-            font-size: 10pt !important;
+            font-size: 12pt !important;
           }
 
           /* Dua tabel kanan (Perlengkapan & Kebersihan) */
@@ -417,14 +417,14 @@ useEffect(() => {
           }
 
           .grid.grid-cols-2 > div.grid.grid-cols-2 table {
-            font-size: 10pt !important;
+            font-size: 12pt !important;
           }
 
           .grid.grid-cols-2 > div.grid.grid-cols-2 th {
             background-color: #f3f3f3 !important;
             font-weight: bold;
             text-align: center;
-            font-size: 10pt !important;
+            font-size: 12pt !important;
             padding: 1px !important;
           }
 
@@ -436,6 +436,29 @@ useEffect(() => {
            .grid.grid-cols-3 {
             display: flex !important;
             justify-content: space-between !important;
+          }
+         
+          /* === Tambah jarak JUDUL === */
+          h2.text-center.font-bold.underline.mb-1 {
+            font-size: 16pt !important;
+            
+          }
+
+          /* === Tambah jarak antara NO SJ dan INFO UTAMA === */
+          p.text-center.font-semibold.mb-4 {
+            font-size: 14pt !important;
+            margin-bottom: 10mm !important; /* 🔹 dari sebelumnya 4px jadi 10mm */
+          }
+
+          /* === INFO UTAMA === */
+          .grid.grid-cols-3 > div {
+            font-size: 10pt !important; /* 🔹 ukuran teks utama lebih besar */
+            line-height: 1 !important;
+          }
+
+          /* Beri jarak sedikit biar tidak padat */
+          .grid.grid-cols-3 {
+            margin-bottom: 2mm !important;
           }
     
           td, th {
