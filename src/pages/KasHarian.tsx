@@ -441,6 +441,7 @@ export default function KasHarian() {
               padding: 6px 8px !important;
               vertical-align: middle !important;
               font-size: 12px !important;
+              text-align: center !important;
             }
 
             td.tengah, th.tengah { text-align: center !important; }
