@@ -150,6 +150,30 @@ useEffect(() => {
     "Debu dan Remahan",
   ];
 
+  // ====== PARSER RUTE (ambil tanpa jam) ======
+  const parseRute = (rute: string | undefined) => {
+
+    if (!rute) return { start: "", end: "" };
+
+    // Hilangkan jam -> ambil hanya huruf & strip
+    let cleaned = rute.replace(/[0-9:. ]+$/, "").trim();
+
+    // Pisah berdasarkan strip
+    let parts = cleaned.split("-").map(p => p.trim());
+
+    // Jika format minimal "A - B"
+    if (parts.length >= 2) {
+      return {
+        start: parts[0],
+        end: parts[1],
+      };
+    }
+
+    return { start: "", end: "" };
+  };
+
+  const { start, end } = parseRute(data.kode_rute);
+
   return (
     <div className="print-container font-sans p-4 bg-white text-[12px]">
       {/* HEADER */}
@@ -236,22 +260,34 @@ useEffect(() => {
       {/* Snack & KM */}
       <div className="grid grid-cols-2 gap-2 mb-2 text-[11px]">
         <table className="w-full border text-[11px]">
+          <thead>
+              <tr className="bg-gray-100">
+                <th className="text-center px-2 py-1">Keterangan</th>
+                <th className="text-center px-2 py-1">Jam</th>
+                <th className="text-center px-2 py-1">Snack Berangkat</th>
+                <th className="text-center px-2 py-1">Sisa Snack</th>
+              </tr>
+            </thead>
           <tbody>
             <tr>
-              <td className="border border-black">Snack Berangkat</td>
-              <td className="border border-black text-left px-4 w-[200px]">{data.snack_berangkat || ""}</td>
+              <td className="border border-black">{start} - {end}</td>
+              <td className="border border-black"></td>
+              <td className="border border-black text-left px-4">{data.snack_berangkat || ""}</td>
+              <td className="border border-black"></td>
             </tr>
             <tr>
-              <td className="border border-black">Snack Kembali</td>
-              <td className="border border-black text-left px-4">{data.snack_kembali || ""}</td>
+              <td className="border border-black">{end} - {start}</td>
+              <td className="border border-black"></td>
+              <td className="border border-black text-left px-4"></td>
+              <td className="border border-black">{data.snack_kembali || ""}</td>
             </tr>
             <tr>
-              <td className="border border-black">KM Berangkat</td>
-              <td className="border border-black text-left px-4">{data.km_berangkat ? Number(data.km_berangkat).toLocaleString("id-ID") : ""}</td>
+              <td className="border border-black" >KM Berangkat</td>
+              <td className="border border-black text-center px-4" colSpan={1}>{data.km_berangkat ? Number(data.km_berangkat).toLocaleString("id-ID") : ""}</td>
             </tr>
             <tr>
               <td className="border border-black">KM Kembali</td>
-              <td className="border border-black text-left px-4">{data.km_kembali ? Number(data.km_kembali).toLocaleString("id-ID") : ""}</td>
+              <td className="border border-black text-center px-4" colSpan={1}>{data.km_kembali ? Number(data.km_kembali).toLocaleString("id-ID") : ""}</td>
             </tr>
           </tbody>
         </table>
@@ -299,7 +335,7 @@ useEffect(() => {
           </table>
         </div>
       </div>
-
+      
       {/* Catatan / Penting */}
       <div className="border-t border-b py-1 text-[12px] mb-2">
         <b>NOTED : JIKA ADA KENDALA SELAMA PERJALANAN, MOHON HUBUNGI NOMOR 0811-2974-579</b>

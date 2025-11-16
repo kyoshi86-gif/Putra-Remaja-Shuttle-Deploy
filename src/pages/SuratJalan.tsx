@@ -266,6 +266,7 @@ export default function SuratJalan() {
         { label: "Driver", key: "driver" },
         { label: "Crew", key: "crew" },
         { label: "No Surat Jalan", key: "no_surat_jalan" },
+        { label: "Kode Unit", key: "kode_unit" },
         { label: "No Polisi", key: "no_polisi" },
         { label: "Kode Rute", key: "kode_rute" },
         { label: "KM Berangkat", key: "km_berangkat" },
@@ -1178,6 +1179,7 @@ export default function SuratJalan() {
               <th className="border p-2 text-center w-[90px]">Driver</th>
               <th className="border p-2 text-center w-[90px]">Crew</th>
               <th className="border p-2 text-center w-[120px]">No Surat Jalan</th>
+              <th className="border p-2 text-center w-[90px]">Kode Unit</th>
               <th className="border p-2 text-center w-[90px]">No Polisi</th>
               <th className="border p-2 text-center w-[180px]">Kode Rute</th>
               <th className="border p-2 text-center w-[80px]">KM Berangkat</th>
@@ -1237,6 +1239,7 @@ export default function SuratJalan() {
                   <td className="p-2 border">{item.driver}</td>
                   <td className="p-2 border">{item.crew}</td>
                   <td className="p-2 border">{item.no_surat_jalan}</td>
+                  <td className="p-2 border">{item.kode_unit}</td>
                   <td className="p-2 border">{item.no_polisi}</td>
                   <td className="px-3 py-2">
                     {item.kode_rute}
