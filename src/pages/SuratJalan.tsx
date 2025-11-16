@@ -1178,15 +1178,15 @@ export default function SuratJalan() {
               <th className="border p-2 text-centerw-[90px]">Tanggal Kembali</th>
               <th className="border p-2 text-center w-[90px]">Driver</th>
               <th className="border p-2 text-center w-[90px]">Crew</th>
-              <th className="border p-2 text-center w-[120px]">No Surat Jalan</th>
-              <th className="border p-2 text-center w-[90px]">Kode Unit</th>
+              <th className="border p-2 text-center w-[100px]">No Surat Jalan</th>
+              <th className="border p-2 text-center w-[60px]">Kode Unit</th>
               <th className="border p-2 text-center w-[90px]">No Polisi</th>
-              <th className="border p-2 text-center w-[180px]">Kode Rute</th>
+              <th className="border p-2 text-center w-[140px]">Kode Rute</th>
               <th className="border p-2 text-center w-[80px]">KM Berangkat</th>
               <th className="border p-2 text-center w-[80px]">KM Kembali</th>
               <th className="border p-2 text-center w-[60px]">Snack Berangkat</th>
               <th className="border p-2 text-center w-[60px]">Snack Kembali</th>
-              <th className="border p-2 text-center w-[170px]">Keterangan</th>
+              <th className="border p-2 text-center w-[180px]">Keterangan</th>
               <th className="border p-2 text-center w-[40px]">User ID</th>
             </tr>
           </thead>
@@ -1204,7 +1204,19 @@ export default function SuratJalan() {
                 </td>
               </tr>
             ) : (
-              paginatedData.map((item) => (
+              paginatedData.map((item) => {
+                // Format tanggal ke dd-mm-yyyy
+                const formatTanggal = (tgl: string | Date): string =>
+                  tgl
+                    ? new Date(tgl)
+                        .toLocaleDateString("id-ID", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })
+                        .replaceAll("/", "-")
+                    : "";
+              return (
                 <tr
                   key={item.id}
                   className="hover:bg-yellow-300 transition-all duration-150 text-center border"
@@ -1234,8 +1246,8 @@ export default function SuratJalan() {
                         </button>
                       </div>
                     </td>
-                  <td className="p-2 border">{item.tanggal_berangkat}</td>
-                  <td className="p-2 border">{item.tanggal_kembali}</td>
+                  <td className="p-2 border">{formatTanggal(item.tanggal_berangkat)}</td>
+                  <td className="p-2 border">{formatTanggal(item.tanggal_kembali)}</td>
                   <td className="p-2 border">{item.driver}</td>
                   <td className="p-2 border">{item.crew}</td>
                   <td className="p-2 border">{item.no_surat_jalan}</td>
@@ -1263,7 +1275,8 @@ export default function SuratJalan() {
                   <td className="p-2 border text-left">{item.keterangan}</td>
                   <td className="border p-2">{item.user_id || "-"}</td>
                 </tr>
-              ))
+              );
+})
             )}
           </tbody>
         </table>
