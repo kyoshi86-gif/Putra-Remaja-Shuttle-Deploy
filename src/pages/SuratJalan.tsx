@@ -54,6 +54,50 @@ export default function SuratJalan() {
   const [, setIsUsedInSaku] = useState(false);
   const [isUsedInPremi, setIsUsedInPremi] = useState(false);
   const [canTambahPerpal, setCanTambahPerpal] = useState(false);
+
+  // --- TYPES ---
+interface Armada {
+  id: number;
+  plat: string;
+  merk?: string;
+  status?: string;
+}
+
+interface Rute {
+  id: number;
+  kode_rute: string;
+  status?: string;
+}
+
+// --- NO POLISI ---
+const [npSearch, setNpSearch] = useState("");
+const [showNpDropdown, setShowNpDropdown] = useState(false);
+const [highlightNp, setHighlightNp] = useState(-1);
+
+// --- KODE RUTE ---
+const [rtSearch, setRtSearch] = useState("");
+const [showRtDropdown, setShowRtDropdown] = useState(false);
+const [highlightRt, setHighlightRt] = useState(-1);
+
+const handleSelectNoPolisi = (item: Armada) => {
+  setFormData((prev) => ({
+    ...prev,
+    no_polisi: item.plat,
+  }));
+  setNpSearch(item.plat);
+  setShowNpDropdown(false);
+};
+
+const handleSelectKodeRute = (item: Rute) => {
+  setFormData((prev) => ({
+    ...prev,
+    kode_rute: item.kode_rute,
+  }));
+  setRtSearch(item.kode_rute);
+  setShowRtDropdown(false);
+};
+
+// -- cek akses tambah perpal ---
   useEffect(() => {
     hasAccess("surat_jalan.tambah_perpal").then((result) => {
       setCanTambahPerpal(result);
@@ -738,25 +782,84 @@ export default function SuratJalan() {
               </div>
 
               <div className="col-span-2 grid grid-cols-[2.1fr_1fr_1fr] gap-4">
-              {/* No Polisi */}
-              <div>
+              {/* No Polisi (autocomplete) */}
+              <div className="relative">
                 <label className="block mb-1 font-semibold">No Polisi</label>
-                <select
-                  name="no_polisi"
-                  value={formData.no_polisi ?? ""}
-                  onChange={handleChange}
-                  className={`w-full border rounded px-3 py-2 ${
-                    isLocked ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
-                  }`}
-                  disabled={isLocked}
-                >
-                  <option value="">Pilih Nopol</option>
-                  {armada.map((a) => (
-                    <option key={a.id} value={a.plat}>
-                      {a.plat}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  value={npSearch || formData.no_polisi || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setNpSearch(v);
+                    setShowNpDropdown(true);
+                    setHighlightNp(-1);
+                    setFormData((prev) => ({ ...prev, no_polisi: v }));
+                  }}
+                  onFocus={() => setShowNpDropdown(true)}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setShowNpDropdown(false);
+                      setNpSearch(""); // ⬅️ Tambah: reset pencarian
+                    }, 150);
+                  }}
+                  onKeyDown={(e) => {
+                    const filtered = armada
+                      .sort((a, b) => a.plat.localeCompare(b.plat))
+                      .filter((a) => a.plat.toLowerCase().includes(npSearch.toLowerCase()));
+
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setHighlightNp((prev) => {
+                        const next = prev < filtered.length - 1 ? prev + 1 : 0;
+                        document.getElementById(`np-item-${next}`)?.scrollIntoView({ block: "nearest" });
+                        return next;
+                      });
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setHighlightNp((prev) => {
+                        const next = prev > 0 ? prev - 1 : filtered.length - 1;
+                        document.getElementById(`np-item-${next}`)?.scrollIntoView({ block: "nearest" });
+                        return next;
+                      });
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (highlightNp >= 0) handleSelectNoPolisi(filtered[highlightNp]);
+                    } else if (e.key === "Escape") {
+                      setShowNpDropdown(false);
+                      setNpSearch(""); // ⬅️ reset
+                    }
+                  }}
+                  placeholder="Cari No Polisi..."
+                  className="w-full border rounded px-3 py-2"
+                  autoComplete="off"
+                />
+
+                {showNpDropdown && (
+                  <ul className="absolute z-50 w-full max-h-60 overflow-auto bg-white border rounded mt-1 shadow-lg">
+                    {armada
+                      .sort((a, b) => a.plat.localeCompare(b.plat))
+                      .filter((a) => a.plat.toLowerCase().includes(npSearch.toLowerCase()))
+                      .map((item, idx) => (
+                        <li
+                          key={idx}
+                          id={`np-item-${idx}`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleSelectNoPolisi(item);
+                          }}
+                          className={`px-3 py-2 cursor-pointer ${
+                            highlightNp === idx ? "bg-blue-100" : "hover:bg-gray-200"
+                          }`}
+                        >
+                          {item.plat}
+                        </li>
+                      ))}
+
+                    {armada.filter((a) => a.plat.toLowerCase().includes(npSearch.toLowerCase())).length === 0 && (
+                      <li className="px-3 py-2 text-gray-400">Tidak ditemukan</li>
+                    )}
+                  </ul>
+                )}
               </div>
 
               {/* Kode Unit */}
@@ -786,25 +889,84 @@ export default function SuratJalan() {
 
             {/* === Kode Rute + Perpal === */}
             <div className="col-span-2 grid grid-cols-[2fr_1fr_1fr] gap-4">
-              {/* Kode Rute */}
-              <div>
+              {/* Kode Rute (autocomplete) */}
+              <div className="relative">
                 <label className="block mb-1 font-semibold">Kode Rute</label>
-                <select
-                  name="kode_rute"
-                  value={formData.kode_rute ?? ""}
-                  onChange={handleChange}
-                  className={`w-full border rounded px-3 py-2 ${
-                    isLocked ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
-                  }`}
-                  disabled={isLocked}
-                >
-                  <option value="">Pilih Rute</option>
-                  {rute.map((r) => (
-                    <option key={r.id} value={r.kode_rute}>
-                      {r.kode_rute}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  value={rtSearch || formData.kode_rute || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setRtSearch(v);
+                    setShowRtDropdown(true);
+                    setHighlightRt(-1);
+                    setFormData((prev) => ({ ...prev, kode_rute: v }));
+                  }}
+                  onFocus={() => setShowRtDropdown(true)}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setShowRtDropdown(false);
+                      setRtSearch(""); // ⬅️ reset pencarian
+                    }, 150);
+                  }}
+                  onKeyDown={(e) => {
+                    const filtered = rute
+                      .sort((a, b) => a.kode_rute.localeCompare(b.kode_rute))
+                      .filter((rt) => rt.kode_rute.toLowerCase().includes(rtSearch.toLowerCase()));
+
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setHighlightRt((prev) => {
+                        const next = prev < filtered.length - 1 ? prev + 1 : 0;
+                        document.getElementById(`rt-item-${next}`)?.scrollIntoView({ block: "nearest" });
+                        return next;
+                      });
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setHighlightRt((prev) => {
+                        const next = prev > 0 ? prev - 1 : filtered.length - 1;
+                        document.getElementById(`rt-item-${next}`)?.scrollIntoView({ block: "nearest" });
+                        return next;
+                      });
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (highlightRt >= 0) handleSelectKodeRute(filtered[highlightRt]);
+                    } else if (e.key === "Escape") {
+                      setShowRtDropdown(false);
+                      setRtSearch(""); // ⬅️ reset
+                    }
+                  }}
+                  placeholder="Cari Kode Rute..."
+                  className="w-full border rounded px-3 py-2"
+                  autoComplete="off"
+                />
+
+                {showRtDropdown && (
+                  <ul className="absolute z-50 w-full max-h-60 overflow-auto bg-white border rounded mt-1 shadow-lg">
+                    {rute
+                      .sort((a, b) => a.kode_rute.localeCompare(b.kode_rute))
+                      .filter((rt) => rt.kode_rute.toLowerCase().includes(rtSearch.toLowerCase()))
+                      .map((rt, idx) => (
+                        <li
+                          key={idx}
+                          id={`rt-item-${idx}`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleSelectKodeRute(rt);
+                          }}
+                          className={`px-3 py-2 cursor-pointer ${
+                            highlightRt === idx ? "bg-blue-100" : "hover:bg-gray-200"
+                          }`}
+                        >
+                          {rt.kode_rute}
+                        </li>
+                      ))}
+
+                    {rute.filter((rt) => rt.kode_rute.toLowerCase().includes(rtSearch.toLowerCase())).length === 0 && (
+                      <li className="px-3 py-2 text-gray-400">Tidak ditemukan</li>
+                    )}
+                  </ul>
+                )}
               </div>
 
               {/* === Tombol Perpal === */}
