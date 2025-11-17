@@ -182,7 +182,7 @@ export default function KasHarian() {
   const itemsPerPage = 100;
 
   // Selection
-  const [selected, setSelected] = useState<number[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
   
   // Pagination logic
@@ -201,13 +201,13 @@ export default function KasHarian() {
 
   const handleSelectAll = () => {
     if (selected.length === paginatedData.length) setSelected([]);
-    else setSelected(paginatedData.map((p) => p.id));
+    else setSelected(paginatedData.map((p) => String(p.id)));
   };
 
   const handleSelect = (id: string) =>
-    setSelected((prev) =>
-      prev.includes(Number(id)) ? prev.filter((x) => x !== Number(id)) : [...prev, Number(id)]
-    );
+  setSelected((prev) =>
+    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  );
 
   // Delete selected
   const handleDeleteSelected = async () => {
@@ -1036,7 +1036,7 @@ export default function KasHarian() {
                         <td className="p-2 border">
                           <input
                             type="checkbox"
-                            checked={selected.includes(row.id)}
+                            checked={selected.includes(String(row.id))}
                             onChange={() => handleSelect(String(row.id))}
                           />
                         </td>

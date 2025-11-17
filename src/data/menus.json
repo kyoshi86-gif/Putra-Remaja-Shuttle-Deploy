@@ -46,6 +46,12 @@
     "label": "Kasir",
     "sub": [
       { 
+        "label": "Kasbon", 
+        "access": "Kasir -> Kasbon",
+        "path": "/kasbon",
+        "component": "Kasbon" 
+      },
+      { 
         "label": "Kas Harian", 
         "access": "Kasir -> Kas Harian",
         "path": "/kas-harian",

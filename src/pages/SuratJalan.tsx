@@ -788,19 +788,25 @@ const handleSelectKodeRute = (item: Rute) => {
                 <input
                   type="text"
                   value={npSearch || formData.no_polisi || ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setNpSearch(v);
-                    setShowNpDropdown(true);
-                    setHighlightNp(-1);
-                    setFormData((prev) => ({ ...prev, no_polisi: v }));
-                  }}
-                  onFocus={() => setShowNpDropdown(true)}
-                  onBlur={() => {
-                    setTimeout(() => {
-                      setShowNpDropdown(false);
-                      setNpSearch(""); // ⬅️ Tambah: reset pencarian
-                    }, 150);
+                  disabled={isLocked}
+                    readOnly={isLocked}
+                    className={`w-full border rounded px-3 py-2 ${
+                      isLocked ? "bg-gray-100 cursor-not-allowed text-gray-500" : ""
+                    }`}
+                    onChange={(e) => {
+                      if (isLocked) return; // cegah ketik
+                      const v = e.target.value;
+                      setNpSearch(v);
+                      setShowNpDropdown(true);
+                      setHighlightNp(-1);
+                      setFormData((prev) => ({ ...prev, no_polisi: v }));
+                    }}
+                    onFocus={() => !isLocked && setShowNpDropdown(true)}
+                    onBlur={() => {
+                      setTimeout(() => {
+                        setShowNpDropdown(false);
+                        setNpSearch("");
+                      }, 150);
                   }}
                   onKeyDown={(e) => {
                     const filtered = armada
@@ -830,7 +836,6 @@ const handleSelectKodeRute = (item: Rute) => {
                     }
                   }}
                   placeholder="Cari No Polisi..."
-                  className="w-full border rounded px-3 py-2"
                   autoComplete="off"
                 />
 
@@ -895,19 +900,25 @@ const handleSelectKodeRute = (item: Rute) => {
                 <input
                   type="text"
                   value={rtSearch || formData.kode_rute || ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setRtSearch(v);
-                    setShowRtDropdown(true);
-                    setHighlightRt(-1);
-                    setFormData((prev) => ({ ...prev, kode_rute: v }));
-                  }}
-                  onFocus={() => setShowRtDropdown(true)}
-                  onBlur={() => {
-                    setTimeout(() => {
-                      setShowRtDropdown(false);
-                      setRtSearch(""); // ⬅️ reset pencarian
-                    }, 150);
+                  disabled={isLocked}
+                    readOnly={isLocked}
+                    className={`w-full border rounded px-3 py-2 ${
+                      isLocked ? "bg-gray-100 cursor-not-allowed text-gray-500" : ""
+                    }`}
+                    onChange={(e) => {
+                      if (isLocked) return;
+                      const v = e.target.value;
+                      setRtSearch(v);
+                      setShowRtDropdown(true);
+                      setHighlightRt(-1);
+                      setFormData((prev) => ({ ...prev, kode_rute: v }));
+                    }}
+                    onFocus={() => !isLocked && setShowRtDropdown(true)}
+                    onBlur={() => {
+                      setTimeout(() => {
+                        setShowRtDropdown(false);
+                        setRtSearch("");
+                      }, 150);
                   }}
                   onKeyDown={(e) => {
                     const filtered = rute
@@ -937,7 +948,6 @@ const handleSelectKodeRute = (item: Rute) => {
                     }
                   }}
                   placeholder="Cari Kode Rute..."
-                  className="w-full border rounded px-3 py-2"
                   autoComplete="off"
                 />
 
