@@ -10,6 +10,7 @@ interface ArmadaData {
   plat: string;
   tipe: string;
   layanan: string;
+  ratio_bbm: number;
 }
 
 export default function Armada() {
@@ -24,6 +25,7 @@ export default function Armada() {
     plat: "",
     tipe: "",
     layanan: "",
+    ratio_bbm: 0,
   });
   const [loading, setLoading] = useState(false);
 
@@ -93,6 +95,7 @@ export default function Armada() {
         Plat: d.plat,
         Tipe: d.tipe,
         Layanan: d.layanan,
+        Ratio_BBM: d.ratio_bbm,
       }))
     );
     const wb = XLSX.utils.book_new();
@@ -107,7 +110,7 @@ export default function Armada() {
   };
 
   const handleAdd = () => {
-    setFormData({ id: 0, kode: "", plat: "", tipe: "", layanan: "" });
+    setFormData({ id: 0, kode: "", plat: "", tipe: "", layanan: "", ratio_bbm: 0 });
     setShowForm(true);
   };
 
@@ -125,19 +128,19 @@ export default function Armada() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { id, kode, plat, tipe, layanan } = formData;
-    if (!kode || !plat || !tipe || !layanan) {
+    const { id, kode, plat, tipe, layanan, ratio_bbm } = formData;
+    if (!kode || !plat || !tipe || !layanan || !ratio_bbm) {
       alert("Semua field wajib diisi!");
       return;
     }
 
     if (id === 0) {
-      const { error } = await supabase.from("armada").insert([{ kode, plat, tipe, layanan }]);
+      const { error } = await supabase.from("armada").insert([{ kode, plat, tipe, layanan, ratio_bbm }]);
       if (error) alert("Gagal tambah: " + error.message);
     } else {
       const { error } = await supabase
         .from("armada")
-        .update({ kode, plat, tipe, layanan })
+        .update({ kode, plat, tipe, layanan, ratio_bbm })
         .eq("id", id);
       if (error) alert("Gagal update: " + error.message);
     }
@@ -196,6 +199,15 @@ export default function Armada() {
                 value={formData.layanan}
                 onChange={handleChange}
                 className="col-span-2 border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <input
+                type="text"
+                name="ratio_bbm"
+                placeholder="Ratio"
+                value={formData.ratio_bbm}
+                onChange={handleChange}
+                className="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-[80px]"
                 required
               />
               <button
@@ -270,6 +282,7 @@ export default function Armada() {
               <th className="border p-2 text-center">No Polisi</th>
               <th className="border p-2 text-center">Tipe</th>
               <th className="border p-2 text-center">Layanan</th>
+              <th className="border p-2 text-center w-[60px]">Ratio BBM</th>
               <th className="border p-2 text-center w-[60px]">Aksi</th>
             </tr>
           </thead>
@@ -301,6 +314,7 @@ export default function Armada() {
                   <td className="border text-center">{item.plat}</td>
                   <td className="border text-center">{item.tipe}</td>
                   <td className="border text-center">{item.layanan}</td>
+                  <td className="border text-center">{item.ratio_bbm}</td>
                   <td className="border px-2 py-2 text-center">
                     <div className="flex justify-center gap-[0.5px]">
                     <button

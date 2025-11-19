@@ -5,6 +5,7 @@ import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { getCustomUserId } from "../lib/authUser";
 import { insertWithAutoNomor } from "../lib/dbUtils";
 import { hasAccess } from "../lib/hasAccess";
+import { getWIBTimestampFromUTC } from "../utils/time";
 
 
 interface SuratJalanData {
@@ -24,6 +25,7 @@ interface SuratJalanData {
   snack_kembali: number | null | undefined;
   keterangan: string;
   user_id?: string;
+  updated_at?: string;
   perpal_1x_tanggal?: string | null;
   perpal_1x_rute?: string | null;
   perpal_1x_keterangan?: string | null;
@@ -518,7 +520,7 @@ const handleSelectKodeRute = (item: Rute) => {
       // === MODE EDIT ===
       const { error } = await supabase
         .from("surat_jalan")
-        .update({ ...cleanedData, no_surat_jalan: finalNomor, user_id: userId })
+        .update({ ...cleanedData, no_surat_jalan: finalNomor, user_id: userId, })
         .eq("id", formData.id);
 
       dbError = error;
@@ -1331,7 +1333,7 @@ const handleSelectKodeRute = (item: Rute) => {
 
       {/* TABEL */}
       <div className="w-full pr-8">
-        <table className="w-full table-auto border border-gray-300 text-sm">
+        <table className="min-w-[1550px] table-auto border border-gray-300 text-sm">
           <thead className="bg-gray-400 text-white">
             <tr>
               <th className="p-2 border text-center w-[40px]">
@@ -1360,6 +1362,7 @@ const handleSelectKodeRute = (item: Rute) => {
               <th className="border p-2 text-center w-[60px]">Snack Kembali</th>
               <th className="border p-2 text-center w-[180px]">Keterangan</th>
               <th className="border p-2 text-center w-[40px]">User ID</th>
+              <th className="border p-2 text-center w-[170px]">Updated At</th>
             </tr>
           </thead>
           <tbody>
@@ -1446,9 +1449,10 @@ const handleSelectKodeRute = (item: Rute) => {
                   <td className="p-2 border">{item.snack_kembali}</td>
                   <td className="p-2 border text-left">{item.keterangan}</td>
                   <td className="border p-2">{item.user_id || "-"}</td>
+                  <td className="border p-2">{item.updated_at ? getWIBTimestampFromUTC(item.updated_at) : ""}</td>
                 </tr>
               );
-})
+             })
             )}
           </tbody>
         </table>

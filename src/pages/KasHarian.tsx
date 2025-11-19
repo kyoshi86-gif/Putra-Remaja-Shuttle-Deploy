@@ -18,6 +18,13 @@ import type { Range } from "react-date-range";
 import PopupUangSakuDriver from "../components/forms/PopupUangSakuDriver";
 import { getCustomUserId } from "../lib/authUser";
 
+// === Fix TS: deklarasi properti custom untuk Window ===
+declare global {
+  interface Window {
+    __extraCashOpnameHTML__?: string;
+  }
+}
+
 // --- helper untuk export excel ---
 export const toDate = (v: unknown): Date | "" => {
   if (!v) return ""; // ⛔ null, undefined, empty string
@@ -45,6 +52,27 @@ export default function KasHarian() {
     setSjSearch(sj.no_surat_jalan);
     setShowDropdown(false);
   };
+
+  //-- ambil user dari localstorage --
+ interface CustomUser {
+    id: string;
+    name?: string;
+    email?: string;
+  }
+
+  const [customUser, setCustomUser] = useState<CustomUser | null>(null);
+
+  // === AMBIL USER LOGIN DARI LOCALSTORAGE ===
+  useEffect(() => {
+    const storedUser = localStorage.getItem("custom_user");
+    if (storedUser) {
+      try {
+        setCustomUser(JSON.parse(storedUser));
+      } catch (err) {
+        console.error("Gagal parsing user:", err);
+      }
+    }
+  }, []);
 
   // Search & Filter
   const [filterBy, setFilterBy] = useState<
@@ -190,6 +218,40 @@ export default function KasHarian() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedData = dataWithSaldo.slice(startIndex, startIndex + itemsPerPage);
 
+  // Popup Cash Opname
+  const [showCashOpname, setShowCashOpname] = useState(false);
+
+  // Data Cash Opname
+  const [cashOpnameRows, setCashOpnameRows] = useState([
+    { nominal: 100000, qty: "" },
+    { nominal: 50000, qty: "" },
+    { nominal: 20000, qty: "" },
+    { nominal: 10000, qty: "" },
+    { nominal: 5000, qty: "" },
+    { nominal: 2000, qty: "" },
+    { nominal: 1000, qty: "" },
+  ]);
+
+
+  //-- Reset form Cash Opname --
+  const resetCashOpname = () => {
+    setCashOpnameRows([
+      { nominal: 100000, qty: "" },
+      { nominal: 50000, qty: "" },
+      { nominal: 20000, qty: "" },
+      { nominal: 10000, qty: "" },
+      { nominal: 5000, qty: "" },
+      { nominal: 2000, qty: "" },
+      { nominal: 1000, qty: "" },
+    ]);
+    
+    setBrankas("");
+    setCheckerName("");
+  };
+
+  const [brankas, setBrankas] = useState("")
+  const [checkerName, setCheckerName] = useState(""); // nama pemeriksa
+  const [pendingPrintRange, setPendingPrintRange] = useState<{ start: Date; end: Date } | null>(null);
 
   // select all checkbox behavior
   useEffect(() => {
@@ -297,69 +359,67 @@ export default function KasHarian() {
 
   // Export Excel (Set Manual sesuai frontend)
   const handleExportExcel = () => {
-  console.log("🔍 Sample row:", dataWithSaldo[0]);
+    console.log("🔍 Sample row:", dataWithSaldo[0]);
 
-  const columns: ColumnConfig[] = [
-  { label: "Tanggal", key: "tanggal", type: "date", format: toDate, formatString: "dd/mm/yyyy" },
-  { label: "Waktu", key: "waktu" },
-  { label: "No Bukti", key: "bukti_transaksi" },
-  { label: "Keterangan", key: "keterangan" },
-  {
-    label: "Debet",
-    key: "nominal",
-    type: "currency",
-    format: (v: unknown, r?: Record<string, unknown>) => r?.jenis_transaksi === "debet" ? v : ""
-  },
-  {
-    label: "Kredit",
-    key: "nominal",
-    type: "currency",
-    format: (v: unknown, r?: Record<string, unknown>) => r?.jenis_transaksi === "kredit" ? v : ""
-  },
-  { label: "Saldo", key: "saldo_akhir", type: "currency" },
-  { label: "Created At", key: "created_at", type: "date", format: toDate, formatString: "dd/mm/yyyy hh:mm:ss" },
-  { label: "User ID", key: "user_id" },
-  { label: "Updated At", key: "updated_at", type: "date", format: toDate, formatString: "dd/mm/yyyy hh:mm:ss" },
-];
+    const columns: ColumnConfig[] = [
+    { label: "Tanggal", key: "tanggal", type: "date", format: toDate, formatString: "dd/mm/yyyy" },
+    { label: "Waktu", key: "waktu" },
+    { label: "No Bukti", key: "bukti_transaksi" },
+    { label: "Keterangan", key: "keterangan" },
+    {
+      label: "Debet",
+      key: "nominal",
+      type: "currency",
+      format: (v: unknown, r?: Record<string, unknown>) => r?.jenis_transaksi === "debet" ? v : ""
+    },
+    {
+      label: "Kredit",
+      key: "nominal",
+      type: "currency",
+      format: (v: unknown, r?: Record<string, unknown>) => r?.jenis_transaksi === "kredit" ? v : ""
+    },
+    { label: "Saldo", key: "saldo_akhir", type: "currency" },
+    { label: "Created At", key: "created_at", type: "date", format: toDate, formatString: "dd/mm/yyyy hh:mm:ss" },
+    { label: "User ID", key: "user_id" },
+    { label: "Updated At", key: "updated_at", type: "date", format: toDate, formatString: "dd/mm/yyyy hh:mm:ss" },
+  ];
 
-  const sampleRow = dataWithSaldo[0];
-  const normalized = columns.map((col) => {
-    let val = sampleRow[col.key as keyof typeof sampleRow];
-    if (col.format) val = col.format(val, sampleRow);
-    if (col.type === "date") {
-      const d = new Date(val as string | number | Date);
-      return isNaN(d.getTime()) ? "" : d;
-    }
-    if (col.type === "currency") {
-      return typeof val === "number" ? val : Number(val) || "";
-    }
-    return val ?? "";
-  });
+    const sampleRow = dataWithSaldo[0];
+    const normalized = columns.map((col) => {
+      let val = sampleRow[col.key as keyof typeof sampleRow];
+      if (col.format) val = col.format(val, sampleRow);
+      if (col.type === "date") {
+        const d = new Date(val as string | number | Date);
+        return isNaN(d.getTime()) ? "" : d;
+      }
+      if (col.type === "currency") {
+        return typeof val === "number" ? val : Number(val) || "";
+      }
+      return val ?? "";
+    });
 
-  console.log("🔍 Normalized row:", normalized);
+    console.log("🔍 Normalized row:", normalized);
 
-  exportTableToExcel(dataWithSaldo, {
-    filename: "KasHarian.xlsx",
-    sheetName: "Kas Harian",
-    columns,
-    prependRows: [
-      { keterangan: "Saldo Awal", saldo_akhir: saldoAwalHistori }
-    ],
-    appendRows: [
-      { keterangan: "Saldo Akhir", saldo_akhir: dataWithSaldo.at(-1)?.saldo_akhir }
-    ]
-  });
-};
+    exportTableToExcel(dataWithSaldo, {
+      filename: "KasHarian.xlsx",
+      sheetName: "Kas Harian",
+      columns,
+      prependRows: [
+        { keterangan: "Saldo Awal", saldo_akhir: saldoAwalHistori }
+      ],
+      appendRows: [
+        { keterangan: "Saldo Akhir", saldo_akhir: dataWithSaldo.at(-1)?.saldo_akhir }
+      ]
+    });
+  };
 
-  // ganti fungsi handlePrint lama dengan ini
+  // ganti seluruh handlePrint dengan ini
   const handlePrint = (startDate: Date, endDate: Date) => {
     const table = document.querySelector("table");
     if (!table) return alert("Tabel tidak ditemukan!");
 
-    // Clone tabel agar tidak ubah tampilan utama
     const clonedTable = table.cloneNode(true) as HTMLElement;
 
-    // --- Hapus kolom checkbox, aksi, jenis ---
     const removeColumns = (tableEl: HTMLElement) => {
       const ths = Array.from(tableEl.querySelectorAll("thead th"));
       const removeIndexes: number[] = [];
@@ -373,28 +433,22 @@ export default function KasHarian() {
       });
 
       tableEl.querySelectorAll("tr").forEach((tr) => {
-        removeIndexes
-          .sort((a, b) => b - a)
-          .forEach((idx) => {
-            if (tr.children[idx]) tr.children[idx].remove();
-          });
+        removeIndexes.sort((a, b) => b - a).forEach((idx) => {
+          tr.children[idx]?.remove();
+        });
       });
     };
     removeColumns(clonedTable);
 
-    // Ambil date range
     let dateRange = "Date range tidak tersedia";
     try {
       if (startDate && endDate) {
         dateRange = `${format(startDate, "dd MMM yy")} - ${format(endDate, "dd MMM yy")}`;
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
 
-    // === CSS cetak dengan lebar kolom disesuaikan ===
-    const printHTML = `
-      <!doctype html>
+    const htmlContent = `
+        <!doctype html>
       <html>
         <head>
           <meta charset="utf-8" />
@@ -418,7 +472,7 @@ export default function KasHarian() {
             /* 🧩 Atur proporsi kolom */
             table colgroup col:nth-child(1) { width: 10%; }   /* tanggal */
             table colgroup col:nth-child(2) { width: 10%; }   /* waktu */
-            table colgroup col:nth-child(3) { width: 15%; }   /* no bukti */
+            table colgroup col:nth-child(3) { width: 12%; }   /* no bukti */
             table colgroup col:nth-child(4) { width: 60%; }  /* keterangan */
             table colgroup col:nth-child(5) { width: 9%; }  /* debet */
             table colgroup col:nth-child(6) { width: 9%; }  /* kredit */
@@ -474,22 +528,37 @@ export default function KasHarian() {
             <colgroup>
               <col /><col /><col /><col /><col /><col /><col /><col /><col />
             </colgroup>
-            ${clonedTable.innerHTML}
-          </table>
-        </body>
+          ${clonedTable.innerHTML}
+        </table>
+
+        ${window.__extraCashOpnameHTML__ ?? ""}
+      `;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return alert("Popup diblokir!");
+
+    const finalHTML = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Cetak Kas Harian</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm 6mm; }
+            body { font-family: Arial; }
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            th, td { border: 1px solid #000; padding: 6px; font-size: 12px; }
+          </style>
+        </head>
+        <body>${htmlContent}</body>
       </html>
     `;
 
-    // Buka jendela print
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      alert("❌ Pop-up diblokir. Izinkan pop-up untuk print preview.");
-      return;
-    }
-
     printWindow.document.open();
-    printWindow.document.write(printHTML);
+    printWindow.document.write(finalHTML);
     printWindow.document.close();
+
+    window.__extraCashOpnameHTML__ = undefined; // reset
 
     printWindow.onload = () => {
       printWindow.focus();
@@ -497,6 +566,83 @@ export default function KasHarian() {
     };
   };
 
+  //--- Print with Cash Opname ---
+  const handlePrintWithCashOpname = () => {
+    if (!pendingPrintRange) return;
+
+    // === hitung total fisik cash opname ===
+    const totalFisik = cashOpnameRows.reduce(
+      (sum, r) => sum + r.nominal * (Number(r.qty) || 0),
+      0
+    );
+
+    // pastikan saldoAkhir tidak null
+    const rawSaldoAkhir =
+      dataWithSaldo.length > 0
+        ? dataWithSaldo[dataWithSaldo.length - 1].saldo_akhir
+        : 0;
+
+    const saldoAkhir = rawSaldoAkhir ?? 0;
+
+    // KONVERSI BRANKAS dari input (yang sudah diformat 1.000.000)
+    const brankasValue = Number(brankas.replace(/[^\d]/g, "")) || 0;
+
+    // hitung selisih
+    const selisih = saldoAkhir - totalFisik - brankasValue;
+
+    const toNumber = (val: string | number | null) =>
+      Number(String(val).replace(/[^\d]/g, "")) || 0;
+
+    const extraContent = `
+      <div style="margin-top:20px; display:flex; justify-content:space-between;">
+        <div style="text-align:center; width:45%;">
+          Dibuat Oleh:<br><br><br><br><br>
+          Kasir<br>${customUser?.name || ""}
+        </div>
+        <div style="text-align:center; width:45%;">
+          Diperiksa Oleh:<br><br><br><br><br>
+          Accounting
+        </div>
+
+        <div style="width:41%;">
+          <table style="width:100%; border-collapse:collapse;" border="1">
+            <tr><th colspan="3">CASH OPNAME</th></tr>
+            <tr><th colspan="3">${new Date().toLocaleDateString("id-ID")}</th></tr>
+            <tr><th colspan="2">Saldo Akhir</th><th>${saldoAkhir.toLocaleString("id-ID")}</th></tr>
+            ${cashOpnameRows
+              .map(
+                r => `
+                  <tr>
+                    <td>${r.nominal.toLocaleString("id-ID")}</td>
+                    <td>${r.qty}</td>
+                    <td>${(r.nominal * Number(r.qty || 0)).toLocaleString("id-ID")}</td>
+                  </tr>`
+              )
+              .join("")}
+            <tr><th colspan="2">Jumlah Fisik</th><th>${totalFisik.toLocaleString("id-ID")}</th></tr>
+           <tr>
+            <th colspan="2">Brankas</th>
+            <th>${toNumber(brankas).toLocaleString("id-ID")}</th>
+          </tr>
+            <tr><th colspan="2">Selisih</th><th>${selisih.toLocaleString("id-ID")}</th></tr>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top:10px; text-align:right;">
+        Check Cash Opname Oleh:<br><br><br><br><br>
+        ${checkerName || " "}
+      </div>
+    `;
+
+    // simpan ke window untuk digunakan handlePrint
+    window.__extraCashOpnameHTML__ = extraContent;
+
+    resetCashOpname();
+    setShowCashOpname(false);
+
+    handlePrint(pendingPrintRange.start, pendingPrintRange.end);
+  };
 
   // Open form for Kas Masuk / Keluar
   const openForm = (mode: "add_debet" | "add_kredit", row?: KasRow) => {
@@ -566,6 +712,7 @@ export default function KasHarian() {
       const saldoAkhir = isDebet ? saldoAwal + nominal : saldoAwal - nominal;
 
       const currentUserId = getCustomUserId();
+
 
       const payload = {
         tanggal: formData.tanggal,
@@ -765,17 +912,29 @@ export default function KasHarian() {
     }
   };
 
-  // Escape closes form & resets
+  // ESC untuk semua popup (form utama & cash opname)
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key !== "Escape") return;
+
+      // Tutup Cash Opname jika terbuka
+      if (showCashOpname) {
+        resetCashOpname();
+        setShowCashOpname(false);
+        return;
+      }
+
+      // Tutup Form Utama jika terbuka
+      if (showForm) {
         setShowForm(false);
         setFormData(defaultForm);
+        return;
       }
     };
+
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, []);
+  }, [showCashOpname, showForm]);
 
   // formatting helper for display (ID locale)
   const fmt = (n: number | null | undefined) =>
@@ -960,11 +1119,17 @@ export default function KasHarian() {
             </button>
 
             <button
-              onClick={() => handlePrint(range[0].startDate!, range[0].endDate!)}
-              className="flex items-center gap-2 bg-orange-500 text-white px-3 py-1 rounded"
-            >
-              <FiPrinter /> Cetak
-            </button>
+            onClick={() => {
+              setPendingPrintRange({
+                start: range[0].startDate!,
+                end: range[0].endDate!,
+              });
+              setShowCashOpname(true); // buka popup cash opname
+            }}
+            className="flex items-center gap-2 bg-orange-500 text-white px-3 py-1 rounded"
+          >
+            <FiPrinter /> Cetak
+          </button>
           </div>
         </div>
 
@@ -1259,6 +1424,107 @@ export default function KasHarian() {
           </div>
         </div>
       )}
+
+      {showCashOpname && (
+      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+        <div className="bg-white p-6 rounded shadow-lg w-[460px] max-h-[90vh] overflow-auto">
+
+          <h2 className="text-xl font-bold mb-4">Input Cash Opname</h2>
+
+          <table className="w-full mb-4 border">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="p-1 border">Nominal</th>
+                <th className="p-1 border">Qty</th>
+                <th className="p-1 border w-[100px]">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cashOpnameRows.map((row, idx) => {
+                const qtyNum = Number(row.qty) || 0;
+                const jumlah = row.nominal * qtyNum;
+
+                return (
+                  <tr key={idx}>
+                    <td className="border p-1 text-right">
+                      {row.nominal.toLocaleString("id-ID")}
+                    </td>
+
+                    <td className="border p-1">
+                      <input
+                        type="number"
+                        className="w-full border p-1 bg-green-100 text-right"
+                        value={row.qty}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCashOpnameRows(prev => {
+                            const copy = [...prev];
+                            copy[idx].qty = val;
+                            return copy;
+                          });
+                        }}
+                      />
+                    </td>
+
+                    <td className="border p-1 text-right">
+                      {jumlah > 0 ? jumlah.toLocaleString("id-ID") : ""}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="mb-3">
+            <label className="block font-semibold">Brankas:</label>
+            <input
+              type="text"
+              className="border p-1 w-full bg-green-100 text-right"
+              value={brankas}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^\d]/g, "");
+                setBrankas(raw === "" ? "" : Number(raw).toLocaleString("id-ID"));
+              }}
+            />
+          </div>
+
+          <div className="mb-3">
+            <label className="block font-semibold">Diperiksa oleh:</label>
+            <input
+              type="text"
+              className="border p-1 w-full"
+              value={checkerName}
+              onChange={(e) => setCheckerName(e.target.value)}
+              placeholder="Nama pemeriksa"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              className="px-3 py-1 bg-gray-300"
+              onClick={() => {
+                resetCashOpname();
+                setShowCashOpname(false);
+              }}
+            >
+              Batal
+            </button>
+
+            <button
+              className="px-3 py-1 bg-blue-600 text-white"
+              onClick={() => {
+                setShowCashOpname(false);
+                handlePrintWithCashOpname();
+              }}
+            >
+              Simpan & Cetak
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+      
 
       {createPortal(
       <style>
