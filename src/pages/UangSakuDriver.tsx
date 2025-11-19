@@ -523,15 +523,15 @@ if (updateKasError) {
     }
 
     alert(`✅ Saku Driver ${finalNomor} berhasil disimpan.`);
-    setShowForm(false);
-    setFormData(defaultFormData);
+    // setShowForm(false);
+    // setFormData(defaultFormData);
     fetchData();
     await fetchSjList(); // ⬅️ ini penting
-    return true;
+    return finalNomor;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     alert("Terjadi kesalahan: " + message);
-    return false;
+    return null;   // ⬅️ ubah jadi null (supaya bisa di-cek)
   } finally {
     setIsSubmitting(false); // ✅ kunci dibuka setelah selesai
   }
@@ -656,37 +656,36 @@ const handleSelectSj = (sj: SuratJalanRow) => {
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
 
-  
   // --- Auto isi NO USD saat klik Tambah (preview saja) ---
-const handleTambah = async (): Promise<void> => {
-  try {
-    // Pastikan semua state form benar-benar bersih
-    setFormData({ ...defaultFormData });
-    setSjSearch("");
-    setShowDropdown(false);
-    setHighlightedIndex(-1);
+  const handleTambah = async (): Promise<void> => {
+    try {
+      // Pastikan semua state form benar-benar bersih
+      setFormData({ ...defaultFormData });
+      setSjSearch("");
+      setShowDropdown(false);
+      setHighlightedIndex(-1);
 
-    // Buat nomor baru (preview, belum insert)
-    const { success, nomor, error } = await insertWithAutoNomor({
-      table: "uang_saku_driver",
-      prefix: "US-",
-      data: {},
-      nomorField: "no_uang_saku",
-      previewOnly: true, // hanya preview, tidak insert
-    });
+      // Buat nomor baru (preview, belum insert)
+      const { success, nomor, error } = await insertWithAutoNomor({
+        table: "uang_saku_driver",
+        prefix: "US-",
+        data: {},
+        nomorField: "no_uang_saku",
+        previewOnly: true, // hanya preview, tidak insert
+      });
 
-    if (!success || !nomor) throw new Error(error || "Gagal buat nomor baru");
+      if (!success || !nomor) throw new Error(error || "Gagal buat nomor baru");
 
-    // Set nomor baru ke form
-    setFormData((prev) => ({ ...prev, no_uang_saku: nomor }));
+      // Set nomor baru ke form
+      setFormData((prev) => ({ ...prev, no_uang_saku: nomor }));
 
-    // Tampilkan popup form
-    setShowForm(true);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    alert("❌ Terjadi kesalahan saat membuat nomor uang saku: " + message);
-  }
-};
+      // Tampilkan popup form
+      setShowForm(true);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert("❌ Terjadi kesalahan saat membuat nomor uang saku: " + message);
+    }
+  };
 
   const handleCloseForm = () => {
   setFormData(defaultFormData); // reset semua isi form
@@ -714,20 +713,20 @@ const handleTambah = async (): Promise<void> => {
             onSubmit={async (e: React.FormEvent<HTMLFormElement>) => {
                 e.preventDefault();
 
-                const success = await handleSubmit(); // handleSubmit return true jika berhasil simpan/update
-                if (!success) return; // kalau gagal, stop
+                const nomorFinal = await handleSubmit();
+                  if (!nomorFinal) return;
 
-                const confirmPrint = window.confirm("Cetak Bukti Uang Saku?");
-                if (confirmPrint) {
-                  // Langsung buka tab cetak dan auto print tanpa popup ukuran
-                  window.open(
-                    `/cetak-uang-saku?no=${formData.no_uang_saku}&autoPrint=true`,
-                    "_blank"
-                  );
-                }
+                  const confirmPrint = window.confirm("Cetak Bukti Uang Saku?");
+                  if (confirmPrint) {
+                    window.open(
+                      `/cetak-uang-saku?no=${nomorFinal}&autoPrint=true`,
+                      "_blank"
+                    );
+                  }
 
-                // Tutup popup form setelah simpan
-                setShowForm(false);
+                  // Baru reset form (setelah cetak)
+                  setShowForm(false);
+                  setFormData(defaultFormData);
               }}
             className="grid grid-cols-2 gap-4 pb-6"
           >
