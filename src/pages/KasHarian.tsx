@@ -427,7 +427,7 @@ export default function KasHarian() {
       ths.forEach((th, i) => {
         const text = (th.textContent || "").toLowerCase().trim();
         const hasCheckbox = !!th.querySelector("input[type='checkbox']");
-        if (hasCheckbox || text === "aksi" || text === "jenis" || text === "") {
+        if (hasCheckbox || text === "aksi" || text === "jenis" || text === "waktu" || text === "user id" || text === "updated at") {
           removeIndexes.push(i);
         }
       });
@@ -454,7 +454,7 @@ export default function KasHarian() {
           <meta charset="utf-8" />
           <title>Print Kas Harian</title>
           <style>
-            @page { size: A4 landscape; margin: 10mm 6mm; }
+            @page { size: A4 portrait; margin: 6mm; }
             html, body {
               margin: 0;
               padding: 0;
@@ -466,33 +466,34 @@ export default function KasHarian() {
               width: 100%;
               border-collapse: collapse;
               table-layout: fixed; /* penting agar width kolom dipatuhi */
-              word-wrap: break-word;
+              line-height: 1 !important;
+              overflow-wrap: anywhere !important;
+              word-break: keep-all !important;
             }
 
             /* 🧩 Atur proporsi kolom */
-            table colgroup col:nth-child(1) { width: 10%; }   /* tanggal */
-            table colgroup col:nth-child(2) { width: 10%; }   /* waktu */
-            table colgroup col:nth-child(3) { width: 12%; }   /* no bukti */
-            table colgroup col:nth-child(4) { width: 60%; }  /* keterangan */
-            table colgroup col:nth-child(5) { width: 9%; }  /* debet */
-            table colgroup col:nth-child(6) { width: 9%; }  /* kredit */
-            table colgroup col:nth-child(7) { width: 9%; }  /* saldo */
-            table colgroup col:nth-child(8) { width: 5%; }  /* user id */
-            table colgroup col:nth-child(9) { width: 10%; }  /* updated at */
+            table colgroup col:nth-child(1) { width: 12%; }   /* tanggal */
+            table colgroup col:nth-child(2) { width: 12%; }   /* no bukti */
+            table colgroup col:nth-child(3) { width: 50%; }  /* keterangan */
+            table colgroup col:nth-child(4) { width: 12%; }  /* debet */
+            table colgroup col:nth-child(5) { width: 12%; }  /* kredit */
+            table colgroup col:nth-child(6) { width: 12%; }  /* saldo */
 
             thead th {
               border: 1px solid #000 !important;
-              padding: 6px !important;
+              padding: 2px 4px !important;
               background: #fff !important;
               color: #000 !important;
               font-weight: bold !important;
               text-align: center !important;
               font-size: 12px !important;
+              line-height: 1 !important;
             }
 
             table td {
               border: 1px solid #000 !important;
-              padding: 6px 8px !important;
+              padding: 2px 4px !important;
+              line-height: 1 !important;
               vertical-align: middle !important;
               font-size: 12px !important;
               text-align: center !important;
@@ -526,7 +527,7 @@ export default function KasHarian() {
           <div class="daterange">Date range : ${dateRange}</div>
           <table>
             <colgroup>
-              <col /><col /><col /><col /><col /><col /><col /><col /><col />
+              <col /><col /><col /><col /><col /><col />
             </colgroup>
           ${clonedTable.innerHTML}
         </table>
@@ -544,10 +545,10 @@ export default function KasHarian() {
           <meta charset="utf-8" />
           <title>Cetak Kas Harian</title>
           <style>
-            @page { size: A4 landscape; margin: 10mm 6mm; }
+            @page { size: A4 portrait; margin: 6mm; }
             body { font-family: Arial; }
             table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            th, td { border: 1px solid #000; padding: 6px; font-size: 12px; }
+            th, td { border: 1px solid #000; padding: 2px 4px; font-size: 12px; }
           </style>
         </head>
         <body>${htmlContent}</body>
@@ -1548,9 +1549,10 @@ export default function KasHarian() {
 
           table th, table td {
             font-size: 12px !important;
-            padding: 4px 6px !important;
+            padding: 2px 4px !important;
             vertical-align: middle !important;
             border: 1px solid black !important;
+            line-height: 1 !important;
           }
 
           /* Header tabel */
@@ -1568,6 +1570,12 @@ export default function KasHarian() {
           td:has(input[type="checkbox"]),
           th:contains("Aksi"),
           td:contains("Aksi"),
+          th:contains("Waktu"),
+          td:contains("Waktu"),
+          th:contains("User Id"),
+          td:contains("User Id"),
+          th:contains("Updated At"),
+          td:contains("Updated At"),
           th:contains("Jenis"),
           td:contains("Jenis") {
             display: none !important;
