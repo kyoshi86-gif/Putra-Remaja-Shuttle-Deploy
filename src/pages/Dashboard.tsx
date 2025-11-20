@@ -6,11 +6,13 @@ export default function Dashboard() {
   // 🧩 DEFINISI TYPE
   // ===============================
   interface SuratJalan {
-    no_surat_jalan: string | null;
-    tanggal_berangkat: string | null;
-    driver: string | null;
-    kode_rute: string | null;
-    status: string | null;
+    no_surat_jalan: string;
+    tanggal_berangkat?: string | null;
+    tanggal_kembali?: string | null;
+    tanggal?: string | null; // dari tabel uang_saku atau premi
+    driver: string;
+    kode_rute: string;
+    status: string;
   }
 
   interface TabelProps {
@@ -128,11 +130,15 @@ export default function Dashboard() {
                 >
                   <td className="border p-2">{row.no_surat_jalan ?? "-"}</td>
                   <td className="border p-2">
-                    {row.tanggal_berangkat
-                      ? new Date(row.tanggal_berangkat).toLocaleDateString(
-                          "id-ID"
-                        )
-                      : "-"}
+                    {(() => {
+                      const t =
+                        row.tanggal_berangkat ||
+                        row.tanggal ||
+                        row.tanggal_kembali ||
+                        null;
+
+                      return t ? new Date(t).toLocaleDateString("id-ID") : "-";
+                    })()}
                   </td>
                   <td className="border p-2">{row.driver ?? "-"}</td>
                   <td className="border p-2">{row.kode_rute ?? "-"}</td>
