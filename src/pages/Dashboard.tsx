@@ -114,7 +114,7 @@ export default function Dashboard() {
 
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full border-collapse">
-          <thead className="bg-gray-100 text-sm sticky top-0">
+          <thead className="bg-gray-100 text-sm top-0">
             <tr>
               <th className="border p-2">No SJ</th>
               <th className="border p-2">Tanggal</th>

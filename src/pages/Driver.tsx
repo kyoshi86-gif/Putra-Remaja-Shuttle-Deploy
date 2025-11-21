@@ -408,6 +408,7 @@ export default function Driver() {
 
       {/* Tombol Aksi, Filter, Search */}
       <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
+        <div className="flex flex-wrap gap-3">
         <button
           onClick={handleAdd}
           className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
@@ -447,19 +448,20 @@ export default function Driver() {
         >
           SIM Expired ≤ 2 Bulan
         </button>
+        </div>
 
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative w-[200px]">
           <input
             type="text"
             placeholder="Cari Nama..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border rounded px-3 py-2 w-full pr-9"
+            className="border rounded px-3 py-2 w-full pr-8"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
               title="Hapus pencarian"
             >
               ✕

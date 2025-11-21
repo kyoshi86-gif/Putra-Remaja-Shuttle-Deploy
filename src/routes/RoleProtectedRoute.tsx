@@ -43,7 +43,7 @@ export default function RoleProtectedRoute({
   }
 
   if (skipAccessCheck) {
-    console.log("🔓 Access check skipped for this route");
+    // -- console.log("🔓 Access check skipped for this route");
     return <>{children}</>;
   }
 
