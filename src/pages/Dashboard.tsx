@@ -45,24 +45,33 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     setLoading(true);
 
-    // 🚐 SURAT JALAN AKTIF
-    const { data: aktif } = await supabase
-      .from("surat_jalan")
-      .select("no_surat_jalan, tanggal_berangkat, driver, kode_rute, status")
-      .in("status", ["berangkat", "ongoing"])
-      .order("tanggal_berangkat", { ascending: false });
+    try {
+      // 🚐 SURAT JALAN AKTIF (tanpa kolom status)
+      const { data: aktif, error: errorAktif } = await supabase
+        .from("surat_jalan")
+        .select("no_surat_jalan, tanggal_berangkat, driver, kode_rute")
+        .order("tanggal_berangkat", { ascending: false });
 
-    // 💸 BELUM UANG SAKU
-    const { data: belumSaku } = await supabase.rpc("get_sj_belum_saku");
+      if (errorAktif) {
+        console.error("Error fetch Surat Jalan Aktif:", errorAktif);
+      }
 
-    // 🏆 BELUM PREMI
-    const { data: belumPremi } = await supabase.rpc("get_sj_belum_premi");
+      // 💸 BELUM UANG SAKU
+      const { data: belumSaku, error: errorSaku } = await supabase.rpc("get_sj_belum_saku");
+      if (errorSaku) console.error("Error fetch SJ Belum Saku:", errorSaku);
 
-    setSjAktif((aktif as SuratJalan[]) ?? []);
-    setSjBelumSaku((belumSaku as SuratJalan[]) ?? []);
-    setSjBelumPremi((belumPremi as SuratJalan[]) ?? []);
+      // 🏆 BELUM PREMI
+      const { data: belumPremi, error: errorPremi } = await supabase.rpc("get_sj_belum_premi");
+      if (errorPremi) console.error("Error fetch SJ Belum Premi:", errorPremi);
 
-    setLoading(false);
+      setSjAktif((aktif as SuratJalan[]) ?? []);
+      setSjBelumSaku((belumSaku as SuratJalan[]) ?? []);
+      setSjBelumPremi((belumPremi as SuratJalan[]) ?? []);
+    } catch (err) {
+      console.error("Error loadDashboard:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ===============================
@@ -164,7 +173,7 @@ export default function Dashboard() {
       {/* CARD STAT */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <CardStat
-          title="Surat Jalan Aktif"
+          title="Surat Jalan Terbit"
           value={sjAktif.length}
           icon="🚐"
           color="bg-blue-500"
