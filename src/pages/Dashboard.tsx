@@ -160,7 +160,7 @@ export default function Dashboard() {
   if (loading) return <div className="p-4">Loading dashboard...</div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="pr-10 p-6 space-y-6">
       {/* CARD STAT */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <CardStat

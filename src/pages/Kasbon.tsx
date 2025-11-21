@@ -77,7 +77,7 @@ export default function Kasbon() {
   const [selectedKasbonForRealisasi, setSelectedKasbonForRealisasi] = useState<Partial<KasbonRow> | null>(null);
   // rows of realisasi to add (temporary before saving)
   const [realisasiRows, setRealisasiRows] = useState<
-    { id?: number; keterangan: string; nominal: number; tanggal: string }[]
+    { id?: number; keterangan: string; nominal: number }[]
   >([]);
 
   // derived / pagination
@@ -423,18 +423,17 @@ export default function Kasbon() {
   };
 
 
-    //// ------------------------------------------------------------------------------------
-  // HAPUS REALISASI KASBON → WAJIB hapus baris kas_harian yang terkait realisasi tsb
-  // ------------------------------------------------------------------------------------
+      //// ------------------------------------------------------------------------------------
+    // HAPUS REALISASI KASBON → WAJIB hapus baris kas_harian yang terkait realisasi tsb
+    // ------------------------------------------------------------------------------------
 
-  //-- handlefetch --- //
-  const fetchRealisasi = async (kasbonId: number) => {
+    //-- handlefetch --- //
+    const fetchRealisasi = async (kasbonId: number) => {
     const { data: rows, error } = await supabase
       .from("kasbon_realisasi")
       .select("*")
       .eq("kasbon_id", kasbonId)
-      .order("tanggal")
-      .order("id");
+      .order("id"); // urut sesuai input
 
     if (error) {
       console.error("Gagal fetch realisasi:", error);
@@ -446,7 +445,6 @@ export default function Kasbon() {
         id: r.id,
         keterangan: r.keterangan || "",
         nominal: r.nominal,
-        tanggal: r.tanggal,
       }))
     );
   };
@@ -471,12 +469,8 @@ export default function Kasbon() {
     }
   };
 
-  const addRealisasiRow = (baseDate?: string) => {
-    const now = new Date();
-    const today = baseDate
-      ? baseDate
-      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    setRealisasiRows((prev) => [...prev, { keterangan: "", nominal: 0, tanggal: today }]);
+  const addRealisasiRow = () => {
+    setRealisasiRows((prev) => [...prev, { keterangan: "", nominal: 0 }]);
   };
 
   const updateRealisasiRow = (idx: number, data: Partial<{ keterangan: string; nominal: number; tanggal: string }>) => {
@@ -489,6 +483,7 @@ export default function Kasbon() {
 
   const totalRealisasi = realisasiRows.reduce((s, r) => s + (Number(r.nominal) || 0), 0);
 
+  const [tanggalRealisasi, setTanggalRealisasi] = useState<string>("");
 
   //--- save ---
   const handleSaveRealisasi = async () => {
@@ -503,10 +498,14 @@ export default function Kasbon() {
       const kasbonNo = selectedKasbonForRealisasi.no_kasbon!;
       const jumlahKasbon = selectedKasbonForRealisasi.jumlah_kasbon!;
       const totalRealisasi = realisasiRows.reduce((a, b) => a + (b.nominal || 0), 0);
+
       const now = new Date();
+      const waktuNow = now.toTimeString().slice(0, 8);
       const userId = await getCustomUserId();
 
-      // Hapus realisasi lama
+      const tanggalHeader = tanggalRealisasi;
+
+      // ambil realisasi lama
       const { data: oldRows } = await supabase
         .from("kasbon_realisasi")
         .select("id")
@@ -514,20 +513,17 @@ export default function Kasbon() {
 
       const oldIds = oldRows?.map((x) => x.id) || [];
 
+      // hapus realisasi lama
       await supabase.from("kasbon_realisasi").delete().eq("kasbon_id", kasbonId);
 
-      // Hapus kas_harian realisasi lama
+      // hapus kas_harian realisasi lama
       await supabase
         .from("kas_harian")
         .delete()
         .in("sumber_id", oldIds)
         .eq("sumber_tabel", "kasbon_realisasi_item");
 
-      // Perhitungan kasbon / sisa kasbon
-      const debetKasbon = Math.min(jumlahKasbon, totalRealisasi);
-      const sisaKasbon = Math.max(jumlahKasbon - totalRealisasi, 0);
-
-      // Hapus kasbon/sisa kasbon header lama
+      // hapus header kasbon & sisa kasbon lama
       await supabase
         .from("kas_harian")
         .delete()
@@ -540,10 +536,16 @@ export default function Kasbon() {
         .eq("sumber_tabel", "kasbon_realisasi_sisa")
         .eq("sumber_id", kasbonId);
 
-      // Insert debet kasbon
+      // hitung kasbon - realisasi
+      const debetKasbon = Math.min(jumlahKasbon, totalRealisasi);
+      const sisaKasbon = Math.max(jumlahKasbon - totalRealisasi, 0);
+
+      // ============================
+      // 1️⃣ INSERT KASBON (DEBET)
+      // ============================
       await supabase.from("kas_harian").insert({
-        tanggal: selectedKasbonForRealisasi.tanggal,
-        waktu: now.toTimeString().slice(0, 8),
+        tanggal: tanggalHeader,
+        waktu: waktuNow,
         bukti_transaksi: kasbonNo,
         keterangan: `Kasbon ${kasbonNo}`,
         jenis_transaksi: "debet",
@@ -555,11 +557,13 @@ export default function Kasbon() {
         updated_at: now.toISOString(),
       });
 
-      // Insert sisa kasbon
+      // ============================
+      // 2️⃣ INSERT SISA KASBON (DEBET)
+      // ============================
       if (sisaKasbon > 0) {
         await supabase.from("kas_harian").insert({
-          tanggal: selectedKasbonForRealisasi.tanggal,
-          waktu: now.toTimeString().slice(0, 8),
+          tanggal: tanggalHeader,
+          waktu: waktuNow,
           bukti_transaksi: kasbonNo,
           keterangan: `Sisa Kasbon ${kasbonNo}`,
           jenis_transaksi: "debet",
@@ -572,13 +576,15 @@ export default function Kasbon() {
         });
       }
 
-      // Insert realisasi (kredit)
+      // ============================
+      // 3️⃣ INSERT REALISASI (KREDIT)
+      // ============================
       for (const r of realisasiRows) {
         const { data: inserted } = await supabase
           .from("kasbon_realisasi")
           .insert({
             kasbon_id: kasbonId,
-            tanggal: r.tanggal,
+            tanggal: tanggalHeader,
             keterangan: r.keterangan,
             nominal: r.nominal,
             no_kasbon: kasbonNo,
@@ -589,8 +595,8 @@ export default function Kasbon() {
           .single();
 
         await supabase.from("kas_harian").insert({
-          tanggal: r.tanggal,
-          waktu: now.toTimeString().slice(0, 8),
+          tanggal: tanggalHeader,
+          waktu: waktuNow,
           bukti_transaksi: kasbonNo,
           keterangan: r.keterangan,
           jenis_transaksi: "kredit",
@@ -603,21 +609,32 @@ export default function Kasbon() {
         });
       }
 
-      // Update header kasbon
-      await supabase.from("kasbon").update({
-        jumlah_realisasi: totalRealisasi,
-        status: totalRealisasi === 0 ? "BELUM REALISASI" : "SELESAI",
-        updated_at: now.toISOString(),
-      }).eq("id", kasbonId);
+      // update header kasbon
+      await supabase
+        .from("kasbon")
+        .update({
+          jumlah_realisasi: totalRealisasi,
+          tanggal_realisasi: tanggalHeader,
+          waktu: waktuNow,
+          status:
+            totalRealisasi === 0
+              ? "BELUM REALISASI"
+              : totalRealisasi === jumlahKasbon
+              ? "SELESAI"
+              : "SELESAI",
+          updated_at: now.toISOString(),
+        })
+        .eq("id", kasbonId);
 
       alert("Realisasi berhasil disimpan.");
-
       setShowRealisasi(false);
       fetchData();
       window.dispatchEvent(new Event("refresh-kas-harian"));
-    } catch (err: unknown) {
+    } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       alert("Gagal simpan realisasi: " + msg);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -889,7 +906,12 @@ export default function Kasbon() {
 
               <div>
                 <label className="block mb-1 font-semibold">Tanggal Realisasi</label>
-                <input type="date" onChange={() => {}} className="w-full border rounded px-3 py-2 bg-gray-100" readOnly />
+                <input
+                  type="date"
+                  value={tanggalRealisasi}
+                  onChange={(e) => setTanggalRealisasi(e.target.value)}
+                  className="w-full border rounded px-3 py-2"
+                />
                 <p className="text-xs text-gray-500 mt-1">Tanggal per baris dapat diatur pada masing-masing baris realisasi</p>
               </div>
             </div>
@@ -898,7 +920,10 @@ export default function Kasbon() {
               <div className="flex justify-between items-center mb-2">
                 <div className="font-semibold">Daftar Realisasi</div>
                 <div>
-                  <button onClick={() => addRealisasiRow(selectedKasbonForRealisasi?.tanggal)} className="text-white bg-green-600 px-3 py-1 rounded text-sm">
+                  <button
+                    onClick={addRealisasiRow}
+                    className="text-white bg-green-600 px-3 py-1 rounded text-sm"
+                  >
                     Tambah Baris
                   </button>
                 </div>
@@ -907,16 +932,17 @@ export default function Kasbon() {
               <div className="space-y-2 max-h-60 overflow-auto">
                 {realisasiRows.length === 0 && <div className="text-gray-500">Belum ada baris realisasi.</div>}
                 {realisasiRows.map((r, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_3fr_2fr_40px] gap-2 items-center border rounded p-2">
-                    <input type="date" value={r.tanggal} onChange={(e) => updateRealisasiRow(idx, { tanggal: e.target.value })} className="border rounded px-2 py-1" />
-                    <input type="text" value={r.keterangan} onChange={(e) => updateRealisasiRow(idx, { keterangan: e.target.value })} className="border rounded px-2 py-1" placeholder="Keterangan" />
+                  <div className="grid grid-cols-[3fr_2fr_40px] gap-2">
+                    <input
+                      type="text"
+                      value={r.keterangan}
+                      onChange={(e) => updateRealisasiRow(idx, { keterangan: e.target.value })}
+                      className="border rounded px-2 py-1"
+                    />
                     <input
                       type="text"
                       value={formatRupiahInput(String(r.nominal))}
-                      onChange={(e) => {
-                        const num = extractNumber(e.target.value);
-                        updateRealisasiRow(idx, { nominal: num });
-                      }}
+                      onChange={(e) => updateRealisasiRow(idx, { nominal: extractNumber(e.target.value) })}
                       className="border rounded px-2 py-1 text-right"
                     />
                     <button onClick={() => removeRealisasiRow(idx)} className="text-red-600"><FiTrash2 /></button>
