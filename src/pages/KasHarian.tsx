@@ -9,7 +9,7 @@ import { DateRangePicker } from "react-date-range";
 import { createPortal } from "react-dom";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
-import { getSaldoKemarin, injectSaldoKeData } from "../utils/finance";
+import { getSaldoAwalDariHistori, injectSaldoKeData } from "../utils/finance";
 import { insertWithAutoNomor } from "../lib/dbUtils"; // pastikan path sesuai
 import { toWIBDateString, getWIBTimestampFromUTC, toWIBTimeString } from "../utils/time";
 import type { KasRow } from "../utils/types";
@@ -96,7 +96,8 @@ export default function KasHarian() {
         .from("kas_harian")
         .select("*")
         .order("tanggal", { ascending: true })
-        .order("urutan", { ascending: true }); // ⬅️ tambahkan ini
+        .order("waktu", { ascending: true })
+        .order("urutan", { ascending: true })
 
       if (error) throw error;
 
@@ -117,47 +118,115 @@ export default function KasHarian() {
     fetchData();
   }, []);
 
-  // Filter + inject saldo
+  // Filter + inject saldo (FINAL)
   useEffect(() => {
-   const startStr = toWIBDateString(range[0].startDate ?? new Date());
+    const startStr = toWIBDateString(range[0].startDate ?? new Date());
     const endStr = toWIBDateString(range[0].endDate ?? new Date());
 
-    // Inject saldo ke seluruh data dulu
-    const injectedAll = injectSaldoKeData(data, 0); // saldo awal dummy, akan dihitung ulang
+    // 1️⃣ Urutkan berdasarkan tanggal + waktu
+    const sorted = [...data].sort((a, b) => {
+      const tA = new Date(a.tanggal + " " + (a.waktu ?? "00:00:00")).getTime();
+      const tB = new Date(b.tanggal + " " + (b.waktu ?? "00:00:00")).getTime();
+      return tA - tB;
+    });
 
-    // Ambil saldo akhir terakhir sebelum startStr
-    const saldoKemarin = getSaldoKemarin(injectedAll, startStr);
+    // 2️⃣ INJECT SALDO UNTUK SEMUA DATA (sekali saja)
+    const injectedAll = injectSaldoKeData(sorted, 0);
+
+    // =========================================
+    // 🟦 LOGGER: pengecekan urutan & saldo akhir
+    // =========================================
+    //-- LOG ==>console.group("🔍 LOG SALDO SEMUA TRANSAKSI");
+
+    //-- LOG ==>injectedAll.forEach((r, i) => {
+    //-- LOG ==>  console.log(
+    //-- LOG ==>    `${i + 1}. ${r.tanggal} ${r.waktu} | ${r.jenis_transaksi} | ${r.nominal?.toLocaleString()} | saldo_awal=${r.saldo_awal?.toLocaleString()} → saldo_akhir=${r.saldo_akhir?.toLocaleString()} | bukti=${r.bukti_transaksi}`
+    //-- LOG ==>  );
+    //-- LOG ==>});
+
+    // Temukan saldo akhir tanggal 21
+    //-- LOG ==>const last21 = injectedAll
+    //-- LOG ==>  .filter(r => r.tanggal === "2025-11-21")
+    //-- LOG ==>  .at(-1);
+
+    // Temukan transaksi pertama tanggal 22
+    //-- LOG ==>const first22 = injectedAll
+    //-- LOG ==>  .filter(r => r.tanggal === "2025-11-22")
+    //-- LOG ==>  .at(0);
+
+    //-- LOG ==>console.log("🔵 SALDO AKHIR 21:", last21?.saldo_akhir);
+    //-- LOG ==>console.log("🟢 SALDO AWAL 22 :", first22?.saldo_awal);
+
+    //-- LOG ==>if (last21?.saldo_akhir !== first22?.saldo_awal) {
+    //-- LOG ==>  console.warn("❗ SELISIH TERDETEKSI antara 21 → 22");
+    //-- LOG ==>  console.log("👉 Perbedaan:",
+    //-- LOG ==>    (first22?.saldo_awal ?? 0) - (last21?.saldo_akhir ?? 0)
+    //-- LOG ==>  );
+    //-- LOG ==>  console.log("🔍 Transaksi pertama tanggal 22: ", first22);
+    //-- LOG ==>}
+
+    //-- LOG ==>console.groupEnd();
+
+    // 3️⃣ Saldo hari kemarin
+
+    //-- LOG ==>console.log("📌 Hitung saldo kemarin berdasarkan dataKas & tanggalAwal =", startStr);
+
+    const saldoKemarin = getSaldoAwalDariHistori(injectedAll, startStr);
     setSaldoAwalHistori(saldoKemarin);
 
-    // Filter data sesuai range
-    const filteredRange = injectedAll.filter(
-      (r) => r.tanggal >= startStr && r.tanggal <= endStr
-    );
 
-    // Filter by keyword
+    // 4️⃣ Filter rentang tanggal
+    const startTime = new Date(`${startStr} 00:00:00`);
+    const endTime   = new Date(`${endStr} 23:59:59`);
+
+    const filteredRange = injectedAll.filter((r) => {
+      const dt = new Date(`${r.tanggal} ${r.waktu ?? "00:00:00"}`);
+      return dt >= startTime && dt <= endTime;
+    });
+
+    // 5️⃣ Filter keyword
+    let filteredKeyword = filteredRange;
     const keyword = q.toLowerCase().trim();
-    const filteredKeyword = keyword
-      ? filteredRange.filter((r) => {
-          switch (filterBy) {
-            case "bukti_transaksi":
-              return r.bukti_transaksi?.toLowerCase().includes(keyword);
-            case "waktu":
-              return r.created_at?.toLowerCase().includes(keyword);
-            case "keterangan":
-              return r.keterangan?.toLowerCase().includes(keyword);
-            case "nominal":
-              return String(r.nominal ?? "").toLowerCase().includes(keyword);
-            case "user_id":
-              return (r.user_id ?? "").toLowerCase().includes(keyword);
-            case "updated_at":
-              return (r.updated_at ?? "").toLowerCase().includes(keyword);
-            default:
-              return false;
-          }
-        })
-      : filteredRange;
 
+    if (keyword) {
+      filteredKeyword = filteredRange.filter((r) => {
+        switch (filterBy) {
+          case "bukti_transaksi":
+            return r.bukti_transaksi?.toLowerCase().includes(keyword);
+          case "waktu":
+            return r.created_at?.toLowerCase().includes(keyword);
+          case "keterangan":
+            return r.keterangan?.toLowerCase().includes(keyword);
+          case "nominal":
+            return String(r.nominal ?? "").toLowerCase().includes(keyword);
+          case "user_id":
+            return (r.user_id ?? "").toLowerCase().includes(keyword);
+          case "updated_at":
+            return (r.updated_at ?? "").toLowerCase().includes(keyword);
+          default:
+            return true;
+        }
+      });
+    }
+
+    // 6️⃣ Inject saldo untuk data dalam range
     const injectedFinal = injectSaldoKeData(filteredKeyword, saldoKemarin);
+    // =========================================
+    // 🟩 LOGGER DATA TAMPILAN RENTANG TANGGAL
+    // =========================================
+    //-- LOG ==>console.group("📘 LOG DATA RENTANG TANGGAL");
+    //-- LOG ==>console.log("Saldo Kemarin:", saldoKemarin);
+
+    //-- LOG ==>injectedFinal.forEach((r, i) => {
+    //-- LOG ==>  console.log(
+    //-- LOG ==>    `${i + 1}. ${r.tanggal} ${r.waktu} | ${r.jenis_transaksi} | ${r.nominal} | awal=${r.saldo_awal} akhir=${r.saldo_akhir} | bukti=${r.bukti_transaksi}`
+    //-- LOG ==>  );
+    //-- LOG ==>});
+
+    //-- LOG ==>console.groupEnd();
+
+
+    // 7️⃣ Set state
     setFiltered(filteredKeyword);
     setDataWithSaldo(injectedFinal);
     setCurrentPage(1);

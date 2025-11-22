@@ -1,60 +1,65 @@
 import type { KasRow } from "../utils/types";
-import { toWIBDateString } from "./time";
 
-export interface Transaksi {
-  id: number | string;
-  tanggal: string;
-  jenis_transaksi?: "debet" | "kredit" | string;
-  nominal?: number | null;
-  saldo_awal?: number | null;
-  saldo_akhir?: number | null;
+// ======================================================================
+// HELPER: tanggal + waktu → Date
+// ======================================================================
+export function toDateTime(tanggal: string, waktu?: string | null): Date {
+  return new Date(tanggal + " " + (waktu && waktu !== "" ? waktu : "00:00:00"));
 }
 
+// ======================================================================
+// SALDO AWAL DARI HISTORI  (transaksi sebelum hari ini)
+// ======================================================================
 export function getSaldoAwalDariHistori(data: KasRow[], tanggalAwal: string): number {
+  const batas = new Date(`${tanggalAwal} 00:00:00`);
+
   const sorted = [...data]
-    .filter((r) => {
-      const tgl = toWIBDateString(new Date(r.tanggal));
-      return tgl < tanggalAwal;
-    })
+    .filter((r) => toDateTime(r.tanggal, r.waktu) < batas)
     .sort((a, b) =>
-      toWIBDateString(new Date(a.tanggal)).localeCompare(toWIBDateString(new Date(b.tanggal)))
+      toDateTime(a.tanggal, a.waktu).getTime() -
+      toDateTime(b.tanggal, b.waktu).getTime()
     );
 
   return sorted.length > 0 ? sorted.at(-1)?.saldo_akhir ?? 0 : 0;
 }
 
+// ======================================================================
+// SALDO KEMARIN (transaksi terakhir sebelum tanggalAwal)
+// ======================================================================
 export function getSaldoKemarin(data: KasRow[], tanggalAwal: string): number {
-  const sebelumAwal = data
-    .filter((r) => r.tanggal < tanggalAwal)
-    .sort((a, b) => {
-      const tA = a.tanggal + (a.waktu ?? "");
-      const tB = b.tanggal + (b.waktu ?? "");
-      return tB.localeCompare(tA); // urut mundur
-    });
+  const batas = new Date(`${tanggalAwal} 00:00:00`);
 
-  return sebelumAwal[0]?.saldo_akhir ?? 0;
+  const sebelum = [...data]
+    .filter((r) => toDateTime(r.tanggal, r.waktu) < batas)
+    .sort((a, b) =>
+      toDateTime(b.tanggal, b.waktu).getTime() -
+      toDateTime(a.tanggal, a.waktu).getTime()
+    );
+
+  return sebelum[0]?.saldo_akhir ?? 0;
 }
 
+// ======================================================================
+// INJECT SALDO KE DATA
+// ======================================================================
 export function injectSaldoKeData(data: KasRow[], saldoAwal: number): KasRow[] {
   let saldo = saldoAwal;
 
   return [...data]
-    .sort((a, b) => {
-      const t1 = a.tanggal + (a.waktu ?? "");
-      const t2 = b.tanggal + (b.waktu ?? "");
-      return t1.localeCompare(t2);
-    })
+    .sort(
+      (a, b) =>
+        toDateTime(a.tanggal, a.waktu).getTime() -
+        toDateTime(b.tanggal, b.waktu).getTime()
+    )
     .map((item) => {
       const nominal = Number(item.nominal) || 0;
       const isDebet = item.jenis_transaksi?.toLowerCase() === "debet";
+
       const saldo_awal = saldo;
       const saldo_akhir = isDebet ? saldo + nominal : saldo - nominal;
+
       saldo = saldo_akhir;
 
-      return {
-        ...item,
-        saldo_awal,
-        saldo_akhir,
-      };
+      return { ...item, saldo_awal, saldo_akhir };
     });
 }
