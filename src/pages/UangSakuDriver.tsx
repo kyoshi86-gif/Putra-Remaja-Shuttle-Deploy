@@ -188,21 +188,39 @@ export default function UangSakuDriver() {
     );
   };
 
-  // --- DELETE SELECTED ---
+ // --- DELETE SELECTED ---
   const handleDeleteSelected = async () => {
     if (selected.length === 0) return alert("Pilih data terlebih dahulu!");
     if (!confirm("Yakin ingin hapus data terpilih?")) return;
 
-    const { error } = await supabase
+    // 1. Hapus dulu semua baris kas_harian yang terkait
+    const { error: kasError } = await supabase
+      .from("kas_harian")
+      .delete()
+      .eq("sumber_tabel", "uang_saku_driver")
+      .in("sumber_id", selected);
+
+    if (kasError) {
+      alert("❌ Gagal hapus data Kas Harian: " + kasError.message);
+      return;
+    }
+
+    // 2. Hapus data utama dari uang_saku_driver
+    const { error: usError } = await supabase
       .from("uang_saku_driver")
       .delete()
       .in("id", selected);
-    if (error) alert("Gagal hapus: " + error.message);
-    else {
-      setSelected([]);
-      fetchData();
-      await fetchSjList(); 
+
+    if (usError) {
+      alert("❌ Gagal hapus Uang Saku: " + usError.message);
+      return;
     }
+
+    alert("✅ Data terpilih berhasil dihapus lengkap.");
+
+    setSelected([]);
+    fetchData();
+    await fetchSjList();
   };
 
   // --- EXPORT EXCEL ---
@@ -274,35 +292,36 @@ export default function UangSakuDriver() {
 
   // --- DELETE ROW ---
   const handleDelete = async (id: number) => {
-  if (!confirm("Yakin ingin hapus data ini?")) return;
+    if (!confirm("Yakin ingin hapus data ini?")) return;
 
-  // Cek apakah data masih ada sebelum hapus
- for (const row of data) {
-    const { data: existing, error: cekError } = await supabase
+    // 1. Hapus dulu di kas_harian
+    const { error: kasError } = await supabase
       .from("kas_harian")
-      .select("id")
+      .delete()
       .eq("sumber_tabel", "uang_saku_driver")
-      .eq("sumber_id", row.id)
-      .single();
+      .eq("sumber_id", id);
 
-  if (cekError || !existing) {
-    alert("❌ Data dengan ID " + id + " tidak ditemukan.");
-    return;
-  }}
+    if (kasError) {
+      alert("❌ Gagal menghapus data di Kas Harian: " + kasError.message);
+      return;
+    }
 
-  // Lanjut hapus
-  const { error: deleteError } = await supabase
-    .from("uang_saku_driver")
-    .delete()
-    .eq("id", id);
+    // 2. Hapus data utama di uang_saku_driver
+    const { error: usError } = await supabase
+      .from("uang_saku_driver")
+      .delete()
+      .eq("id", id);
 
-  if (deleteError) {
-    alert("❌ Gagal hapus: " + deleteError.message);
-  } else {
-    fetchData(); // refresh tampilan
+    if (usError) {
+      alert("❌ Gagal menghapus Uang Saku: " + usError.message);
+      return;
+    }
+
+    alert("✅ Data Uang Saku & Kas Harian berhasil dihapus.");
+
+    fetchData();       // refresh tabel utama
     await fetchSjList();
-  }
-};
+  };
 
   // --- SUBMIT ---
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -494,8 +513,9 @@ if (finalSaveError) {
   return false;
 }
 
-// ✅ Update kas_harian dengan sumber_id dan sumber_tabel
+// ✅ Update kas_harian dengan nomor final yang benar
 const updatePayload = {
+  bukti_transaksi: finalNomor,     // ⬅️ WAJIB!
   sumber_id: insertedRow.id,
   sumber_tabel: "uang_saku_driver",
 };
@@ -668,7 +688,7 @@ const handleSelectSj = (sj: SuratJalanRow) => {
       // Buat nomor baru (preview, belum insert)
       const { success, nomor, error } = await insertWithAutoNomor({
         table: "uang_saku_driver",
-        prefix: "US-",
+        prefix: "US",
         data: {},
         nomorField: "no_uang_saku",
         previewOnly: true, // hanya preview, tidak insert

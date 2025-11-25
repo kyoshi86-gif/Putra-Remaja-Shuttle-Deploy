@@ -276,7 +276,7 @@ export default function KasHarian() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 100;
+  const itemsPerPage = 1000;
 
   // Selection
   const [selected, setSelected] = useState<string[]>([]);

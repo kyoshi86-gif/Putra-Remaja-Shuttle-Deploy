@@ -48,7 +48,7 @@ export async function insertWithAutoNomor({
     if (lastRecords?.length > 0 && typeof lastRecords[0] === "object" && lastRecords[0] !== null) {
       const firstRow = lastRecords[0] as Record<string, unknown>;
       const lastNomor = String(firstRow[nomorField] ?? "");
-      const match = lastNomor.match(new RegExp(`${prefix}(\\d+)-`));
+      const match = lastNomor.match(new RegExp(`${prefix}(\\d{${digitCount}})`));
       if (match?.[1]) {
         nextSeq = parseInt(match[1]) + 1;
         if (resetAfterMax && nextSeq > maxSeq) nextSeq = 1;
