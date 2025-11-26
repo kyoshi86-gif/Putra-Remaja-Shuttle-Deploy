@@ -242,184 +242,200 @@ export default function KasKasir() {
     }).format(n);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Ringkasan Kasir</h1>
+  <div className="p-6 max-w-3xl mx-auto bg-gray-50 min-h-screen">
 
-      {/* DATE RANGE */}
-      <div className="flex gap-6 mb-8">
-        <div ref={triggerRef}>
-          <label className="font-semibold">Date range: </label>
-          <input
-            type="text"
-            readOnly
-            value={
-              range[0]?.startDate && range[0]?.endDate
-                ? `${format(range[0].startDate as Date, "dd-MM-yyyy", { locale: id })} - ${format(
-                    range[0].endDate as Date,
-                    "dd-MM-yyyy",
-                    { locale: id }
-                  )}`
-                : ""
-            }
-            onClick={() => setShowPicker(true)}
-            className="border border-gray-300 rounded px-2 py-1 text-sm leading-normal w-[240px] cursor-pointer"
-          />
+    <h1 className="text-3xl font-bold mb-6 text-gray-800 tracking-wide">
+      Ringkasan Kasir
+    </h1>
 
-          {showPicker &&
-            createPortal(
-              <div
-                ref={pickerRef}
-                className="z-50 shadow-lg border bg-white p-2"
-                style={{
-                  position: "fixed",
-                  top: pickerStyle.top,
-                  left: pickerStyle.left,
+    {/* DATE RANGE */}
+    <div className="flex gap-6 mb-8">
+      <div ref={triggerRef}>
+        <label className="font-semibold text-gray-700">Date range: </label>
+        <input
+          type="text"
+          readOnly
+          value={
+            range[0]?.startDate && range[0]?.endDate
+              ? `${format(range[0].startDate as Date, "dd-MM-yyyy", { locale: id })} - ${format(
+                  range[0].endDate as Date,
+                  "dd-MM-yyyy",
+                  { locale: id }
+                )}`
+              : ""
+          }
+          onClick={() => setShowPicker(true)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-[240px] cursor-pointer bg-white shadow-sm hover:bg-gray-100 transition"
+        />
+
+        {showPicker &&
+          createPortal(
+            <div
+              ref={pickerRef}
+              className="z-50 shadow-2xl border bg-white p-2 rounded-xl"
+              style={{
+                position: "fixed",
+                top: pickerStyle.top,
+                left: pickerStyle.left,
+              }}
+            >
+              <DateRangePicker
+                className="custom-datepicker"
+                onChange={(ranges: RangeKeyDict) => {
+                  const selection = ranges.selection;
+                  if (selection?.startDate && selection?.endDate) {
+                    setRange([{ ...selection, key: "selection" }]);
+                    setStartDate(format(selection.startDate, "yyyy-MM-dd"));
+                    setEndDate(format(selection.endDate, "yyyy-MM-dd"));
+                  }
                 }}
-              >
-                <DateRangePicker
-                  className="custom-datepicker"
-                  onChange={(ranges: RangeKeyDict) => {
-                    const selection = ranges.selection;
-                    if (selection?.startDate && selection?.endDate) {
-                        setRange([{ ...selection, key: "selection" }]);
-                      // update tanggal yang dipakai untuk summary
-                      setStartDate(format(selection.startDate, "yyyy-MM-dd"));
-                      setEndDate(format(selection.endDate, "yyyy-MM-dd"));
-                    }
-                  }}
-                  moveRangeOnFirstSelection={false}
-                  showMonthAndYearPickers={true}
-                  staticRanges={[]}
-                  inputRanges={[]}
-                  months={1}
-                  ranges={range}
-                  direction="horizontal"
-                  locale={id}
-                  preventSnapRefocus={true}
-                  calendarFocus="forwards"
-                />
-                <div className="flex justify-end mt-2 space-x-2">
-                  <button onClick={() => setShowPicker(false)} className="px-3 py-1 bg-green-600 text-white rounded">
-                    Apply
-                  </button>
-                  <button onClick={() => setShowPicker(false)} className="px-3 py-1 bg-gray-300 rounded">
-                    Cancel
-                  </button>
-                </div>
-              </div>,
-              document.body
-            )}
-        </div>
+                moveRangeOnFirstSelection={false}
+                showMonthAndYearPickers={true}
+                staticRanges={[]}
+                inputRanges={[]}
+                months={1}
+                ranges={range}
+                direction="horizontal"
+                locale={id}
+                preventSnapRefocus={true}
+                calendarFocus="forwards"
+              />
+
+              <div className="flex justify-end mt-2 space-x-2">
+                <button 
+                 onClick={() => setShowPicker(false)}
+                 className="px-4 py-1.5 bg-green-600 text-white rounded-lg shadow hover:bg-green-700">
+                  Apply
+                </button>
+                <button
+                  onClick={() => setShowPicker(false)}
+                  className="px-4 py-1.5 bg-gray-300 rounded-lg shadow hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>,
+            document.body
+          )}
       </div>
+    </div>
 
-      {/* LAPORAN */}
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <div className="bg-white shadow rounded p-6 space-y-6">
-          {/* A. SALDO AWAL */}
-          <div className="flex justify-between border-b pb-2 text-lg font-bold">
-            <span>A. Saldo Awal</span>
-            <span>{formatCurrency(summary.saldoAwal)}</span>
+    {/* LAPORAN */}
+    {loading ? (
+      <p>Loading...</p>
+    ) : (
+      <div className="bg-white shadow-lg rounded-2xl p-6 space-y-8 border border-gray-200">
+
+        {/* SALDO AWAL */}
+        <div className="flex justify-between items-center p-4 rounded-xl bg-gradient-to-r from-green-500 to-green-400 text-white shadow-md">
+          <span className="text-lg font-semibold">A. Saldo Awal</span>
+          <span className="text-xl font-bold">{formatCurrency(summary.saldoAwal)}</span>
+        </div>
+
+        {/* KAS MASUK */}
+        <div className="bg-gray-100 rounded-xl p-4 shadow-inner">
+          <h2 className="font-bold mb-3 text-gray-800 text-lg">B. Komponen Kas Masuk</h2>
+
+          <div className="flex justify-between py-1">
+            <span>Potongan Driver</span>
+            <span className="font-semibold text-blue-700">{formatCurrency(summary.potonganDriver)}</span>
           </div>
 
-          {/* B. KOMPONEN KAS MASUK */}
-          <div>
-            <h2 className="font-bold mb-2">B. Komponen Kas Masuk</h2>
-            <div className="flex justify-between">
-              <span>Potongan Driver</span>
-              <span>{formatCurrency(summary.potonganDriver)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Kas Masuk</span>
-              <span>{formatCurrency(summary.kasMasuk)}</span>
-            </div>
-            <div className="flex justify-between font-semibold border-t pt-2">
-              <span>Sub Total</span>
-              <span>{formatCurrency(summary.potonganDriver + summary.kasMasuk)}</span>
-            </div>
+          <div className="flex justify-between py-1">
+            <span>Kas Masuk</span>
+            <span className="font-semibold text-blue-700">{formatCurrency(summary.kasMasuk)}</span>
           </div>
 
-          {/* C. KOMPONEN KAS KELUAR */}
-          <div>
-            <h2 className="font-bold mb-2">C. Komponen Kas Keluar</h2>
+          <div className="flex justify-between font-semibold border-t border-gray-300 mt-2 pt-2 text-gray-800">
+            <span>Sub Total</span>
+            <span className="text-blue-800">
+              {formatCurrency(summary.potonganDriver + summary.kasMasuk)}
+            </span>
+          </div>
+        </div>
 
-            <div className="flex justify-between">
-              <span>Uang Saku Driver</span>
-              <span>{formatCurrency(summary.uangSaku)}</span>
-            </div>
+        {/* KAS KELUAR */}
+        <div className="bg-gray-100 rounded-xl p-4 shadow-inner">
+          <h2 className="font-bold mb-3 text-gray-800 text-lg">C. Komponen Kas Keluar</h2>
 
-            <div className="flex justify-between">
-              <span>Premi Driver</span>
-              <span>{formatCurrency(summary.premiDriver)}</span>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Perpal</span>
-              <span>{formatCurrency(summary.perpalDriver)}</span>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Kasbon</span>
-              <span>{formatCurrency(summary.kasbon)}</span>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Kas Keluar</span>
-              <span>{formatCurrency(summary.kasKeluar)}</span>
-            </div>
-
-            <div className="flex justify-between font-semibold border-t pt-2">
-              <span>Sub Total</span>
-              <span>
-                {formatCurrency(
-                  summary.uangSaku +
-                    summary.premiDriver +
-                    summary.perpalDriver +
-                    summary.kasbon +
-                    summary.kasKeluar
-                )}
-              </span>
-            </div>
+          <div className="flex justify-between py-1">
+            <span>Uang Saku Driver</span>
+            <span className="font-semibold text-red-700">{formatCurrency(summary.uangSaku)}</span>
           </div>
 
-          {/* D. SALDO AKHIR */}
-          <div className="flex justify-between text-lg font-bold border-t pt-3">
-            <span>D. Saldo Akhir ( A + B - C )</span>
-            <span>
+          <div className="flex justify-between py-1">
+            <span>Premi Driver</span>
+            <span className="font-semibold text-red-700">{formatCurrency(summary.premiDriver)}</span>
+          </div>
+
+          <div className="flex justify-between py-1">
+            <span>Perpal</span>
+            <span className="font-semibold text-red-700">{formatCurrency(summary.perpalDriver)}</span>
+          </div>
+
+          <div className="flex justify-between py-1">
+            <span>Kasbon</span>
+            <span className="font-semibold text-red-700">{formatCurrency(summary.kasbon)}</span>
+          </div>
+
+          <div className="flex justify-between py-1">
+            <span>Kas Keluar</span>
+            <span className="font-semibold text-red-700">{formatCurrency(summary.kasKeluar)}</span>
+          </div>
+
+          <div className="flex justify-between font-semibold border-t border-gray-300 mt-2 pt-2 text-gray-800">
+            <span>Sub Total</span>
+            <span className="text-red-800">
               {formatCurrency(
-                summary.saldoAwal +
-                  (summary.potonganDriver + summary.kasMasuk) -
-                  (summary.uangSaku +
-                    summary.premiDriver +
-                    summary.perpalDriver +
-                    summary.kasbon +
-                    summary.kasKeluar)
+                summary.uangSaku +
+                  summary.premiDriver +
+                  summary.perpalDriver +
+                  summary.kasbon +
+                  summary.kasKeluar
               )}
             </span>
           </div>
+        </div>
 
-          {/* TOTAL REALISASI */}
-          <div className="mt-6">
-            <h2 className="font-bold mb-2">Laporan Realisasi</h2>
+        {/* SALDO AKHIR */}
+        <div className="flex justify-between items-center p-4 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-400 text-white shadow-lg">
+          <span className="text-lg font-bold">D. Saldo Akhir (A + B - C)</span>
+          <span className="text-2xl font-extrabold">
+            {formatCurrency(
+              summary.saldoAwal +
+                (summary.potonganDriver + summary.kasMasuk) -
+                (summary.uangSaku +
+                  summary.premiDriver +
+                  summary.perpalDriver +
+                  summary.kasbon +
+                  summary.kasKeluar)
+            )}
+          </span>
+        </div>
 
-            <div className="flex justify-between">
-              <span>Realisasi Saku</span>
-              <span>{formatCurrency(summary.realisasiSaku)}</span>
-            </div>
+        {/* REALISASI */}
+        <div className="bg-white rounded-xl p-4 border shadow-sm">
+          <h2 className="font-bold mb-3 text-gray-800 text-lg">Laporan Realisasi</h2>
 
-            <div className="flex justify-between">
-              <span>Realisasi Kasbon</span>
-              <span>{formatCurrency(summary.realisasiKasbon)}</span>
-            </div>
+          <div className="flex justify-between py-1">
+            <span>Realisasi Saku</span>
+            <span className="font-semibold text-purple-700">{formatCurrency(summary.realisasiSaku)}</span>
+          </div>
 
-            <div className="flex justify-between font-bold border-t pt-2">
-              <span>Total Realisasi</span>
-              <span>{formatCurrency(summary.realisasiSaku + summary.realisasiKasbon)}</span>
-            </div>
+          <div className="flex justify-between py-1">
+            <span>Realisasi Kasbon</span>
+            <span className="font-semibold text-purple-700">{formatCurrency(summary.realisasiKasbon)}</span>
+          </div>
+
+          <div className="flex justify-between font-bold border-t border-gray-300 mt-2 pt-2 text-gray-900">
+            <span>Total Realisasi</span>
+            <span className="text-purple-800">
+              {formatCurrency(summary.realisasiSaku + summary.realisasiKasbon)}
+            </span>
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    )}
+  </div>
+);
 }
