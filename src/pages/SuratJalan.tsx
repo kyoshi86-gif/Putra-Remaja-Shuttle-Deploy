@@ -1333,7 +1333,7 @@ const handleSelectKodeRute = (item: Rute) => {
 
       {/* TABEL */}
       <div className="w-full pr-8">
-        <table className="min-w-[1550px] table-auto border border-gray-300 text-sm">
+        <table className="min-w-[1590px] table-auto border border-gray-300 text-sm">
           <thead className="bg-gray-400 text-white">
             <tr>
               <th className="p-2 border text-center w-[40px]">
@@ -1355,7 +1355,7 @@ const handleSelectKodeRute = (item: Rute) => {
               <th className="border p-2 text-center w-[100px]">No Surat Jalan</th>
               <th className="border p-2 text-center w-[60px]">Kode Unit</th>
               <th className="border p-2 text-center w-[90px]">No Polisi</th>
-              <th className="border p-2 text-center w-[140px]">Kode Rute</th>
+              <th className="border p-2 text-center w-[180px]">Kode Rute</th>
               <th className="border p-2 text-center w-[80px]">KM Berangkat</th>
               <th className="border p-2 text-center w-[80px]">KM Kembali</th>
               <th className="border p-2 text-center w-[60px]">Snack Berangkat</th>

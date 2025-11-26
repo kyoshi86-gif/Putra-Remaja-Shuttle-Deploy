@@ -327,42 +327,60 @@ export default function Kasbon() {
     if (!confirm("Yakin ingin hapus data terpilih?")) return;
 
     try {
+      // 1️⃣ Ambil list kasbon terpilih
       const { data: kasbonRows } = await supabase
         .from("kasbon")
-        .select("id, no_kasbon")
+        .select("id")
         .in("id", selected);
 
       const kasbonIds = kasbonRows?.map((r) => r.id) ?? [];
 
-      // ambil realisasi
+      // 2️⃣ Ambil semua realisasi terkait
       const { data: realisasiRows } = await supabase
         .from("kasbon_realisasi")
-        .select("id")
+        .select("id, kasbon_id")
         .in("kasbon_id", kasbonIds);
 
       const realIds = realisasiRows?.map((r) => r.id) ?? [];
 
-      // hapus realisasi
-      await supabase.from("kasbon_realisasi").delete().in("kasbon_id", kasbonIds);
+      // 3️⃣ HAPUS REALISASI dari tabel kasbon_realisasi
+      await supabase
+        .from("kasbon_realisasi")
+        .delete()
+        .in("kasbon_id", kasbonIds);
 
-      // hapus kas_harian (realisasi)
+      // 4️⃣ Hapus kas_harian → realisasi item
       if (realIds.length > 0) {
         await supabase
           .from("kas_harian")
           .delete()
-          .eq("sumber_tabel", "kasbon_realisasi")
+          .eq("sumber_tabel", "kasbon_realisasi_item")
           .in("sumber_id", realIds);
       }
 
-      // hapus kas_harian (header kasbon)
+      // 5️⃣ Hapus kas_harian → realisasi header
+      await supabase
+        .from("kas_harian")
+        .delete()
+        .eq("sumber_tabel", "kasbon_realisasi_header")
+        .in("sumber_id", kasbonIds);
+
+      // 6️⃣ Hapus kas_harian → sisa kasbon
+      await supabase
+        .from("kas_harian")
+        .delete()
+        .eq("sumber_tabel", "kasbon_realisasi_sisa")
+        .in("sumber_id", kasbonIds);
+
+      // 7️⃣ Hapus kas_harian → header kasbon (kredit awal)
       await supabase
         .from("kas_harian")
         .delete()
         .eq("sumber_tabel", "kasbon")
         .in("sumber_id", kasbonIds);
 
-      // hapus kasbon
-      await supabase.from("kasbon").delete().in("id", selected);
+      // 8️⃣ Hapus kasbon (header)
+      await supabase.from("kasbon").delete().in("id", kasbonIds);
 
       alert("Kasbon berhasil dihapus.");
 
@@ -373,7 +391,7 @@ export default function Kasbon() {
       const msg = err instanceof Error ? err.message : String(err);
       alert("Gagal hapus: " + msg);
     }
-  }
+  };
 
     // ------------------------------------------------------------------------------------
   // HAPUS KASBON → hapus realisasi → hapus kas_harian terkait semuanya
@@ -382,7 +400,7 @@ export default function Kasbon() {
     if (!confirm("Yakin ingin hapus kasbon ini?")) return;
 
     try {
-      // 1️⃣ ambil realisasi
+      // 1️⃣ Ambil semua realisasi yang terkait kasbon ini
       const { data: realisasiRows } = await supabase
         .from("kasbon_realisasi")
         .select("id")
@@ -390,26 +408,38 @@ export default function Kasbon() {
 
       const realIds = (realisasiRows || []).map((r) => r.id);
 
-      // 2️⃣ hapus realisasi
+      // 2️⃣ Hapus realisasi dari tabel kasbon_realisasi
       await supabase.from("kasbon_realisasi").delete().eq("kasbon_id", row.id);
 
-      // 3️⃣ hapus kas_harian untuk semua realisasi
-      if (realIds.length > 0) {
-        await supabase
-          .from("kas_harian")
-          .delete()
-          .eq("sumber_tabel", "kasbon_realisasi")
-          .in("sumber_id", realIds);
-      }
+      // 3️⃣ Hapus baris kas_harian untuk setiap realisasi (item)
+      await supabase
+        .from("kas_harian")
+        .delete()
+        .eq("sumber_tabel", "kasbon_realisasi_item")
+        .in("sumber_id", realIds);
 
-      // 4️⃣ hapus kas_harian untuk header kasbon
+      // 4️⃣ Hapus kas_harian realisasi header
+      await supabase
+        .from("kas_harian")
+        .delete()
+        .eq("sumber_tabel", "kasbon_realisasi_header")
+        .eq("sumber_id", row.id);
+
+      // 5️⃣ Hapus kas_harian untuk sisa kasbon
+      await supabase
+        .from("kas_harian")
+        .delete()
+        .eq("sumber_tabel", "kasbon_realisasi_sisa")
+        .eq("sumber_id", row.id);
+
+      // 6️⃣ Hapus kas_harian untuk header kasbon (debet awal kasbon)
       await supabase
         .from("kas_harian")
         .delete()
         .eq("sumber_tabel", "kasbon")
         .eq("sumber_id", row.id);
 
-      // 5️⃣ hapus header kasbon
+      // 7️⃣ Hapus record kasbon utama
       await supabase.from("kasbon").delete().eq("id", row.id);
 
       alert("Kasbon berhasil dihapus.");
@@ -419,9 +449,8 @@ export default function Kasbon() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       alert("Gagal hapus kasbon: " + msg);
-    } 
+    }
   };
-
 
       //// ------------------------------------------------------------------------------------
     // HAPUS REALISASI KASBON → WAJIB hapus baris kas_harian yang terkait realisasi tsb

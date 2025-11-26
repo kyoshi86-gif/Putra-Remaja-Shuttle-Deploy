@@ -60,6 +60,18 @@
     ]
   },
   {
+    "key": "Laporan",
+    "label": "Laporan",
+    "sub": [
+      { 
+        "label": "Kas Kasir", 
+        "access": "Laporan -> Kas Kasir",
+        "path": "/kas-kasir",
+        "component": "Kaskasir" 
+      }
+    ]
+  },
+  {
     "key": "Konfigurasi",
     "label": "Konfigurasi",
     "sub": [

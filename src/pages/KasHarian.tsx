@@ -276,16 +276,14 @@ export default function KasHarian() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 1000;
 
   // Selection
   const [selected, setSelected] = useState<string[]>([]);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
   
   // Pagination logic
-  const totalPages = Math.ceil(dataWithSaldo.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedData = dataWithSaldo.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = 1; // karena semua data ditampilkan pada 1 halaman
+  const paginatedData = dataWithSaldo;
 
   // Popup Cash Opname
   const [showCashOpname, setShowCashOpname] = useState(false);
@@ -379,7 +377,7 @@ export default function KasHarian() {
         .from("kas_harian")
         .delete()
         .in("bukti_transaksi", noPDs)
-        .eq("sumber_tabel", "premi_driver");
+        .in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
 
       if (deleteKasPD) {
         alert("❌ Gagal hapus kas_harian premi_driver: " + deleteKasPD.message);
@@ -918,7 +916,7 @@ export default function KasHarian() {
         .from("kas_harian")
         .select("id")
         .eq("bukti_transaksi", kasRow.bukti_transaksi)
-        .eq("sumber_tabel", "premi_driver");
+        .in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
 
       if (fetchError) {
         alert("❌ Gagal ambil transaksi terkait: " + fetchError.message);
@@ -1334,6 +1332,7 @@ export default function KasHarian() {
       </div>
 
       {/* Pagination */}
+      {totalPages > 1 && (
       <div className="flex justify-center items-center mt-4 gap-2">
         <button
           disabled={currentPage === 1}
@@ -1345,14 +1344,8 @@ export default function KasHarian() {
         <span>
           Halaman {currentPage} dari {totalPages || 1}
         </span>
-        <button
-          disabled={currentPage === totalPages || totalPages === 0}
-          onClick={() => setCurrentPage((p) => p + 1)}
-          className="px-3 py-1 border rounded disabled:opacity-50"
-        >
-          Next ›
-        </button>
       </div>
+      )}
 
       {/* POPUP FORM */}
       {showForm && (

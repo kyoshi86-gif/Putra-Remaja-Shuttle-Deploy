@@ -449,7 +449,7 @@ export default function PremiDriver() {
       .from("kas_harian")
       .delete()
       .in("bukti_transaksi", noPDs)
-      .eq("sumber_tabel", "premi_driver");
+      .in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
 
     if (kasDeleteError) {
       alert("❌ Gagal hapus kas_harian: " + kasDeleteError.message);
@@ -672,9 +672,7 @@ export default function PremiDriver() {
     const transaksi: KasTransaksi[] = [];
     const waktuNow = new Date().toTimeString().slice(0, 8); // hasil: HH:mm:ss lokal
     const keteranganBase = `${formData.driver} ${formData.no_polisi} ${formData.no_surat_jalan}`;
-    
     const currentUserId = getCustomUserId();
-    
     let urutan = 1;
 
     if (cleanedData.premi) {
@@ -700,7 +698,7 @@ export default function PremiDriver() {
         keterangan: `Perpal ${keteranganBase}`,
         nominal: Number(cleanedData.perpal ?? 0),
         jenis_transaksi: "kredit",
-        sumber_tabel: "premi_driver",
+        sumber_tabel: "perpal",
         sumber_id: finalId,
         bukti_transaksi: finalNomor,
         urutan: urutan++,
@@ -717,7 +715,7 @@ export default function PremiDriver() {
           keterangan: `Potongan ${item.keterangan} ${keteranganBase}`,
           nominal: item.nominal,
           jenis_transaksi: "debet",
-          sumber_tabel: "premi_driver",
+          sumber_tabel: "potongan",
           sumber_id: finalId,
           bukti_transaksi: finalNomor,
           urutan: urutan++,
@@ -750,7 +748,7 @@ export default function PremiDriver() {
           keterangan: realisasiKeterangan,
           nominal: bersihRealisasi,
           jenis_transaksi: "debet",
-          sumber_tabel: "premi_driver",
+          sumber_tabel: "realisasi_saku_header",
           sumber_id: finalId,
           bukti_transaksi: finalNomor,
           urutan: urutan++,
@@ -767,7 +765,7 @@ export default function PremiDriver() {
           keterangan: `Sisa / Kembali ${formData.no_polisi} ${formData.no_surat_jalan}`,
           nominal: uangSakuDetail.sisa,
           jenis_transaksi: "debet",
-          sumber_tabel: "premi_driver",
+          sumber_tabel: "realisasi_saku_sisa",
           sumber_id: finalId,
           bukti_transaksi: finalNomor,
           urutan: urutan++,
@@ -792,7 +790,7 @@ export default function PremiDriver() {
           keterangan: `Biaya ${biaya.label} ${keteranganBase}`,
           nominal: biaya.value,
           jenis_transaksi: "kredit",
-          sumber_tabel: "premi_driver",
+          sumber_tabel: "realisasi_saku_item",
           sumber_id: finalId,
           bukti_transaksi: finalNomor,
           urutan: urutan++,
@@ -904,7 +902,7 @@ export default function PremiDriver() {
       if (tambahan.length > 0) {
         const { error: insertError } = await supabase
           .from("kas_harian")
-          .insert(tambahan);
+          .insert(tambahan.map(t => ({ ...t, sumber_tabel: "premi_driver" })));
     console.log("✅ Menyimpan tambahan:", tambahan);
         if (insertError) {
           alert("❌ Gagal simpan transaksi tambahan: " + insertError.message);
@@ -964,7 +962,7 @@ export default function PremiDriver() {
       .from("kas_harian")
       .delete()
       .eq("bukti_transaksi", noPD)
-      .eq("sumber_tabel", "premi_driver");
+      .in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
 
     if (kasDeleteError) {
       alert("❌ Gagal hapus kas_harian: " + kasDeleteError.message);
