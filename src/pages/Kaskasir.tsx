@@ -242,7 +242,7 @@ export default function KasKasir() {
     }).format(n);
 
   return (
-  <div className="p-6 max-w-3xl mx-auto bg-gray-50 min-h-screen">
+  <div id="print-root" className="p-6 max-w-3xl mx-auto bg-white min-h-screen">
 
     <h1 className="text-3xl font-bold mb-6 text-gray-800 tracking-wide">
       Ringkasan Kasir
@@ -324,7 +324,9 @@ export default function KasKasir() {
     {loading ? (
       <p>Loading...</p>
     ) : (
-      <div className="bg-white shadow-lg rounded-2xl p-6 space-y-8 border border-gray-200">
+      <div 
+        id="print-area"
+        className="bg-white shadow-lg rounded-2xl p-6 space-y-8 border border-gray-200">
 
         {/* SALDO AWAL */}
         <div className="flex justify-between items-center p-4 rounded-xl bg-gradient-to-r from-green-500 to-green-400 text-white shadow-md">
@@ -436,6 +438,49 @@ export default function KasKasir() {
         </div>
       </div>
     )}
+
+    <style>
+    {`
+    @media print {
+
+      /* Atur ukuran halaman */
+      @page {
+        size: A4;
+        margin: 10mm;
+      }
+
+      /* Sembunyikan selain print-root */
+      body * {
+        visibility: hidden !important;
+      }
+
+      #print-root, #print-root * {
+        visibility: visible !important;
+      }
+
+      /* Geser ke pojok kiri atas dan scale 130% biar pas 1 halaman */
+      #print-root {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        transform: scale(1.30);
+        transform-origin: top left;
+      }
+
+      /* Warna tetap tampil */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+
+      body {
+        background: #ffffff !important;
+      }
+    }
+    `}
+    </style>
   </div>
 );
 }
