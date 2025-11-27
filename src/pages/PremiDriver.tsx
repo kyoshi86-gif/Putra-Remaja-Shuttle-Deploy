@@ -817,7 +817,14 @@ export default function PremiDriver() {
         .from("kas_harian")
         .select("id, keterangan, waktu")
         .eq("bukti_transaksi", finalNomor)
-        .eq("sumber_tabel", "premi_driver");
+        .in("sumber_tabel", [
+            "premi_driver",
+            "perpal",
+            "potongan",
+            "realisasi_saku_header",
+            "realisasi_saku_sisa",
+            "realisasi_saku_item"
+          ]);
 
       if (fetchOldError) {
         alert("❌ Gagal ambil transaksi kas lama: " + fetchOldError.message);
@@ -902,7 +909,7 @@ export default function PremiDriver() {
       if (tambahan.length > 0) {
         const { error: insertError } = await supabase
           .from("kas_harian")
-          .insert(tambahan.map(t => ({ ...t, sumber_tabel: "premi_driver" })));
+          .insert(tambahan.map(t => ({ ...t })))
     console.log("✅ Menyimpan tambahan:", tambahan);
         if (insertError) {
           alert("❌ Gagal simpan transaksi tambahan: " + insertError.message);
