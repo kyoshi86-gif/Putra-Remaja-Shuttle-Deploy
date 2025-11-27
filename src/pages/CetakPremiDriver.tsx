@@ -21,7 +21,7 @@ export default function CetakPremiDriver() {
     // tambahkan field lain jika perlu
   }
 
-  const [suratJalan, setSuratJalan] = useState<SuratJalanRow | null>(null); // ✅
+  const [suratJalan, setSuratJalan] = useState<SuratJalanRow | null>(null);
 
   interface CustomUser {
     id: string;
@@ -30,6 +30,13 @@ export default function CetakPremiDriver() {
   }
 
   const [customUser, setCustomUser] = useState<CustomUser | null>(null);
+
+  interface KasHarianRow {
+    keterangan: string;
+    nominal: number;
+    jenis_transaksi: string;
+    sumber_tabel: string;
+  }
 
   interface PremiDriverData {
     no_premi_driver: string;
@@ -43,6 +50,7 @@ export default function CetakPremiDriver() {
     totalPremi: number;
     totalPerpal: number;
     potonganList: { keterangan: string; nominal: number }[];
+    perpalList: { row: KasHarianRow; nominal: number }[];
     subTotalA: number;
     subTotalB: number;
     takeHomePay: number;
@@ -94,9 +102,9 @@ export default function CetakPremiDriver() {
       // ambil kas_harian
       const { data: kasData, error: err2 } = await supabase
         .from("kas_harian")
-        .select("keterangan, nominal, jenis_transaksi")
+        .select("keterangan, nominal, jenis_transaksi, sumber_tabel")
         .eq("bukti_transaksi", noPD)
-        .eq("sumber_tabel", "premi_driver");
+        .in("sumber_tabel", ["premi_driver", "perpal", "potongan"]);
 
       if (err2) {
         console.error("❌ Gagal ambil kas_harian:", err2.message);
@@ -119,20 +127,28 @@ export default function CetakPremiDriver() {
       // hitung total premi, perpal, potongan
       let totalPremi = 0;
       let totalPerpal = 0;
+
       let potonganList: { keterangan: string; nominal: number }[] = [];
+      let perpalList: { row: KasHarianRow; nominal: number }[] = [];
 
       kasData?.forEach((row) => {
         const ket = row.keterangan || "";
         if (ket.startsWith("Premi Driver")) totalPremi += row.nominal;
-        if (ket.startsWith("Perpal")) totalPerpal += row.nominal;
-        if (ket.startsWith("Potongan")) {
+        if (row.sumber_tabel === "perpal") {
+          perpalList.push({
+            row,
+            nominal: row.nominal
+          });
+          totalPerpal += row.nominal;
+        }
+        if (row.sumber_tabel === "potongan") {
           const cleaned = ket
             .replace(/^Potongan\s*/i, "")
-            .split(pdData.driver)[0]
-            ?.split(pdData.no_polisi)[0]
-            ?.split(pdData.no_surat_jalan)[0]
-            ?.trim();
-          potonganList.push({ keterangan: cleaned || "-", nominal: row.nominal });
+            .trim();
+          potonganList.push({
+            keterangan: cleaned || ket || "-",
+            nominal: row.nominal,
+          });
         }
       });
 
@@ -148,6 +164,7 @@ export default function CetakPremiDriver() {
         subTotalA,
         subTotalB,
         takeHomePay,
+        perpalList,
       });
     };
 
@@ -215,15 +232,24 @@ export default function CetakPremiDriver() {
     }
   };
 
-  const getPerpalKeterangan = (sj: SuratJalanRow | null) => {
-    if (!sj) return "";
-    if (sj.perpal_2x_tanggal && sj.perpal_2x_rute) {
-      return `[2x] ${formatTanggal(sj.perpal_2x_tanggal)} ${sj.perpal_2x_rute}`;
+  const getPerpalKeterangan = (
+    sj: SuratJalanRow | null,
+    row: KasHarianRow
+  ) => {
+
+    if (!sj) return row.keterangan || "Perpal";
+
+    // perpal 2x
+    if (row.keterangan.includes("2x") && sj.perpal_2x_tanggal && sj.perpal_2x_rute) {
+      return `Perpal [2x] ${formatTanggal(sj.perpal_2x_tanggal)} ${sj.perpal_2x_rute}`;
     }
-    if (sj.perpal_1x_tanggal && sj.perpal_1x_rute) {
-      return `[1x] ${formatTanggal(sj.perpal_1x_tanggal)} ${sj.perpal_1x_rute}`;
+
+    // perpal 1x
+    if (row.keterangan.includes("1x") && sj.perpal_1x_tanggal && sj.perpal_1x_rute) {
+      return `Perpal [1x] ${formatTanggal(sj.perpal_1x_tanggal)} ${sj.perpal_1x_rute}`;
     }
-    return "";
+
+    return row.keterangan || "Perpal";
   };
 
 
@@ -347,17 +373,19 @@ export default function CetakPremiDriver() {
             </td>
             <td className="border px-2"></td>
           </tr>
-          {data.totalPerpal > 0 && (
-            <tr>
-              <td className="border px-2 text-center">2</td>
-              <td className="border px-2 text-left">Perpal {getPerpalKeterangan(suratJalan)}</td>
+          {data.perpalList?.map((p, i) => (
+            <tr key={i}>
+              <td className="border px-2 text-center">{i + 2}</td>
+              <td className="border px-2 text-left">
+                {getPerpalKeterangan(suratJalan, p.row)}
+              </td>
               <td className="border px-2 text-right">
                 <span className="float-left">Rp.</span>
-                {formatRp(data.totalPerpal)}
+                {formatRp(p.nominal)}
               </td>
               <td className="border px-2"></td>
             </tr>
-          )}
+          ))}
           <tr>
             <td className="border px-2 text-right font-semibold"></td>
             <td className="border px-2 text-right font-semibold"></td>
