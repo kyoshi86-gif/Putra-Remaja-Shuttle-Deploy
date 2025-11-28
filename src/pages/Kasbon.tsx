@@ -961,7 +961,10 @@ export default function Kasbon() {
               <div className="space-y-2 max-h-60 overflow-auto">
                 {realisasiRows.length === 0 && <div className="text-gray-500">Belum ada baris realisasi.</div>}
                 {realisasiRows.map((r, idx) => (
-                  <div className="grid grid-cols-[3fr_2fr_40px] gap-2">
+                  <div
+                    key={r.id ?? idx} // ✅ tambahkan key unik
+                    className="grid grid-cols-[3fr_2fr_40px] gap-2"
+                  >
                     <input
                       type="text"
                       value={r.keterangan}
@@ -974,7 +977,9 @@ export default function Kasbon() {
                       onChange={(e) => updateRealisasiRow(idx, { nominal: extractNumber(e.target.value) })}
                       className="border rounded px-2 py-1 text-right"
                     />
-                    <button onClick={() => removeRealisasiRow(idx)} className="text-red-600"><FiTrash2 /></button>
+                    <button onClick={() => removeRealisasiRow(idx)} className="text-red-600">
+                      <FiTrash2 />
+                    </button>
                   </div>
                 ))}
               </div>
