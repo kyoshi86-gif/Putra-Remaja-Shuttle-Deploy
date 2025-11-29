@@ -433,6 +433,25 @@ const handleSelectKodeRute = (item: Rute) => {
       { field: "tanggal_kembali", label: "Tanggal Kembali" },
     ];
 
+    // === VALIDASI WAJIB KETERANGAN JIKA ADA PERPAL ===
+    const adaPerpal1 =
+      formData.perpal_1x_tanggal &&
+      formData.perpal_1x_tanggal.toString().trim() !== "" &&
+      formData.perpal_1x_rute &&
+      formData.perpal_1x_rute.toString().trim() !== "";
+
+    const adaPerpal2 =
+      formData.perpal_2x_tanggal &&
+      formData.perpal_2x_tanggal.toString().trim() !== "" &&
+      formData.perpal_2x_rute &&
+      formData.perpal_2x_rute.toString().trim() !== "";
+
+    // Jika ada perpal, wajib isi keterangan
+    if ((adaPerpal1 || adaPerpal2) && (!formData.keterangan || formData.keterangan.trim() === "")) {
+      alert("❌ Wajib mengisi KETERANGAN karena ada Perpal.");
+      return false;
+    }
+
     for (const { field, label } of wajibIsi) {
       const value = formData[field];
       if (!value || value.toString().trim() === "") {
