@@ -50,7 +50,7 @@ export default function CetakPremiDriver() {
     totalPremi: number;
     totalPerpal: number;
     potonganList: { keterangan: string; nominal: number }[];
-    perpalList: { row: KasHarianRow; nominal: number }[];
+    perpalList: { row: KasHarianRow; nominal: number; index: number }[];
     subTotalA: number;
     subTotalB: number;
     takeHomePay: number;
@@ -129,7 +129,7 @@ export default function CetakPremiDriver() {
       let totalPerpal = 0;
 
       let potonganList: { keterangan: string; nominal: number }[] = [];
-      let perpalList: { row: KasHarianRow; nominal: number }[] = [];
+      let perpalList: { row: KasHarianRow; nominal: number; index: number }[] = [];
 
       kasData?.forEach((row) => {
         const ket = row.keterangan || "";
@@ -137,7 +137,8 @@ export default function CetakPremiDriver() {
         if (row.sumber_tabel === "perpal") {
           perpalList.push({
             row,
-            nominal: row.nominal
+            nominal: row.nominal,
+            index: perpalList.length + 1   // tambahkan!
           });
           totalPerpal += row.nominal;
         }
@@ -234,22 +235,22 @@ export default function CetakPremiDriver() {
 
   const getPerpalKeterangan = (
     sj: SuratJalanRow | null,
-    row: KasHarianRow
+    p: { row: KasHarianRow; index: number }
   ) => {
-
-    if (!sj) return row.keterangan || "Perpal";
-
-    // perpal 2x
-    if (row.keterangan.includes("2x") && sj.perpal_2x_tanggal && sj.perpal_2x_rute) {
-      return `Perpal [2x] ${formatTanggal(sj.perpal_2x_tanggal)} ${sj.perpal_2x_rute}`;
-    }
+    if (!sj) return "Perpal";
 
     // perpal 1x
-    if (row.keterangan.includes("1x") && sj.perpal_1x_tanggal && sj.perpal_1x_rute) {
+    if (p.index === 1 && sj.perpal_1x_tanggal && sj.perpal_1x_rute) {
       return `Perpal [1x] ${formatTanggal(sj.perpal_1x_tanggal)} ${sj.perpal_1x_rute}`;
     }
 
-    return row.keterangan || "Perpal";
+    // perpal 2x
+    if (p.index === 2 && sj.perpal_2x_tanggal && sj.perpal_2x_rute) {
+      return `Perpal [2x] ${formatTanggal(sj.perpal_2x_tanggal)} ${sj.perpal_2x_rute}`;
+    }
+
+    // fallback
+    return "Perpal";
   };
 
 
@@ -377,7 +378,7 @@ export default function CetakPremiDriver() {
             <tr key={i}>
               <td className="border px-2 text-center">{i + 2}</td>
               <td className="border px-2 text-left">
-                {getPerpalKeterangan(suratJalan, p.row)}
+                {getPerpalKeterangan(suratJalan, p)}
               </td>
               <td className="border px-2 text-right">
                 <span className="float-left">Rp.</span>

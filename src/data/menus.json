@@ -68,6 +68,12 @@
         "access": "Laporan -> Kas Kasir",
         "path": "/kas-kasir",
         "component": "Kaskasir" 
+      },
+      {
+        "label": "Log Transaksi",
+        "access": "Laporan -> Log Transaksi",
+        "path": "/log-transaksi",
+        "component": "DashboardLog"
       }
     ]
   },
