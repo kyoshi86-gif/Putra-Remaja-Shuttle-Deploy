@@ -11,7 +11,7 @@ import type { Range, RangeKeyDict } from "react-date-range";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 
-const today = new Date().toISOString().split("T")[0];
+const today = format(new Date(), "yyyy-MM-dd");
 
 export default function KasKasir() {
   const [startDate, setStartDate] = useState(today);
@@ -30,6 +30,7 @@ export default function KasKasir() {
     kasKeluar: 0,
     kasbon: 0,
     realisasiKasbon: 0,
+    biayaEtoll: 0,
   });
 
   // date range state for picker (keperluan UI)
@@ -40,6 +41,17 @@ export default function KasKasir() {
       key: "selection",
     },
   ]);
+
+  // Sinkronkan range UI dengan startDate dan endDate
+  useEffect(() => {
+    setRange([
+      {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        key: "selection",
+      },
+    ]);
+  }, [startDate, endDate]);
 
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLDivElement | null>(null);
@@ -210,6 +222,17 @@ export default function KasKasir() {
 
       const realisasiKasbon = realKasbonData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
 
+      // Biaya Etoll (dari premi_driver)
+      const { data: etollData, error: etollError } = await supabase
+        .from("premi_driver")
+        .select("biaya_etoll")
+        .gte("tanggal", startDate)
+        .lte("tanggal", endDate);
+
+      if (etollError) console.error("Biaya EToll fetch error:", etollError.message);
+
+      const biayaEtoll = etollData?.reduce((t, r) => t + (r.biaya_etoll || 0), 0) || 0;
+
       // simpan ringkasan
       setSummary({
         saldoAwal,
@@ -222,6 +245,7 @@ export default function KasKasir() {
         kasKeluar,
         kasbon,
         realisasiKasbon,
+        biayaEtoll,
       });
     } catch (err: unknown) {
       console.error("fetchData error:", err);
@@ -436,6 +460,17 @@ export default function KasKasir() {
             </span>
           </div>
         </div>
+        {/* LAPORAN BIAYA ETOLL */}
+          <div className="bg-white rounded-xl p-4 border shadow-sm">
+            <h2 className="font-bold mb-3 text-gray-800 text-lg">Laporan Biaya EToll (Non Tunai)</h2>
+
+            <div className="flex justify-between py-1">
+              <span>Total Biaya EToll</span>
+              <span className="font-semibold text-orange-700">
+                {formatCurrency(summary.biayaEtoll || 0)}
+              </span>
+            </div>
+          </div>
       </div>
     )}
 

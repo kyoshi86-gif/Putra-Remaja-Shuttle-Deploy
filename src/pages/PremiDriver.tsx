@@ -23,6 +23,8 @@ interface PremiData {
   potongan: number | null;
   jumlah: number | null;
   keterangan: string;
+  biaya_etoll?: number | null;
+  kartu_etoll?: string | null;
   id_kas_harian?: number | null;
   user_id?: string;
   perpalAktif?: boolean;
@@ -42,6 +44,7 @@ export default function PremiDriver() {
   const [filtered, setFiltered] = useState<PremiData[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [search, setSearch] = useState("");
+  const [searchField, setSearchField] = useState("tanggal"); // ✅ tambahkan state untuk kriteria pencarian
   const [showForm, setShowForm] = useState(false);
   const [sjSearch, setSjSearch] = useState<string>(""); // ✅ eksplisit string
   const [showDropdown, setShowDropdown] = useState(false);
@@ -67,6 +70,8 @@ export default function PremiDriver() {
     potongan: 0,
     jumlah: 0,
     keterangan: "",
+    biaya_etoll: 0,
+    kartu_etoll: "",
     id_kas_harian: null,
   });
 
@@ -335,6 +340,14 @@ export default function PremiDriver() {
     .eq("no_surat_jalan", sj.no_surat_jalan)
     .single();
 
+  // 🔍 Ambil kartu etoll
+  const { data: etollRow } = await supabase
+    .from("uang_saku_driver")
+    .select("kartu_etoll")
+    .eq("no_surat_jalan", sj.no_surat_jalan)
+    .single();
+
+
   const nilaiPerpal =
     (detailSJ?.perpal_1x_rute ? 20000 : 0) +
     (detailSJ?.perpal_2x_rute ? 30000 : 0);
@@ -353,6 +366,8 @@ export default function PremiDriver() {
     kode_rute: detailSJ?.kode_rute ?? "",
     perpalAktif,
     perpal: nilaiPerpal,
+    kartu_etoll: etollRow?.kartu_etoll ?? "",
+    biaya_etoll: 0,
   }));
 
   // ✅ Realisasi hanya untuk driver
@@ -406,21 +421,18 @@ export default function PremiDriver() {
   // === SEARCH ===
   useEffect(() => {
     let filteredData = [...data];
+
     if (search.trim() !== "") {
       const keyword = search.toLowerCase();
-      filteredData = filteredData.filter((d) =>
-        (typeof d.no_premi_driver === "string" &&
-          d.no_premi_driver.toLowerCase().includes(keyword)) ||
-        (typeof d.no_surat_jalan === "string" &&
-          d.no_surat_jalan.toLowerCase().includes(keyword)) ||
-        (typeof d.driver === "string" &&
-          d.driver.toLowerCase().includes(keyword)) ||
-        (typeof d.no_polisi === "string" &&
-          d.no_polisi.toLowerCase().includes(keyword))
-      );
+
+      filteredData = filteredData.filter((d) => {
+        const value = String(d[searchField] ?? "").toLowerCase();
+        return value.includes(keyword);
+      });
     }
+
     setFiltered(filteredData);
-  }, [search, data]);
+  }, [search, searchField, data]);
 
   // === PAGINATION ===
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -517,6 +529,8 @@ export default function PremiDriver() {
         { label: "Perpal", key: "perpal", type: "currency" },
         { label: "Potongan", key: "potongan", type: "currency" },
         { label: "Jumlah", key: "jumlah", type: "currency" },
+        { label: "Kartu EToll", key: "kartu_etoll" },
+        { label: "Biaya EToll", key: "biaya_etoll", type: "currency" },
         { label: "Keterangan", key: "keterangan" },
         { label: "Created At", key: "created_at", type: "date", format: toDate },
         { label: "User ID", key: "user_id" },
@@ -552,6 +566,7 @@ export default function PremiDriver() {
       { field: "kode_rute", label: "Kode Rute" },
       { field: "tanggal_berangkat", label: "Tanggal Berangkat" },
       { field: "tanggal_kembali", label: "Tanggal Kembali" },
+      { field: "biaya_etoll", label: "Biaya EToll" },
     ];
 
     for (const { field, label } of wajibIsi) {
@@ -562,6 +577,13 @@ export default function PremiDriver() {
         setIsSubmitting(false);
         return;
       }
+    }
+
+    // === Validasi khusus biaya etoll ===
+    if (!formData.biaya_etoll || formData.biaya_etoll === 0) {
+      alert("❌ Biaya EToll wajib diisi!");
+      setIsSubmitting(false);
+      return;
     }
 
     // ❌ Cegah simpan jika Sisa / Kembali negatif
@@ -578,7 +600,7 @@ export default function PremiDriver() {
       Object.entries(formData).filter(([key]) => key !== "perpalAktif")
     ) as Partial<Record<keyof PremiData, string | number | null>>;
 
-    const numericFields: (keyof PremiData)[] = ["premi", "perpal"];
+    const numericFields: (keyof PremiData)[] = ["premi", "perpal", "biaya_etoll"];
 
     for (const key of numericFields) {
       const raw = formData[key];
@@ -1027,10 +1049,7 @@ export default function PremiDriver() {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setFormData(defaultFormData); // ✅ reset semua field
-        setSjSearch("");              // ✅ kosongkan input SJ
-        setPotonganList([]);          // ✅ bersihkan potongan
-        setShowForm(false);           // ✅ tutup popup
+        handleCloseForm();
       }
     };
     window.addEventListener("keydown", handleEsc);
@@ -1051,11 +1070,20 @@ export default function PremiDriver() {
 
   // -- CLOSE FORM ---
   const handleCloseForm = () => {
-    setFormData(defaultFormData); // reset semua isi form
+    setFormData(defaultFormData);
     setSjSearch("");
-    setPotonganList([]);          // ✅ bersihkan potongan
-    setShowForm(false);            // sembunyikan pop-up
-    };
+    setPotonganList([]);
+    setUangSakuDetail({
+      uang_saku: 0,
+      bbm: 0,
+      makan: 0,
+      parkir: 0,
+      jumlah: 0,
+      sisa: 0,
+    });
+    setShowForm(false);
+  };
+
 // Format tanggal ke dd-mm-yyyy
   const formatTanggal = (tgl: string | null | undefined) => {
     if (!tgl) return "";
@@ -1097,28 +1125,50 @@ export default function PremiDriver() {
             <FiPrinter /> Cetak
           </button>
         </div>
-        <div className="relative w-64">
-          <input
-            type="text"
-            placeholder="Cari data..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full border rounded px-3 py-2 pr-8"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
-            >
-              ✕
-            </button>
-          )}
+
+        {/* Dropdown + Searchbox */}
+        <div className="flex items-center gap-2">
+          {/* Dropdown kriteria pencarian */}
+          <select
+            value={searchField}
+            onChange={(e) => setSearchField(e.target.value)}
+            className="border rounded px-3 py-2"
+          >
+            <option value="tanggal">Tanggal</option>
+            <option value="no_premi_driver">No Bukti (PD-)</option>
+            <option value="no_surat_jalan">No Surat Jalan</option>
+            <option value="driver">Driver</option>
+            <option value="no_polisi">No Polisi</option>
+            <option value="kode_unit">Kode Unit</option>
+            <option value="kode_rute">Kode Rute</option>
+            <option value="kartu_etoll">Kartu Etoll</option>
+          </select>
+
+          {/* Textbox pencarian */}
+          <div className="relative w-64">
+            <input
+              type="text"
+              placeholder="Cari data..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full border rounded px-3 py-2 pr-8"
+            />
+
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Tabel Data */}
       <div className="max-w-screen overflow-x-auto pr-8">
-      <table className="min-w-[1600px] table-auto border border-gray-300">
+      <table className="min-w-[1860px] table-auto border border-gray-300">
         <thead className="bg-gray-400 text-white">
           <tr>
             <th className="p-2 border text-center w-[40px]">
@@ -1131,10 +1181,10 @@ export default function PremiDriver() {
             </th>
             <th className="p-2 border text-center w-[50px]">Aksi</th>
             <th className="p-2 border text-center w-[150px]">Tanggal</th>
-            <th className="p-2 border text-center w-[230px]">No Kas / PD</th>
-            <th className="p-2 border text-center w-[230px]">No Surat Jalan</th>
+            <th className="p-2 border text-center w-[200px]">No Kas / PD</th>
+            <th className="p-2 border text-center w-[200px]">No Surat Jalan</th>
             <th className="p-2 border text-center w-[300px]">Tgl Brkt & Kembali</th>
-            <th className="p-2 border text-center w-[150px]">Driver / Crew</th>
+            <th className="p-2 border text-center w-[200px]">Driver / Crew</th>
             <th className="p-2 border text-center w-[150px]">No Polisi</th>
             <th className="p-2 border text-center w-[120px]">Kode Unit</th>
             <th className="p-2 border text-center w-[220px]">Kode Rute</th>
@@ -1142,6 +1192,8 @@ export default function PremiDriver() {
             <th className="p-2 border text-center w-[150px]">Perpal</th>
             <th className="p-2 border text-center w-[150px]">Potongan</th>
             <th className="p-2 border text-center w-[150px]">Jumlah</th>
+            <th className="p-2 border text-center w-[150px]">Kartu EToll</th>
+            <th className="p-2 border text-center w-[150px]">Biaya EToll</th>
             <th className="p-2 border text-center w-[300px]">Keterangan</th>
           </tr>
         </thead>
@@ -1161,8 +1213,10 @@ export default function PremiDriver() {
                     onClick={async () => {
                       setFormData({ 
                         ...row,
+                        kartu_etoll: row.kartu_etoll ?? "",
+                        biaya_etoll: row.biaya_etoll ?? 0,
                         user_id: row.user_id ?? getCustomUserId() ?? "",
-                        perpalAktif: !!row.perpal, // ✅ aktifkan textbox kalau ada nilai perpal
+                        perpalAktif: !!row.perpal,
                       });
 
                       setSjSearch(row.no_surat_jalan || "");
@@ -1262,6 +1316,8 @@ export default function PremiDriver() {
               <td className="p-2 border text-right">{formatRupiah(row.perpal)}</td>
               <td className="p-2 border text-right">{formatRupiah(row.potongan)}</td>
               <td className="p-2 border text-right">{formatRupiah(row.jumlah)}</td>
+              <td className="p-2 border text-center">{row.kartu_etoll ?? ""}</td>
+              <td className="p-2 border text-right">{formatRupiah(row.biaya_etoll)}</td>
               <td className="p-2 border">{row.keterangan}</td>
             </tr>
           ))}
@@ -1681,6 +1737,34 @@ export default function PremiDriver() {
                   className={`w-full border rounded px-3 py-2 bg-gray-100 font-bold text-center ${
                     uangSakuDetail.sisa >= 0 ? "text-green-700" : "text-red-700"
                   }`}
+                />
+              </div>
+
+              {/* Kartu EToll */}
+              <div>
+                <label className="block mb-1">Kartu EToll</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={formData.kartu_etoll ?? ""}
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                />
+              </div>
+
+              {/* Biaya EToll */}
+              <div>
+                <label className="block mb-1 font-semibold">Biaya EToll (Wajib Diisi)</label>
+                <input
+                  type="text"
+                  name="biaya_etoll"
+                  value={formatRupiah(formData.biaya_etoll ?? 0)}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      biaya_etoll: Number(e.target.value.replace(/[^\d]/g, "")),
+                    }))
+                  }
+                  className="w-full border rounded px-3 py-2"
                 />
               </div>
 
