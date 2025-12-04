@@ -46,6 +46,9 @@ export default function KasHarian() {
   const [sjList] = useState<{ id?: number; no_surat_jalan: string }[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+
+  const [allHistori, setAllHistori] = useState<KasRow[]>([]);
+
   // Untuk ambil user di localstorage
 
   const handleSelectSj = (sj: { no_surat_jalan: string }) => {
@@ -90,33 +93,51 @@ export default function KasHarian() {
 
   // Fetch all data (tanpa filter Supabase)
   const fetchData = async () => {
-    try {
-      setLoading(true);
-      const { data: rows, error } = await supabase
-        .from("kas_harian")
-        .select("*")
-        .order("tanggal", { ascending: true })
-        .order("waktu", { ascending: true })
-        .order("urutan", { ascending: true })
+  try {
+    setLoading(true);
 
-      if (error) throw error;
+    // 1️⃣ Ambil SEMUA histori untuk hitung saldo awal (tidak dibatasi tanggal)
+    const { data: allRows, error: allError } = await supabase
+      .from("kas_harian")
+      .select("*")
+      .order("tanggal", { ascending: true })
+      .order("waktu", { ascending: true })
+      .order("urutan", { ascending: true });
 
-      const hasil = (rows || []) as KasRow[];
-      setData(hasil);
+    if (allError) throw allError;
 
-      // ⛔ Jangan ubah range di sini — biarkan tetap default hari ini
-      // Jika ingin tombol "Tampilkan Semua", bisa buat handler terpisah
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      alert("Gagal ambil data kas: " + message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const allData = allRows || [];
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+    // 2️⃣ Ambil data untuk TAMPILAN (sesuai range user)
+    const startStr = toWIBDateString(range[0].startDate ?? new Date());
+    const endStr   = toWIBDateString(range[0].endDate ?? new Date());
+
+    const { data: rangeRows, error: rangeError } = await supabase
+      .from("kas_harian")
+      .select("*")
+      .gte("tanggal", startStr)
+      .lte("tanggal", endStr)
+      .order("tanggal", { ascending: true })
+      .order("waktu", { ascending: true })
+      .order("urutan", { ascending: true });
+
+    if (rangeError) throw rangeError;
+
+    // 3️⃣ Simpan kedua dataset
+    // 🟦 allData  = untuk perhitungan saldo awal (dipakai useEffect)
+    // 🟩 rangeRows = untuk tampilan
+    setAllHistori(allData);   // anda buat state baru
+    setData(rangeRows || []); // data untuk tampil
+  } catch (err) {
+    alert("Gagal ambil data kas: " + (err as Error).message);
+  } finally {
+    setLoading(false);
+  }
+};
+
+useEffect(() => {
+  fetchData();
+}, [range]);
 
   // Filter + inject saldo (FINAL)
   useEffect(() => {
@@ -171,7 +192,15 @@ export default function KasHarian() {
 
     //-- LOG ==>console.log("📌 Hitung saldo kemarin berdasarkan dataKas & tanggalAwal =", startStr);
 
-    const saldoKemarin = getSaldoAwalDariHistori(injectedAll, startStr);
+    const sortedHistori = [...allHistori].sort((a,b) => 
+      new Date(`${a.tanggal} ${a.waktu ?? "00:00:00"}`).getTime() -
+      new Date(`${b.tanggal} ${b.waktu ?? "00:00:00"}`).getTime()
+    );
+
+    const injectedHistori = injectSaldoKeData(sortedHistori, 0);
+
+    const saldoKemarin = getSaldoAwalDariHistori(injectedHistori, startStr);
+
     setSaldoAwalHistori(saldoKemarin);
 
 
