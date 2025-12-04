@@ -149,6 +149,47 @@ const handleSelectKodeRute = (item: Rute) => {
 
   const [rute, setRute] = useState<RuteRow[]>([]);
 
+  // === Sort: ASAL (A-Z), TUJUAN (A-Z), JAM (00:00 - 23:59) ===
+  const sortRoutes = (list: string[]) => {
+    return list.sort((a, b) => {
+      const pa = a.split(" - ");
+      const pb = b.split(" - ");
+
+      const asalA = pa[0]?.trim() || "";
+      const tujuanA = pa[1]?.trim() || "";
+      const jamA = pa[2]?.trim() || "";
+
+      const asalB = pb[0]?.trim() || "";
+      const tujuanB = pb[1]?.trim() || "";
+      const jamB = pb[2]?.trim() || "";
+
+      // 1. Urut berdasarkan asal
+      const cmpAsal = asalA.localeCompare(asalB, "id");
+      if (cmpAsal !== 0) return cmpAsal;
+
+      // 2. Jika asal sama → urut tujuan
+      const cmpTujuan = tujuanA.localeCompare(tujuanB, "id");
+      if (cmpTujuan !== 0) return cmpTujuan;
+
+      // 3. Jika tujuan sama → urut jam
+      return jamA.localeCompare(jamB);
+    });
+  };
+
+  // === Membuat list rute kebalikan ===
+  const generateReverseRoutes = () => {
+    return rute.map(r => {
+      const parts = r.kode_rute.split(" - ");
+      if (parts.length < 3) return r.kode_rute;
+
+      const asal = parts[0].trim();
+      const tujuan = parts[1].trim();
+      const jam = parts[2].trim();
+
+      return `${tujuan} - ${asal} - ${jam}`;
+    });
+  }
+
   const defaultFormData: SuratJalanData = {
     id: 0,
     tanggal_berangkat: "",
@@ -1005,16 +1046,20 @@ const handleSelectKodeRute = (item: Rute) => {
                 <button
                   type="button"
                   disabled={!canTambahPerpal || isUsedInPremi}
-                  onClick={() =>
-                    canTambahPerpal && !isUsedInPremi &&
+                  onClick={() => {
+                    if (!canTambahPerpal || isUsedInPremi) return;
+
+                    // AUTO RUTE KEBALIKAN
+                    const reversed = generateReverseRoutes();
+
                     setFormData((prev) => ({
                       ...prev,
                       perpal_1x_tanggal: "",
-                      perpal_1x_rute: "",
+                      perpal_1x_rute: reversed.length > 0 ? reversed[0] : "",
                       perpal_2x_tanggal: undefined,
                       perpal_2x_rute: undefined,
-                    }))
-                  }
+                    }));
+                  }}
                   className={`px-2 py-1 rounded text-sm text-white ${
                     !canTambahPerpal || isUsedInPremi
                       ? "bg-gray-300 cursor-not-allowed"
@@ -1027,16 +1072,20 @@ const handleSelectKodeRute = (item: Rute) => {
                 <button
                   type="button"
                   disabled={!canTambahPerpal || isUsedInPremi}
-                  onClick={() =>
-                    canTambahPerpal && !isUsedInPremi &&
+                  onClick={() => {
+                    if (!canTambahPerpal || isUsedInPremi) return;
+
+                    // AUTO RUTE KEBALIKAN
+                    const reversed = generateReverseRoutes();
+
                     setFormData((prev) => ({
                       ...prev,
                       perpal_2x_tanggal: "",
-                      perpal_2x_rute: "",
+                      perpal_2x_rute: reversed.length > 0 ? reversed[0] : "",
                       perpal_1x_tanggal: undefined,
                       perpal_1x_rute: undefined,
-                    }))
-                  }
+                    }));
+                  }}
                   className={`px-2 py-1 rounded text-sm text-white ${
                     !canTambahPerpal || isUsedInPremi
                       ? "bg-gray-300 cursor-not-allowed"
@@ -1085,11 +1134,20 @@ const handleSelectKodeRute = (item: Rute) => {
                     }
                   >
                     <option value="">Pilih Rute Aktif</option>
-                    {rute.map((r) => (
-                      <option key={r.id} value={r.kode_rute}>
-                        {r.kode_rute}
-                      </option>
-                    ))}
+                    {/* Rute Asli */}
+                    {(() => {
+                      const normal = rute.map(r => r.kode_rute);
+                      const reversed = generateReverseRoutes();
+                      const combined = [...normal, ...reversed];
+
+                      const sorted = sortRoutes(combined);
+
+                      return sorted.map((rt, idx) => (
+                        <option key={idx} value={rt}>
+                          {rt}
+                        </option>
+                      ));
+                    })()}
                   </select>
                 </div>
 
@@ -1144,11 +1202,20 @@ const handleSelectKodeRute = (item: Rute) => {
                   }
                 >
                   <option value="">Pilih Rute Aktif</option>
-                  {rute.map((r) => (
-                    <option key={r.id} value={r.kode_rute}>
-                      {r.kode_rute}
-                    </option>
-                  ))}
+                  {/* Rute Asli */}
+                  {(() => {
+                    const normal = rute.map(r => r.kode_rute);
+                    const reversed = generateReverseRoutes();
+                    const combined = [...normal, ...reversed];
+
+                    const sorted = sortRoutes(combined);
+
+                    return sorted.map((rt, idx) => (
+                      <option key={idx} value={rt}>
+                        {rt}
+                      </option>
+                    ));
+                  })()}
                 </select>
               </div>
 
