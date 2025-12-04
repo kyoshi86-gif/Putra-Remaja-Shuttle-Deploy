@@ -41,6 +41,8 @@ export default function CetakPremiDriver() {
   interface PremiDriverData {
     no_premi_driver: string;
     tanggal: string;
+    tanggal_berangkat?: string;
+    tanggal_kembali?: string;
     no_surat_jalan: string;
     kode_unit: string;
     kode_rute: string;
@@ -241,12 +243,12 @@ export default function CetakPremiDriver() {
 
     // perpal 1x
     if (p.index === 1 && sj.perpal_1x_tanggal && sj.perpal_1x_rute) {
-      return `Perpal [1x] ${formatTanggal(sj.perpal_1x_tanggal)} ${sj.perpal_1x_rute}`;
+      return `Perpal [1x] ke ${formatTanggal(sj.perpal_1x_tanggal)} ${sj.perpal_1x_rute}`;
     }
 
     // perpal 2x
-    if (p.index === 2 && sj.perpal_2x_tanggal && sj.perpal_2x_rute) {
-      return `Perpal [2x] ${formatTanggal(sj.perpal_2x_tanggal)} ${sj.perpal_2x_rute}`;
+    if (p.index === 1 && sj.perpal_2x_tanggal && sj.perpal_2x_rute) {
+      return `Perpal [2x] ke ${formatTanggal(sj.perpal_2x_tanggal)} ${sj.perpal_2x_rute}`;
     }
 
     // fallback
@@ -289,9 +291,11 @@ export default function CetakPremiDriver() {
           <b>: {data.no_surat_jalan}</b>
         </div>
 
-        <div className="grid grid-cols-[60px_1fr] gap-y-[2px]">
+        <div className="grid grid-cols-[100px_1fr] gap-y-[2px]">
           <span>Rute</span>
           <b>: {data.kode_rute}</b>
+          <span>Tanggal Berangkat & Kembali</span>
+          <b>: {formatTanggal(data.tanggal_berangkat)} - {formatTanggal(data.tanggal_kembali)}</b>
 
           {/*
             Tampilkan Driver hanya bila:
