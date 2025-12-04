@@ -201,6 +201,27 @@ export default function PremiDriver() {
     sisa: 0,
   });
 
+  // === Generate keterangan otomatis berdasarkan perpal ===
+  // === Generate keterangan otomatis berdasarkan perpal ===
+  interface PerpalSource {
+    perpal_1x_tanggal?: string | Date | null;
+    perpal_1x_rute?: string | null;
+    perpal_2x_tanggal?: string | Date | null;
+    perpal_2x_rute?: string | null;
+  }
+
+  const generateKeterangan = (src: PerpalSource | null): string => {
+    if (!src) return "";
+    const p1t = src.perpal_1x_tanggal ?? null;
+    const p1r = src.perpal_1x_rute ?? null;
+    const p2t = src.perpal_2x_tanggal ?? null;
+    const p2r = src.perpal_2x_rute ?? null;
+
+    if (p1t && p1r) return `tanggal perpal ${formatTanggal(p1t)}, ${p1r}`;
+    if (p2t && p2r) return `tanggal perpal ${formatTanggal(p2t)}, ${p2r}`;
+    return "";
+  };
+
   // -- JUMLAH PAGE ---
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
@@ -336,7 +357,7 @@ export default function PremiDriver() {
   // ✅ Ambil detail SJ dari tabel surat_jalan
   const { data: detailSJ } = await supabase
     .from("surat_jalan")
-    .select("tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute, perpal_1x_rute, perpal_2x_rute")
+    .select("tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute, perpal_1x_rute, perpal_1x_tanggal, perpal_2x_rute, perpal_2x_tanggal")
     .eq("no_surat_jalan", sj.no_surat_jalan)
     .single();
 
@@ -368,6 +389,16 @@ export default function PremiDriver() {
     perpal: nilaiPerpal,
     kartu_etoll: etollRow?.kartu_etoll ?? "",
     biaya_etoll: 0,
+     // ambil perpal dari surat_jalan
+    perpal_1x_tanggal: detailSJ?.perpal_1x_tanggal ?? "",
+    perpal_1x_rute: detailSJ?.perpal_1x_rute ?? "",
+    perpal_2x_tanggal: detailSJ?.perpal_2x_tanggal ?? "",
+    perpal_2x_rute: detailSJ?.perpal_2x_rute ?? "",
+    // jika user tidak isi manual, generate otomatis
+    keterangan:
+      prev.keterangan && prev.keterangan.trim() !== ""
+        ? prev.keterangan
+        : generateKeterangan(detailSJ),
   }));
 
   // ✅ Realisasi hanya untuk driver
@@ -634,6 +665,26 @@ export default function PremiDriver() {
     cleanedData.potongan = totalPotongan;
 
     cleanedData.user_id = getCustomUserId();
+
+    // === AUTO KETERANGAN jika kosong tetapi perpal ada ===
+    if (!cleanedData.keterangan || String(cleanedData.keterangan).trim() === "") {
+      const gen = generateKeterangan({
+        perpal_1x_tanggal: cleanedData.perpal_1x_tanggal
+          ? String(cleanedData.perpal_1x_tanggal)
+          : null,
+        perpal_1x_rute: cleanedData.perpal_1x_rute
+          ? String(cleanedData.perpal_1x_rute)
+          : null,
+        perpal_2x_tanggal: cleanedData.perpal_2x_tanggal
+          ? String(cleanedData.perpal_2x_tanggal)
+          : null,
+        perpal_2x_rute: cleanedData.perpal_2x_rute
+          ? String(cleanedData.perpal_2x_rute)
+          : null,
+      });
+
+      if (gen.trim() !== "") cleanedData.keterangan = gen;
+    }
 
     // === Hapus kolom auto-generated ===
     delete cleanedData.id;
@@ -1085,14 +1136,17 @@ export default function PremiDriver() {
   };
 
 // Format tanggal ke dd-mm-yyyy
-  const formatTanggal = (tgl: string | null | undefined) => {
+  const formatTanggal = (tgl: string | Date | null | undefined): string => {
     if (!tgl) return "";
-    const date = new Date(tgl);
-    return date.toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).replaceAll("/", "-");
+    const date = typeof tgl === "string" ? new Date(tgl) : tgl;
+    if (isNaN(date.getTime())) return "";
+    return date
+      .toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+      .replaceAll("/", "-");
   };
 
   //-- otomatis isi tab +potongan ---
@@ -1286,6 +1340,30 @@ export default function PremiDriver() {
                       });
 
                       setPotonganList(potonganList);
+
+                      // === AUTO KETERANGAN pada saat EDIT jika kosong ===
+                      if ((!row.keterangan || row.keterangan.trim() === "") && row.no_surat_jalan) {
+                        const { data: sj } = await supabase
+                          .from("surat_jalan")
+                          .select("perpal_1x_tanggal, perpal_1x_rute, perpal_2x_tanggal, perpal_2x_rute")
+                          .eq("no_surat_jalan", row.no_surat_jalan)
+                          .single();
+
+                        if (sj) {
+                          const gen = generateKeterangan(sj);
+                          if (gen.trim() !== "") {
+                            setFormData(prev => ({
+                              ...prev,
+                              keterangan: gen,
+                              perpal_1x_tanggal: sj.perpal_1x_tanggal ?? prev.perpal_1x_tanggal,
+                              perpal_1x_rute: sj.perpal_1x_rute ?? prev.perpal_1x_rute,
+                              perpal_2x_tanggal: sj.perpal_2x_tanggal ?? prev.perpal_2x_tanggal,
+                              perpal_2x_rute: sj.perpal_2x_rute ?? prev.perpal_2x_rute,
+                            }));
+                          }
+                        }
+                      }
+
                     }}
                     className="text-blue-600 hover:text-blue-800 px-[5px]"
                     title="Edit"
