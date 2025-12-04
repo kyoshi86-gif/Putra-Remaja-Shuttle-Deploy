@@ -47,11 +47,13 @@ export default function Rute() {
     const { data, error } = await supabase
       .from("rute")
       .select("*")
-      .order("id", { ascending: false });
+      .order("id", { ascending: false }); // INI TIDAK DIHAPUS (biarkan sesuai permintaan)
+
     if (error) console.error("Gagal ambil data:", error.message);
     else {
-      setData(data as RuteData[]);
-      setFiltered(data as RuteData[]);
+      const sorted = sortRute(data as RuteData[]);  // ⬅️ Urutkan setelah fetch
+      setData(sorted);
+      setFiltered(sorted);
     }
     setLoading(false);
   };
@@ -59,6 +61,25 @@ export default function Rute() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Tambahkan ini di bawah fetchData
+  const sortRute = (list: RuteData[]) => {
+    return [...list].sort((a, b) => {
+      // Pisah nama rute dan jam berangkat
+      const [namaA] = a.kode_rute.split(" - ");
+      const [namaB] = b.kode_rute.split(" - ");
+
+      const jamA = a.jam_berangkat;
+      const jamB = b.jam_berangkat;
+
+      // 1. Urut nama rute (abjad)
+      const cmpNama = namaA.localeCompare(namaB, "id");
+      if (cmpNama !== 0) return cmpNama;
+
+      // 2. Jika nama sama → urutkan jam terkecil
+      return jamA.localeCompare(jamB);
+    });
+  };
 
   // Tutup popup saat tekan ESC
   useEffect(() => {

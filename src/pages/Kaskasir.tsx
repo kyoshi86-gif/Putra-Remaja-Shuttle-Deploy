@@ -499,7 +499,7 @@ export default function KasKasir() {
         top: 0;
         left: 0;
         width: 100%;
-        transform: scale(1.30);
+        transform: scale(1.20);
         transform-origin: top left;
       }
 
