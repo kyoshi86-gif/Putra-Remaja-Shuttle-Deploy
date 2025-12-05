@@ -389,14 +389,9 @@ export default function PremiDriver() {
     perpal: nilaiPerpal,
     kartu_etoll: etollRow?.kartu_etoll ?? "",
     biaya_etoll: 0,
-     // ambil perpal dari surat_jalan
-    perpal_1x_tanggal: detailSJ?.perpal_1x_tanggal ?? "",
-    perpal_1x_rute: detailSJ?.perpal_1x_rute ?? "",
-    perpal_2x_tanggal: detailSJ?.perpal_2x_tanggal ?? "",
-    perpal_2x_rute: detailSJ?.perpal_2x_rute ?? "",
-    // jika user tidak isi manual, generate otomatis
+    // langsung generate keterangan dari detailSJ
     keterangan:
-      prev.keterangan && prev.keterangan.trim() !== ""
+      prev.keterangan?.trim() !== ""
         ? prev.keterangan
         : generateKeterangan(detailSJ),
   }));
