@@ -970,20 +970,52 @@ export default function PremiDriver() {
         }
       }
 
-      // ✅ Tambahkan baris baru jika ada
-      const existingKeterangan = new Set((oldKas ?? []).map((k) => k.keterangan?.trim().toLowerCase()));
-      const tambahan = transaksi.filter((t) => !existingKeterangan.has(t.keterangan?.trim().toLowerCase()));
-    console.log("🚀 transaksi:", transaksi);
-      if (tambahan.length > 0) {
-        const { error: insertError } = await supabase
-          .from("kas_harian")
-          .insert(tambahan.map(t => ({ ...t })))
-    console.log("✅ Menyimpan tambahan:", tambahan);
-        if (insertError) {
-          alert("❌ Gagal simpan transaksi tambahan: " + insertError.message);
-          return;
-        }
-      }
+     // === FIX FINAL ===
+// HAPUS SEMUA BARIS KAS_HARIAN YANG TERKAIT PD INI
+await supabase
+  .from("kas_harian")
+  .delete()
+  .eq("bukti_transaksi", formData.no_premi_driver)
+
+// === BANGUN ULANG SELURUH TRANSAKSI DALAM URUTAN BENAR ===
+
+// Gunakan tanggal dari form
+const tanggalPD = formData.tanggal;
+
+// Start waktu dasar agar urutan selalu benar (misal mulai 06:00:00)
+let baseSecond = 6 * 3600;
+
+// Set waktu & created_at berdasarkan urutan transaksi
+const transaksiFinal = transaksi.map((t, idx) => {
+  const detik = baseSecond + idx;
+  const h = String(Math.floor(detik / 3600)).padStart(2, "0");
+  const m = String(Math.floor((detik % 3600) / 60)).padStart(2, "0");
+  const s = String(detik % 60).padStart(2, "0");
+
+  return {
+    ...t,
+    tanggal: tanggalPD,
+    waktu: `${h}:${m}:${s}`,
+    created_at: `${tanggalPD}T${h}:${m}:${s}`,
+  };
+});
+
+console.log("🔥 transaksiFinal", transaksiFinal);
+
+// === INSERT ULANG SEMUA TRANSAKSI ===  
+const { error: insertErr } = await supabase
+  .from("kas_harian")
+  .insert(transaksiFinal);
+
+if (insertErr) {
+  console.error(insertErr);
+  alert("❌ Gagal insert transaksi baru: " + insertErr.message);
+  return;
+}
+
+// === END FIX ===
+
+
     }
 
     // ✅ Reset form
@@ -1277,7 +1309,14 @@ export default function PremiDriver() {
                         .from("kas_harian")
                         .select("keterangan, nominal, jenis_transaksi")
                         .eq("bukti_transaksi", row.no_premi_driver)
-                        .eq("sumber_tabel", "premi_driver");
+                        .in("sumber_tabel", [
+                            "premi_driver",
+                            "perpal",
+                            "potongan",              // ← WAJIB agar potongan ikut kebaca
+                            "realisasi_saku_header",
+                            "realisasi_saku_sisa",
+                            "realisasi_saku_item"
+                        ]);
 
                       let uang_saku = 0;
                       let sisa = 0;
@@ -1412,22 +1451,26 @@ export default function PremiDriver() {
             
             <form
               onSubmit={async (e: React.FormEvent<HTMLFormElement>) => {
-                e.preventDefault();
+                e.preventDefault();  // cegah submit default
 
-                const success = await handleSubmit(e); // ✅ kirim 'e' agar sesuai definisi fungsi
-                if (!success) return; // kalau gagal, stop
+                const success = await handleSubmit(e);
+                if (!success) return;
 
                 const confirmPrint = window.confirm("Cetak Bukti Premi Driver?");
                 if (confirmPrint) {
-                  // Langsung buka tab cetak dan auto print tanpa popup ukuran
                   window.open(
                     `/cetak-premi-driver?no=${formData.no_premi_driver}&autoPrint=true`,
                     "_blank"
                   );
                 }
 
-                // Tutup popup form setelah simpan
                 setShowForm(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();   // cegah submit
+                  e.stopPropagation();  // cegah trigger tombol hapus potongan
+                }
               }}
               className="grid grid-cols-2 gap-4 pb-6"
             >

@@ -83,44 +83,64 @@ export default function KasKasir() {
   }, [showPicker]);
 
   const fetchData = async () => {
-    setLoading(true);
-    try {
-      // 1) ambil semua histori kas_harian (dipakai untuk inject saldo & hitung saldo awal)
-      const { data: allRows, error: allError } = await supabase
+  setLoading(true);
+  try {
+    const pageSize = 1000;
+    let allRows: KasRow[] = [];
+    let from = 0;
+    let to = pageSize - 1;
+    let hasMore = true;
+
+    // 🔄 Loop ambil semua batch histori kas_harian
+    while (hasMore) {
+      const { data: rows, error } = await supabase
         .from("kas_harian")
         .select("*")
         .order("tanggal", { ascending: true })
         .order("waktu", { ascending: true })
-        .order("urutan", { ascending: true });
+        .order("urutan", { ascending: true })
+        .range(from, to);
 
-      if (allError) {
-        console.error("❌ Gagal ambil histori kas_harian:", allError.message);
+      if (error) {
+        console.error("❌ Gagal ambil histori kas_harian:", error.message);
+        break;
       }
 
-      const all: KasRow[] = (allRows ?? []) as KasRow[];
-
-      // urutkan defensif berdasarkan tanggal+waktu
-      const sortedAll = [...all].sort((a, b) => {
-        const tA = new Date(`${a.tanggal} ${a.waktu ?? "00:00:00"}`).getTime();
-        const tB = new Date(`${b.tanggal} ${b.waktu ?? "00:00:00"}`).getTime();
-        return tA - tB;
-      });
-
-      // inject saldo untuk semua transaksi (mulai dari 0)
-      const injectedAll = injectSaldoKeData(sortedAll, 0);
-
-      // hitung saldo awal (saldo terakhir sebelum startDate)
-      // getSaldoAwalDariHistori menerima tanggal string (yyyy-mm-dd)
-      const saldoAwalValid = getSaldoAwalDariHistori(injectedAll, startDate);
-
-      // fallback: apabila histori ada tetapi semua saldo_akhir null, inject lagi dan ambil akhir
-      let saldoAwal = saldoAwalValid;
-      const historiExist = injectedAll.length > 0;
-      const semuaTanpaSaldo = historiExist && injectedAll.every((r) => r.saldo_akhir === null || r.saldo_akhir === undefined);
-      if (historiExist && semuaTanpaSaldo) {
-        const inj = injectSaldoKeData(sortedAll, 0);
-        saldoAwal = inj.at(-1)?.saldo_akhir ?? 0;
+      if (rows && rows.length > 0) {
+        allRows = [...allRows, ...(rows as KasRow[])];
+        from += pageSize;
+        to += pageSize;
+        hasMore = rows.length === pageSize; // kalau kurang dari 10k berarti sudah habis
+      } else {
+        hasMore = false;
       }
+    }
+
+    // urutkan defensif berdasarkan tanggal+waktu
+    const sortedAll = [...allRows].sort((a, b) => {
+      const tA = new Date(`${a.tanggal} ${a.waktu ?? "00:00:00"}`).getTime();
+      const tB = new Date(`${b.tanggal} ${b.waktu ?? "00:00:00"}`).getTime();
+      return tA - tB;
+    });
+
+    // inject saldo untuk semua transaksi (mulai dari 0)
+    const injectedAll = injectSaldoKeData(sortedAll, 0);
+
+    // hitung saldo awal (saldo terakhir sebelum startDate)
+    const saldoAwalValid = getSaldoAwalDariHistori(injectedAll, startDate);
+
+    // fallback: apabila histori ada tetapi semua saldo_akhir null
+    let saldoAwal = saldoAwalValid;
+    const historiExist = injectedAll.length > 0;
+    const semuaTanpaSaldo =
+      historiExist &&
+      injectedAll.every(
+        (r) => r.saldo_akhir === null || r.saldo_akhir === undefined
+      );
+    if (historiExist && semuaTanpaSaldo) {
+      const inj = injectSaldoKeData(sortedAll, 0);
+      saldoAwal = inj.at(-1)?.saldo_akhir ?? 0;
+    }
 
       // 2) ambil summary lain (berdasarkan tanggal range)
       // Uang Saku Driver (kredit)
@@ -247,6 +267,8 @@ export default function KasKasir() {
         realisasiKasbon,
         biayaEtoll,
       });
+      
+      
     } catch (err: unknown) {
       console.error("fetchData error:", err);
     } finally {

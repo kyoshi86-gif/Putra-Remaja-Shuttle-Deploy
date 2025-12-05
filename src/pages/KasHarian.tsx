@@ -46,9 +46,6 @@ export default function KasHarian() {
   const [sjList] = useState<{ id?: number; no_surat_jalan: string }[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-
-  const [allHistori, setAllHistori] = useState<KasRow[]>([]);
-
   // Untuk ambil user di localstorage
 
   const handleSelectSj = (sj: { no_surat_jalan: string }) => {
@@ -93,51 +90,48 @@ export default function KasHarian() {
 
   // Fetch all data (tanpa filter Supabase)
   const fetchData = async () => {
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // 1️⃣ Ambil SEMUA histori untuk hitung saldo awal (tidak dibatasi tanggal)
-    const { data: allRows, error: allError } = await supabase
-      .from("kas_harian")
-      .select("*")
-      .order("tanggal", { ascending: true })
-      .order("waktu", { ascending: true })
-      .order("urutan", { ascending: true });
+      const pageSize = 1000;
+      let allRows: KasRow[] = [];
+      let from = 0;
+      let to = pageSize - 1;
+      let hasMore = true;
 
-    if (allError) throw allError;
+      while (hasMore) {
+        const { data: rows, error } = await supabase
+          .from("kas_harian")
+          .select("*")
+          .order("tanggal", { ascending: true })
+          .order("waktu", { ascending: true })
+          .order("urutan", { ascending: true })
+          .range(from, to);
 
-    const allData = allRows || [];
+        if (error) throw error;
 
-    // 2️⃣ Ambil data untuk TAMPILAN (sesuai range user)
-    const startStr = toWIBDateString(range[0].startDate ?? new Date());
-    const endStr   = toWIBDateString(range[0].endDate ?? new Date());
+        if (rows && rows.length > 0) {
+          allRows = [...allRows, ...(rows as KasRow[])];
+          from += pageSize;
+          to += pageSize;
+          hasMore = rows.length === pageSize; // kalau kurang dari 10k berarti sudah habis
+        } else {
+          hasMore = false;
+        }
+      }
 
-    const { data: rangeRows, error: rangeError } = await supabase
-      .from("kas_harian")
-      .select("*")
-      .gte("tanggal", startStr)
-      .lte("tanggal", endStr)
-      .order("tanggal", { ascending: true })
-      .order("waktu", { ascending: true })
-      .order("urutan", { ascending: true });
+      setData(allRows);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert("Gagal ambil data kas: " + message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    if (rangeError) throw rangeError;
-
-    // 3️⃣ Simpan kedua dataset
-    // 🟦 allData  = untuk perhitungan saldo awal (dipakai useEffect)
-    // 🟩 rangeRows = untuk tampilan
-    setAllHistori(allData);   // anda buat state baru
-    setData(rangeRows || []); // data untuk tampil
-  } catch (err) {
-    alert("Gagal ambil data kas: " + (err as Error).message);
-  } finally {
-    setLoading(false);
-  }
-};
-
-useEffect(() => {
-  fetchData();
-}, [range]);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   // Filter + inject saldo (FINAL)
   useEffect(() => {
@@ -154,53 +148,8 @@ useEffect(() => {
     // 2️⃣ INJECT SALDO UNTUK SEMUA DATA (sekali saja)
     const injectedAll = injectSaldoKeData(sorted, 0);
 
-    // =========================================
-    // 🟦 LOGGER: pengecekan urutan & saldo akhir
-    // =========================================
-    //-- LOG ==>console.group("🔍 LOG SALDO SEMUA TRANSAKSI");
 
-    //-- LOG ==>injectedAll.forEach((r, i) => {
-    //-- LOG ==>  console.log(
-    //-- LOG ==>    `${i + 1}. ${r.tanggal} ${r.waktu} | ${r.jenis_transaksi} | ${r.nominal?.toLocaleString()} | saldo_awal=${r.saldo_awal?.toLocaleString()} → saldo_akhir=${r.saldo_akhir?.toLocaleString()} | bukti=${r.bukti_transaksi}`
-    //-- LOG ==>  );
-    //-- LOG ==>});
-
-    // Temukan saldo akhir tanggal 21
-    //-- LOG ==>const last21 = injectedAll
-    //-- LOG ==>  .filter(r => r.tanggal === "2025-11-21")
-    //-- LOG ==>  .at(-1);
-
-    // Temukan transaksi pertama tanggal 22
-    //-- LOG ==>const first22 = injectedAll
-    //-- LOG ==>  .filter(r => r.tanggal === "2025-11-22")
-    //-- LOG ==>  .at(0);
-
-    //-- LOG ==>console.log("🔵 SALDO AKHIR 21:", last21?.saldo_akhir);
-    //-- LOG ==>console.log("🟢 SALDO AWAL 22 :", first22?.saldo_awal);
-
-    //-- LOG ==>if (last21?.saldo_akhir !== first22?.saldo_awal) {
-    //-- LOG ==>  console.warn("❗ SELISIH TERDETEKSI antara 21 → 22");
-    //-- LOG ==>  console.log("👉 Perbedaan:",
-    //-- LOG ==>    (first22?.saldo_awal ?? 0) - (last21?.saldo_akhir ?? 0)
-    //-- LOG ==>  );
-    //-- LOG ==>  console.log("🔍 Transaksi pertama tanggal 22: ", first22);
-    //-- LOG ==>}
-
-    //-- LOG ==>console.groupEnd();
-
-    // 3️⃣ Saldo hari kemarin
-
-    //-- LOG ==>console.log("📌 Hitung saldo kemarin berdasarkan dataKas & tanggalAwal =", startStr);
-
-    const sortedHistori = [...allHistori].sort((a,b) => 
-      new Date(`${a.tanggal} ${a.waktu ?? "00:00:00"}`).getTime() -
-      new Date(`${b.tanggal} ${b.waktu ?? "00:00:00"}`).getTime()
-    );
-
-    const injectedHistori = injectSaldoKeData(sortedHistori, 0);
-
-    const saldoKemarin = getSaldoAwalDariHistori(injectedHistori, startStr);
-
+    const saldoKemarin = getSaldoAwalDariHistori(injectedAll, startStr);
     setSaldoAwalHistori(saldoKemarin);
 
 
@@ -240,19 +189,6 @@ useEffect(() => {
 
     // 6️⃣ Inject saldo untuk data dalam range
     const injectedFinal = injectSaldoKeData(filteredKeyword, saldoKemarin);
-    // =========================================
-    // 🟩 LOGGER DATA TAMPILAN RENTANG TANGGAL
-    // =========================================
-    //-- LOG ==>console.group("📘 LOG DATA RENTANG TANGGAL");
-    //-- LOG ==>console.log("Saldo Kemarin:", saldoKemarin);
-
-    //-- LOG ==>injectedFinal.forEach((r, i) => {
-    //-- LOG ==>  console.log(
-    //-- LOG ==>    `${i + 1}. ${r.tanggal} ${r.waktu} | ${r.jenis_transaksi} | ${r.nominal} | awal=${r.saldo_awal} akhir=${r.saldo_akhir} | bukti=${r.bukti_transaksi}`
-    //-- LOG ==>  );
-    //-- LOG ==>});
-
-    //-- LOG ==>console.groupEnd();
 
 
     // 7️⃣ Set state
