@@ -112,21 +112,6 @@ export default function PremiDriver() {
 
   const [, setKasHarian] = useState<KasHarianRow[]>([]);
 
-  interface KasHarianRow {
-    id: number;
-    tanggal: string;
-    waktu: string;
-    keterangan: string;
-    nominal: number;
-    jenis_transaksi: "debet" | "kredit";
-    sumber_tabel: string;
-    sumber_id: number;
-    bukti_transaksi: string;
-    urutan: number;
-    user_id: string;
-    updated_at: string;
-  }
-
   interface SuratJalanRow {
     no_surat_jalan: string;
     driver: string;
@@ -202,7 +187,6 @@ export default function PremiDriver() {
   });
 
   // === Generate keterangan otomatis berdasarkan perpal ===
-  // === Generate keterangan otomatis berdasarkan perpal ===
   interface PerpalSource {
     perpal_1x_tanggal?: string | Date | null;
     perpal_1x_rute?: string | null;
@@ -210,16 +194,92 @@ export default function PremiDriver() {
     perpal_2x_rute?: string | null;
   }
 
-  const generateKeterangan = (src: PerpalSource | null): string => {
+  const generateKeterangan = (
+    src: PerpalSource | null,
+    driver?: string | null,
+    noPol?: string | null,
+    noSj?: string | null
+  ): string => {
     if (!src) return "";
+
     const p1t = src.perpal_1x_tanggal ?? null;
     const p1r = src.perpal_1x_rute ?? null;
     const p2t = src.perpal_2x_tanggal ?? null;
     const p2r = src.perpal_2x_rute ?? null;
 
-    if (p1t && p1r) return `tanggal perpal ${formatTanggal(p1t)}, ${p1r}`;
-    if (p2t && p2r) return `tanggal perpal ${formatTanggal(p2t)}, ${p2r}`;
-    return "";
+    // helper format tanggal dd-mm-yy (sesuai contoh Anda)
+    const fmtDate = (d: string | Date | null | undefined) => {
+      if (!d) return "";
+      const date = typeof d === "string" ? new Date(d) : d;
+      if (isNaN(date.getTime())) return "";
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = String(date.getFullYear()).slice(-2); // yy
+      return `${day}-${month}-${year}`;
+    };
+
+    // parse route string "ASAL - TUJUAN - HH:MM" => { routeNoTime: "ASAL - TUJUAN - HH:MM", routeNoJam: "ASAL - TUJUAN", jam: "HH:MM" }
+    const parseRoute = (r?: string | null) => {
+      if (!r) return null;
+      const parts = r.split(" - ").map((s) => s.trim());
+      if (parts.length === 3) {
+        const [asal, tujuan, jam] = parts;
+        return {
+          route: `${asal} - ${tujuan}`,
+          jam: jam,
+        };
+      }
+      // fallback: treat whole string as route (no jam)
+      return { route: r.trim(), jam: "" };
+    };
+
+    const p1 = parseRoute(p1r as string | undefined);
+    const p2 = parseRoute(p2r as string | undefined);
+
+    // tanggal utama: pakai p1 jika ada, kalau tidak ambil p2
+    const tanggalUtama = p1t ? fmtDate(p1t) : fmtDate(p2t);
+
+    // bangun bagian route+jam:
+    let routePart = "";
+    const jamParts: string[] = [];
+
+    if (p1 && p2) {
+      if (p1.route === p2.route) {
+        // sama rute -> tampilkan route sekali dan gabungkan jam
+        routePart = p1.route;
+        if (p1.jam) jamParts.push(`(${p1.jam})`);
+        if (p2.jam) jamParts.push(`(${p2.jam})`);
+      } else {
+        // beda rute -> tampilkan masing2 "ROUTE (jam)" dipisah spasi
+        const segs: string[] = [];
+        if (p1.route) segs.push(`${p1.route}${p1.jam ? ` (${p1.jam})` : ""}`);
+        if (p2.route) segs.push(`${p2.route}${p2.jam ? ` (${p2.jam})` : ""}`);
+        routePart = segs.join(" ");
+      }
+    } else if (p1) {
+      routePart = p1.route ?? "";
+      if (p1.jam) jamParts.push(`(${p1.jam})`);
+    } else if (p2) {
+      routePart = p2.route ?? "";
+      if (p2.jam) jamParts.push(`(${p2.jam})`);
+    }
+
+    // Susun final: "Perpal [driver] [nopol] [tanggal] [routePart] [jamParts...] [noSj]"
+    const parts: string[] = ["Perpal"];
+    if (driver) parts.push(String(driver));
+    if (noPol) parts.push(String(noPol));
+    if (tanggalUtama) parts.push(tanggalUtama);
+    if (routePart) parts.push(routePart);
+    if (jamParts.length > 0 && p1 && p2 && p1.route === p2.route) {
+      // jika route sama, jamParts sudah berisi jam terpisah seperti ["(04:30)","(20:00)"]
+      parts.push(jamParts.join(" "));
+    } else if (jamParts.length > 0 && !(p1 && p2 && p1.route === p2.route)) {
+      // jika route berbeda dan kami sudah memasukkan jam di routePart, tidak tambahkan lagi
+      // (jam sudah di-routePart). Jadi nothing to add here.
+    }
+    if (noSj) parts.push(String(noSj));
+
+    return parts.filter(Boolean).join(" ").trim();
   };
 
   // -- JUMLAH PAGE ---
@@ -371,7 +431,7 @@ export default function PremiDriver() {
 
   const nilaiPerpal =
     (detailSJ?.perpal_1x_rute ? 20000 : 0) +
-    (detailSJ?.perpal_2x_rute ? 30000 : 0);
+    (detailSJ?.perpal_2x_rute ? 10000 : 0);
 
   const perpalAktif = !!(detailSJ?.perpal_1x_rute || detailSJ?.perpal_2x_rute);
 
@@ -393,7 +453,17 @@ export default function PremiDriver() {
     keterangan:
       prev.keterangan?.trim() !== ""
         ? prev.keterangan
-        : generateKeterangan(detailSJ),
+        : generateKeterangan(
+            {
+              perpal_1x_tanggal: detailSJ?.perpal_1x_tanggal,
+              perpal_1x_rute: detailSJ?.perpal_1x_rute,
+              perpal_2x_tanggal: detailSJ?.perpal_2x_tanggal,
+              perpal_2x_rute: detailSJ?.perpal_2x_rute,
+            },
+            sj.nama ?? "",
+            detailSJ?.no_polisi ?? "",
+            sj.no_surat_jalan
+          ),
   }));
 
   // ✅ Realisasi hanya untuk driver
@@ -760,10 +830,12 @@ export default function PremiDriver() {
     }
 
     if (cleanedData.perpal) {
+      // build perpal keterangan lengkap sesuai format: Perpal [driver] [nopol] [tanggal] [ROUTE] (jam...) [no_surat_jalan]
+
       transaksi.push({
         tanggal: formData.tanggal,
         waktu: waktuNow,
-        keterangan: `Perpal ${keteranganBase}`,
+        keterangan: formData.keterangan,
         nominal: Number(cleanedData.perpal ?? 0),
         jenis_transaksi: "kredit",
         sumber_tabel: "perpal",
@@ -881,18 +953,19 @@ export default function PremiDriver() {
 
     // === Simpan ke kas_harian ===
     if (isEdit) {
+      // Ambil baris kas_harian lama terkait bukti ini
       const { data: oldKas, error: fetchOldError } = await supabase
         .from("kas_harian")
-        .select("id, keterangan, waktu")
+        .select("id, keterangan, waktu, urutan, sumber_tabel")
         .eq("bukti_transaksi", finalNomor)
         .in("sumber_tabel", [
-            "premi_driver",
-            "perpal",
-            "potongan",
-            "realisasi_saku_header",
-            "realisasi_saku_sisa",
-            "realisasi_saku_item"
-          ]);
+          "premi_driver",
+          "perpal",
+          "potongan",
+          "realisasi_saku_header",
+          "realisasi_saku_sisa",
+          "realisasi_saku_item"
+        ]);
 
       if (fetchOldError) {
         alert("❌ Gagal ambil transaksi kas lama: " + fetchOldError.message);
@@ -901,61 +974,52 @@ export default function PremiDriver() {
 
       const currentUserId = getCustomUserId();
 
+      // 1) Perbarui/hapus baris lama yang cocok — JAGA waktu/urutan (jangan overwrite waktu)
       for (const old of oldKas ?? []) {
         const isOldSisaKembali = old.keterangan?.startsWith("Sisa / Kembali");
 
-      // ✅ Hapus baris lama jika sisa sekarang nol atau negatif
-      if (isOldSisaKembali && (uangSakuDetail.sisa || 0) <= 0) {
-        const { error: deleteError } = await supabase
-          .from("kas_harian")
-          .delete()
-          .eq("id", old.id);
-
-        if (deleteError) {
-          alert("❌ Gagal hapus baris Sisa/Kembali: " + deleteError.message);
-          return;
+        // Hapus baris Sisa/Kembali jika sekarang nol atau negatif
+        if (isOldSisaKembali && (uangSakuDetail.sisa || 0) <= 0) {
+          const { error: deleteError } = await supabase.from("kas_harian").delete().eq("id", old.id);
+          if (deleteError) {
+            alert("❌ Gagal hapus baris Sisa/Kembali: " + deleteError.message);
+            return;
+          }
+          continue;
         }
 
-        continue;
-      }
-
+        // carikan transaksi baru yang cocok berdasarkan keterangan (case-insensitive)
         const trx = transaksi.find((t) =>
-          t.keterangan?.trim().toLowerCase() === old.keterangan?.trim().toLowerCase()
+          String(t.keterangan || "").trim().toLowerCase() === String(old.keterangan || "").trim().toLowerCase()
         );
+
         if (!trx) {
-          console.warn("❌ Baris tidak ditemukan di transaksi:", old.keterangan);
+          // jika tidak ditemukan, kita biarkan nanti (akan dihapus di langkah delete diff)
           continue;
         }
 
         const isSisaKembali = trx.keterangan?.startsWith("Sisa / Kembali");
 
-        // ✅ Jika sisa = 0 dan ini baris sisa/kembali → hapus
+        // jika sisa sekarang 0 dan ini baris sisa/kembali -> hapus
         if (isSisaKembali && Math.abs(uangSakuDetail.sisa || 0) < 0.001) {
-          const { error: deleteError } = await supabase
-            .from("kas_harian")
-            .delete()
-            .eq("id", old.id);
-
+          const { error: deleteError } = await supabase.from("kas_harian").delete().eq("id", old.id);
           if (deleteError) {
             alert("❌ Gagal hapus baris Sisa/Kembali: " + deleteError.message);
             return;
           }
-
-          continue; // ⛔ jangan lanjut update baris ini
+          continue;
         }
 
-        // ✅ Hitung nominal realisasi saku utuh
+        // hitung nominal & jenis transaksi
         const nominal = trx.nominal;
+        const jenis_transaksi = isSisaKembali ? (uangSakuDetail.sisa >= 0 ? "debet" : "kredit") : trx.jenis_transaksi;
 
-        const jenis_transaksi = isSisaKembali
-          ? uangSakuDetail.sisa >= 0 ? "debet" : "kredit"
-          : trx.jenis_transaksi;
-
+        // update hanya fields selain waktu/urutan (keterangan/nominal/jenis/etc)
         const { error: updateError } = await supabase
           .from("kas_harian")
           .update({
             tanggal: formData.tanggal,
-            waktu: old.waktu, // ✅ jaga urutan
+            // jangan ubah old.waktu (biar urutan tampilan stabil)
             keterangan: trx.keterangan,
             nominal,
             jenis_transaksi,
@@ -970,52 +1034,215 @@ export default function PremiDriver() {
         }
       }
 
-     // === FIX FINAL ===
-// HAPUS SEMUA BARIS KAS_HARIAN YANG TERKAIT PD INI
-await supabase
-  .from("kas_harian")
-  .delete()
-  .eq("bukti_transaksi", formData.no_premi_driver)
+      // ===== REPLACEMENT: diff-based update kas_harian (preserve existing waktu/urutan) =====
 
-// === BANGUN ULANG SELURUH TRANSAKSI DALAM URUTAN BENAR ===
+      // Ambil baris kas_harian existing untuk bukti_transaksi ini (lengkap)
+      const { data: existingRowsRes, error: errExisting } = await supabase
+        .from("kas_harian")
+        .select("*")
+        .eq("bukti_transaksi", formData.no_premi_driver);
 
-// Gunakan tanggal dari form
-const tanggalPD = formData.tanggal;
+      if (errExisting) {
+        console.error("Gagal ambil existing kas_harian:", errExisting);
+        throw errExisting;
+      }
 
-// Start waktu dasar agar urutan selalu benar (misal mulai 06:00:00)
-let baseSecond = 6 * 3600;
+      // gunakan tipe KasHarianRow yang sudah ada di file
+      const existingRows = (existingRowsRes || []) as KasHarianRow[];
 
-// Set waktu & created_at berdasarkan urutan transaksi
-const transaksiFinal = transaksi.map((t, idx) => {
-  const detik = baseSecond + idx;
-  const h = String(Math.floor(detik / 3600)).padStart(2, "0");
-  const m = String(Math.floor((detik % 3600) / 60)).padStart(2, "0");
-  const s = String(detik % 60).padStart(2, "0");
+      // Normalisasi key untuk compare (gunakan keterangan + jenis + nominal sebagai identitas sederhana)
+      const normalizeKey = (r: { keterangan?: string; jenis_transaksi?: string; nominal?: number | string }) =>
+        `${String(r.keterangan || "").trim().toLowerCase()}|${String(r.jenis_transaksi || "").trim().toLowerCase()}|${Number(r.nominal || 0)}`;
 
-  return {
-    ...t,
-    tanggal: tanggalPD,
-    waktu: `${h}:${m}:${s}`,
-    created_at: `${tanggalPD}T${h}:${m}:${s}`,
-  };
-});
+      // Map existing by normalized key (pakai tipe eksplisit)
+      const existingMap = new Map<string, KasHarianRow>();
+      existingRows.forEach((r) => existingMap.set(normalizeKey(r), r));
 
-console.log("🔥 transaksiFinal", transaksiFinal);
+      // Tipe internal untuk transaksi yang akan dimasukkan/ dibandingkan
+      type KasTransaksi = {
+        tanggal?: string;
+        waktu?: string;
+        keterangan?: string;
+        nominal?: number;
+        jenis_transaksi?: string;
+        sumber_tabel?: string;
+        sumber_id?: number | null;
+        bukti_transaksi?: string;
+        urutan?: number;
+        user_id?: string | null;
+        updated_at?: string;
+        created_at?: string;
+      };
 
-// === INSERT ULANG SEMUA TRANSAKSI ===  
-const { error: insertErr } = await supabase
-  .from("kas_harian")
-  .insert(transaksiFinal);
+      // Map transaksi target by normalized key (pakai KasTransaksi)
+      const transaksiMap = new Map<string, KasTransaksi>();
+      transaksi.forEach((t) => transaksiMap.set(normalizeKey(t as KasTransaksi), t as KasTransaksi));
 
-if (insertErr) {
-  console.error(insertErr);
-  alert("❌ Gagal insert transaksi baru: " + insertErr.message);
-  return;
-}
+      // 1) DELETE: hapus existing yang tidak ada di transaksi lagi
+      const toDeleteIds: number[] = existingRows
+        .filter((r) => !transaksiMap.has(normalizeKey(r)))
+        .map((r) => r.id)
+        .filter(Boolean);
 
-// === END FIX ===
+      if (toDeleteIds.length > 0) {
+        const { error: delErr } = await supabase.from("kas_harian").delete().in("id", toDeleteIds);
+        if (delErr) {
+          console.error("Gagal menghapus baris kas_harian:", delErr);
+          throw delErr;
+        }
+      }
 
+      // 2) UPDATE: sudah dilakukan di loop atas (untuk menjaga waktu/urutan)
 
+      // --- Siapkan helper waktu / urutan (dipakai saat insert) ---
+      const existingTimes = existingRows.map((r) => r.waktu).filter(Boolean) as string[];
+      const existingUrutans = existingRows.map((r) => Number(r.urutan || 0));
+
+      let maxTime = existingTimes.length > 0 ? existingTimes.sort()[existingTimes.length - 1] : "06:00:00";
+      let maxUrutan = existingUrutans.length > 0 ? Math.max(...existingUrutans) : 0;
+
+      // 3) INSERT (baru): cari transaksi yang belum ada di existing -> INSERT pada posisi yang benar
+      const realisasiSources = new Set([
+        "realisasi_saku_header",
+        "realisasi_saku_item",
+        "realisasi_saku_sisa",
+        "realisasi",
+      ]);
+
+      // urutkan existingRows berdasarkan urutan numerik (kecil -> besar)
+      const existingByUrutan = existingRows
+        .map(r => ({ ...r, urutan: Number(r.urutan || 0) }))
+        .sort((a, b) => a.urutan - b.urutan);
+
+      // cari firstRealRow (baris realisasi pertama)
+      const firstRealRow = existingByUrutan.find(r => realisasiSources.has(String(r.sumber_tabel)));
+      const firstRealUrutan = firstRealRow ? Number(firstRealRow.urutan || 0) : null;
+
+      // list transaksi baru yg belum ada
+      const toInsert: KasTransaksi[] = transaksi.filter(
+        (t: KasTransaksi) => !existingMap.has(normalizeKey(t))
+      );
+
+      if (toInsert.length === 0) {
+        // nothing to insert
+      } else if (firstRealUrutan === null) {
+        // tidak ada realisasi: APPEND (perilaku lama tetapi tanpa membuat waktu berbeda signifikan)
+        let curUrutan = maxUrutan;
+        const toInsertRows: KasTransaksi[] = [];
+
+        for (const t of toInsert) {
+          curUrutan += 1;
+          // gunakan waktu = maxTime agar tampil berdekatan; created_at diberi suffix unik untuk stabilitas
+          const waktuForRow = maxTime;
+          const msSuffix = String(curUrutan).padStart(3, "0");
+          const createdAtForRow = `${formData.tanggal}T${waktuForRow}.${msSuffix}Z`;
+
+          toInsertRows.push({
+            tanggal: formData.tanggal,
+            waktu: waktuForRow,
+            keterangan: t.keterangan,
+            nominal: t.nominal,
+            jenis_transaksi: t.jenis_transaksi,
+            sumber_tabel: t.sumber_tabel,
+            sumber_id: finalId,
+            bukti_transaksi: formData.no_premi_driver,
+            urutan: curUrutan,
+            user_id: await getCustomUserId(),
+            updated_at: createdAtForRow,
+            created_at: createdAtForRow,
+          });
+        }
+
+        if (toInsertRows.length > 0) {
+          const { error: insErr } = await supabase.from("kas_harian").insert(toInsertRows);
+          if (insErr) {
+            console.error("Gagal insert kas_harian baru:", insErr);
+            throw insErr;
+          }
+        }
+      } else {
+        // ADA realisasi -> sisipkan before firstRealUrutan
+        const nInsert = toInsert.length;
+
+        // SHIFT urutan per-row: tambah nInsert ke semua urutan >= firstRealUrutan
+        const affected = existingByUrutan.filter(r => r.urutan >= firstRealUrutan).reverse();
+        for (const row of affected) {
+          const newUrutan = Number(row.urutan) + nInsert;
+          const { error: uErr } = await supabase
+            .from("kas_harian")
+            .update({ urutan: newUrutan, updated_at: new Date().toISOString() })
+            .eq("id", row.id);
+          if (uErr) {
+            console.error("Gagal shift urutan per-row id", row.id, uErr);
+            throw uErr;
+          }
+        }
+
+        // Tentukan waktu sisipan: gunakan waktu dari nextRow (firstRealRow) agar konsisten.
+        const nextWaktu = firstRealRow?.waktu ?? maxTime;
+        const baseInsertTimes: string[] = new Array(nInsert).fill(nextWaktu);
+
+        // Build toInsertRows with urutan starting at firstRealUrutan
+        const toInsertRows: KasTransaksi[] = [];
+        let urutanPointer = firstRealUrutan;
+        for (let i = 0; i < toInsert.length; i++) {
+          const t = toInsert[i];
+          const waktuForRow = baseInsertTimes[i];
+          const msSuffix = String(urutanPointer).padStart(3, "0");
+          const createdAtForRow = `${formData.tanggal}T${waktuForRow}.${msSuffix}Z`;
+
+          toInsertRows.push({
+            tanggal: formData.tanggal,
+            waktu: waktuForRow,
+            keterangan: t.keterangan,
+            nominal: t.nominal,
+            jenis_transaksi: t.jenis_transaksi,
+            sumber_tabel: t.sumber_tabel,
+            sumber_id: finalId,
+            bukti_transaksi: formData.no_premi_driver,
+            urutan: urutanPointer++,
+            user_id: await getCustomUserId(),
+            updated_at: createdAtForRow,
+            created_at: createdAtForRow,
+          });
+        }
+
+        if (toInsertRows.length > 0) {
+          const { error: insErr } = await supabase.from("kas_harian").insert(toInsertRows);
+          if (insErr) {
+            console.error("Gagal insert kas_harian baru (sisip):", insErr);
+            throw insErr;
+          }
+        }
+      }
+
+      // ===== Tambahan safety: RE-SEQ urutan untuk mencegah duplikat urutan =====
+      // Ambil ulang rows dan pastikan urutan bersih (1..N) untuk bukti_transaksi ini
+      const { data: afterRows } = await supabase
+        .from("kas_harian")
+        .select("id, urutan")
+        .eq("bukti_transaksi", formData.no_premi_driver)
+        .order("urutan", { ascending: true });
+
+      if (afterRows && afterRows.length > 0) {
+        let seq = 1;
+        for (const r of afterRows) {
+          const currentUrut = Number(r.urutan || 0);
+          if (currentUrut !== seq) {
+            const { error: updSeqErr } = await supabase
+              .from("kas_harian")
+              .update({ urutan: seq, updated_at: new Date().toISOString() })
+              .eq("id", r.id);
+            if (updSeqErr) {
+              console.error("Gagal re-seq urutan id", r.id, updSeqErr);
+              // bukan fatal — lanjutkan
+            }
+          }
+          seq++;
+        }
+      }
+
+      // ===== END REPLACEMENT =====
     }
 
     // ✅ Reset form
@@ -1384,8 +1611,19 @@ if (insertErr) {
                           .single();
 
                         if (sj) {
-                          const gen = generateKeterangan(sj);
-                          if (gen.trim() !== "") {
+                          const gen = generateKeterangan(
+                            {
+                              perpal_1x_tanggal: sj.perpal_1x_tanggal,
+                              perpal_1x_rute: sj.perpal_1x_rute,
+                              perpal_2x_tanggal: sj.perpal_2x_tanggal,
+                              perpal_2x_rute: sj.perpal_2x_rute,
+                            },
+                            row.driver ?? row.crew ?? "",
+                            row.no_polisi ?? "",
+                            row.no_surat_jalan ?? ""
+                          );
+
+                          if (gen && gen.trim() !== "") {
                             setFormData(prev => ({
                               ...prev,
                               keterangan: gen,
@@ -1889,7 +2127,7 @@ if (insertErr) {
                 <label>Keterangan</label>
                 <textarea
                   name="keterangan"
-                  value={formData.keterangan ?? ""}
+                  value= {formData.keterangan ?? ""}
                   onChange={handleChange}
                   className="w-full border rounded px-3 py-2"
                 />

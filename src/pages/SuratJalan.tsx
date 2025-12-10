@@ -107,22 +107,30 @@ const handleSelectKodeRute = (item: Rute) => {
   }, []);
 
   const [formData, setFormData] = useState<SuratJalanData>({
-    id: 0,
-    tanggal_berangkat: "",
-    tanggal_kembali: "",
-    driver: "",
-    crew: "",
-    no_surat_jalan: "",
-    no_polisi: "",
-    unit: "",
-    kode_unit: "",
-    kode_rute: "",
-    km_berangkat: 0,
-    km_kembali: 0,
-    snack_berangkat: 0,
-    snack_kembali: 0,
-    keterangan: "",
-  });
+  id: 0,
+  tanggal_berangkat: "",
+  tanggal_kembali: "",
+  driver: "",
+  crew: "",
+  no_surat_jalan: "",
+  no_polisi: "",
+  unit: "",
+  kode_unit: "",
+  kode_rute: "",
+  km_berangkat: 0,
+  km_kembali: 0,
+  snack_berangkat: 0,
+  snack_kembali: 0,
+  keterangan: "",
+
+  // PERPAL flags & fields (initial)
+  perpal_1x_tanggal: undefined,
+  perpal_1x_rute: undefined,
+  perpal_2x_tanggal: undefined,
+  perpal_2x_rute: undefined,
+  // flags untuk mengontrol tampil/hidden UI terpisah dari nilai field
+ 
+});
 
   interface DriverRow {
     id: number;
@@ -212,6 +220,7 @@ const handleSelectKodeRute = (item: Rute) => {
     perpal_1x_rute: undefined,
     perpal_2x_tanggal: undefined,
     perpal_2x_rute: undefined,
+    
   };
 
   // Pagination
@@ -398,13 +407,27 @@ const handleSelectKodeRute = (item: Rute) => {
   // --- Edit ---
   const handleEdit = (item: SuratJalanData) => {
     const cleanItem = {
-      ...defaultFormData,
-      ...item,
-      perpal_1x_tanggal: item.perpal_1x_tanggal ?? undefined,
-      perpal_2x_tanggal: item.perpal_2x_tanggal ?? undefined,
-      perpal_1x_rute: item.perpal_1x_rute ?? "",
-      perpal_2x_rute: item.perpal_2x_rute ?? "",
-    };
+    ...defaultFormData,
+    ...item,
+    perpal_1x_tanggal:
+      item.perpal_1x_tanggal && String(item.perpal_1x_tanggal).trim() !== ""
+        ? String(item.perpal_1x_tanggal)
+        : undefined,
+    perpal_2x_tanggal:
+      item.perpal_2x_tanggal && String(item.perpal_2x_tanggal).trim() !== ""
+        ? String(item.perpal_2x_tanggal)
+        : undefined,
+    perpal_1x_rute: item.perpal_1x_rute && String(item.perpal_1x_rute).trim() !== "" ? String(item.perpal_1x_rute) : "",
+    perpal_2x_rute: item.perpal_2x_rute && String(item.perpal_2x_rute).trim() !== "" ? String(item.perpal_2x_rute) : "",
+    perpal_1x_keterangan:
+      item.perpal_1x_keterangan && String(item.perpal_1x_keterangan).trim() !== ""
+        ? String(item.perpal_1x_keterangan)
+        : "",
+    perpal_2x_keterangan:
+      item.perpal_2x_keterangan && String(item.perpal_2x_keterangan).trim() !== ""
+        ? String(item.perpal_2x_keterangan)
+        : "",
+  };
 
     setFormData(cleanItem);
     setShowForm(true);
@@ -550,25 +573,40 @@ const handleSelectKodeRute = (item: Rute) => {
       (cleanedData as Partial<SuratJalanData>)[key] = Number.isNaN(parsed) ? undefined : parsed;
     });
 
-    // Pastikan hanya satu jenis perpal yang disimpan (1x atau 2x)
-    if (cleanedData.perpal_2x_tanggal && cleanedData.perpal_2x_tanggal.toString().trim() !== "") {
-      // user memilih perpal 2x -> kosongkan perpal 1x
+    // --- Perpal: biarkan user menyimpan 1x dan/atau 2x secara bersamaan ---
+    // Jika sebuah perpal tidak diisi (kosong/undefined/""), set ke null untuk DB.
+    // Jika diisi, biarkan nilainya apa adanya.
+    const isFilled = (v: unknown) =>
+      v !== undefined && v !== null && String(v).toString().trim() !== "";
+
+    // perpal 1x
+    if (!isFilled(cleanedData.perpal_1x_tanggal) || !isFilled(cleanedData.perpal_1x_rute)) {
+      // tidak lengkap => simpan sebagai null
       cleanedData.perpal_1x_tanggal = null;
       cleanedData.perpal_1x_rute = null;
-      cleanedData.perpal_1x_keterangan = null;
-    } else if (cleanedData.perpal_1x_tanggal && cleanedData.perpal_1x_tanggal.toString().trim() !== "") {
-      // user memilih perpal 1x -> kosongkan perpal 2x
-      cleanedData.perpal_2x_tanggal = null;
-      cleanedData.perpal_2x_rute = null;
-      cleanedData.perpal_2x_keterangan = null;
+      cleanedData.perpal_1x_keterangan =
+        cleanedData.perpal_1x_keterangan && String(cleanedData.perpal_1x_keterangan).trim() !== ""
+          ? cleanedData.perpal_1x_keterangan
+          : null;
     } else {
-      // tidak ada perpal sama sekali
-      cleanedData.perpal_1x_tanggal = null;
-      cleanedData.perpal_1x_rute = null;
-      cleanedData.perpal_1x_keterangan = null;
+      // nilai valid: biarkan apa adanya (pastikan tipe string)
+      cleanedData.perpal_1x_tanggal = String(cleanedData.perpal_1x_tanggal);
+      cleanedData.perpal_1x_rute = String(cleanedData.perpal_1x_rute);
+      if (!isFilled(cleanedData.perpal_1x_keterangan)) cleanedData.perpal_1x_keterangan = null;
+    }
+
+    // perpal 2x
+    if (!isFilled(cleanedData.perpal_2x_tanggal) || !isFilled(cleanedData.perpal_2x_rute)) {
       cleanedData.perpal_2x_tanggal = null;
       cleanedData.perpal_2x_rute = null;
-      cleanedData.perpal_2x_keterangan = null;
+      cleanedData.perpal_2x_keterangan =
+        cleanedData.perpal_2x_keterangan && String(cleanedData.perpal_2x_keterangan).trim() !== ""
+          ? cleanedData.perpal_2x_keterangan
+          : null;
+    } else {
+      cleanedData.perpal_2x_tanggal = String(cleanedData.perpal_2x_tanggal);
+      cleanedData.perpal_2x_rute = String(cleanedData.perpal_2x_rute);
+      if (!isFilled(cleanedData.perpal_2x_keterangan)) cleanedData.perpal_2x_keterangan = null;
     }
 
     // --- Simpan atau update ---
@@ -665,15 +703,33 @@ const handleSelectKodeRute = (item: Rute) => {
     }));
   };
 
-  // --- Handle Cancel Perpal ---
-  const handleCancelPerpal = () => {
-    setFormData((prev) => ({
-      ...prev,
-      perpal_1x_tanggal: undefined,
-      perpal_1x_rute: undefined,
-      perpal_2x_tanggal: undefined,
-      perpal_2x_rute: undefined,
-    }));
+  // --- Handle Cancel Perpal (defensif + debug) ---
+  const handleCancelPerpal = (which?: "1" | "2" | "all") => {
+
+    setFormData((prev) => {
+      const next: SuratJalanData = { ...prev };
+
+      if (which === "1") {
+        next.perpal_1x_tanggal = undefined;
+        next.perpal_1x_rute = undefined;
+        next.perpal_1x_keterangan = undefined;
+      } else if (which === "2") {
+        next.perpal_2x_tanggal = undefined;
+        next.perpal_2x_rute = undefined;
+        next.perpal_2x_keterangan = undefined;
+      } else if (which === "all") {
+        next.perpal_1x_tanggal = undefined;
+        next.perpal_1x_rute = undefined;
+        next.perpal_1x_keterangan = undefined;
+        next.perpal_2x_tanggal = undefined;
+        next.perpal_2x_rute = undefined;
+        next.perpal_2x_keterangan = undefined;
+      } else {
+        
+        return prev;
+      }
+      return next;
+    });
   };
 
   // --- FUNGSI PENGECEKAN: Apakah SJ sudah diproses di Uangsakudriver ---
@@ -1048,22 +1104,17 @@ const handleSelectKodeRute = (item: Rute) => {
                   disabled={!canTambahPerpal || isUsedInPremi}
                   onClick={() => {
                     if (!canTambahPerpal || isUsedInPremi) return;
-
-                    // AUTO RUTE KEBALIKAN
                     const reversed = generateReverseRoutes();
-
                     setFormData((prev) => ({
                       ...prev,
-                      perpal_1x_tanggal: "",
-                      perpal_1x_rute: reversed.length > 0 ? reversed[0] : "",
-                      perpal_2x_tanggal: undefined,
-                      perpal_2x_rute: undefined,
+                      // aktifkan perpal 1x (jangan matikan 2x)
+                      
+                      perpal_1x_tanggal: prev.perpal_1x_tanggal ?? "",
+                      perpal_1x_rute: prev.perpal_1x_rute ?? (reversed.length > 0 ? reversed[0] : ""),
                     }));
                   }}
                   className={`px-2 py-1 rounded text-sm text-white ${
-                    !canTambahPerpal || isUsedInPremi
-                      ? "bg-gray-300 cursor-not-allowed"
-                      : "bg-yellow-500 hover:bg-yellow-600"
+                    !canTambahPerpal || isUsedInPremi ? "bg-gray-300 cursor-not-allowed" : "bg-yellow-500 hover:bg-yellow-600"
                   }`}
                 >
                   Tambah Perpal 1x
@@ -1074,22 +1125,20 @@ const handleSelectKodeRute = (item: Rute) => {
                   disabled={!canTambahPerpal || isUsedInPremi}
                   onClick={() => {
                     if (!canTambahPerpal || isUsedInPremi) return;
-
-                    // AUTO RUTE KEBALIKAN
                     const reversed = generateReverseRoutes();
-
                     setFormData((prev) => ({
                       ...prev,
-                      perpal_2x_tanggal: "",
-                      perpal_2x_rute: reversed.length > 0 ? reversed[0] : "",
-                      perpal_1x_tanggal: undefined,
-                      perpal_1x_rute: undefined,
+                      // aktifkan perpal 2x, dan pastikan 1x juga aktif agar tampil sejajar
+                      
+                      perpal_2x_tanggal: prev.perpal_2x_tanggal ?? "",
+                      perpal_2x_rute: prev.perpal_2x_rute ?? (reversed.length > 0 ? reversed[0] : ""),
+                      
+                      perpal_1x_tanggal: prev.perpal_1x_tanggal ?? "",
+                      perpal_1x_rute: prev.perpal_1x_rute ?? (reversed.length > 0 ? reversed[0] : ""),
                     }));
                   }}
                   className={`px-2 py-1 rounded text-sm text-white ${
-                    !canTambahPerpal || isUsedInPremi
-                      ? "bg-gray-300 cursor-not-allowed"
-                      : "bg-yellow-600 hover:bg-yellow-700"
+                    !canTambahPerpal || isUsedInPremi ? "bg-gray-300 cursor-not-allowed" : "bg-yellow-600 hover:bg-yellow-700"
                   }`}
                 >
                   Tambah Perpal 2x
@@ -1098,7 +1147,8 @@ const handleSelectKodeRute = (item: Rute) => {
             </div>
 
             {/* === Input Keterangan Perpal === */}
-           {formData.perpal_1x_tanggal !== undefined && (
+           {(formData.perpal_1x_tanggal !== undefined ||
+            formData.perpal_2x_tanggal !== undefined) && (
             <div className="mb-2">
               <div className="flex gap-2 items-start">
                 {/* Label Perpal 1x + input tanggal */}
@@ -1121,7 +1171,7 @@ const handleSelectKodeRute = (item: Rute) => {
 
                 {/* Kode Rute Baru */}
                 <div className="w-1/3">
-                  <label className="block font-semibold mb-1">Kode Rute Baru</label>
+                  <label className="block font-semibold mb-1">Rute Perpal</label>
                   <select
                     value={formData.perpal_1x_rute ?? ""}
                     disabled={isUsedInPremi}
@@ -1156,7 +1206,7 @@ const handleSelectKodeRute = (item: Rute) => {
                   <div className="mt-6">
                     <button
                       type="button"
-                      onClick={handleCancelPerpal}
+                      onClick={() => handleCancelPerpal("1")}
                       className="text-red-500 text-sm hover:text-red-700"
                       title="Batalkan Perpal"
                     >
@@ -1189,7 +1239,7 @@ const handleSelectKodeRute = (item: Rute) => {
               </div>
 
               <div className="w-1/3">
-                <label className="block font-semibold mb-1">Kode Rute Baru</label>
+                <label className="block font-semibold mb-1">Rute Perpal</label>
                 <select
                   value={formData.perpal_2x_rute ?? ""}
                   disabled={isUsedInPremi}
@@ -1224,7 +1274,7 @@ const handleSelectKodeRute = (item: Rute) => {
                 <div className="mt-6">
                   <button
                     type="button"
-                    onClick={handleCancelPerpal}
+                    onClick={() => handleCancelPerpal("2")}
                     className="text-red-500 text-sm hover:text-red-700"
                     title="Batalkan Perpal"
                   >

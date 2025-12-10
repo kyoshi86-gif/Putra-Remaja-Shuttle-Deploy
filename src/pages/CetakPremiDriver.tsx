@@ -235,23 +235,52 @@ export default function CetakPremiDriver() {
     }
   };
 
-  const getPerpalKeterangan = (
-    sj: SuratJalanRow | null,
-    p: { row: KasHarianRow; index: number }
-  ) => {
+  // ===== REPLACE getPerpalKeterangan WITH THIS =====
+  const getPerpalKeterangan = (sj: SuratJalanRow | null) => {
     if (!sj) return "Perpal";
 
-    // perpal 1x
-    if (p.index === 1 && sj.perpal_1x_tanggal && sj.perpal_1x_rute) {
-      return `Perpal [1x] ke ${formatTanggal(sj.perpal_1x_tanggal)} ${sj.perpal_1x_rute}`;
+    // helper ekstrak jam dari rute ("SMG - YOG - 04:30" → "04:30")
+    const extractJam = (rute?: string) => {
+      if (!rute) return "";
+      const parts = rute.split("-");
+      return parts.length >= 3 ? parts[2].trim() : "";
+    };
+
+    // rute dasar → "SMG - YOG"
+    const extractNamaRute = (rute?: string) => {
+      if (!rute) return "";
+      const parts = rute.split("-");
+      return parts.length >= 2 ? `${parts[0].trim()} - ${parts[1].trim()}` : rute;
+    };
+
+    const tanggal1 = sj.perpal_1x_tanggal ? formatTanggal(sj.perpal_1x_tanggal) : "";
+    const namaRute1 = extractNamaRute(sj.perpal_1x_rute);
+    const jam1 = extractJam(sj.perpal_1x_rute);
+
+    const tanggal2 = sj.perpal_2x_tanggal ? formatTanggal(sj.perpal_2x_tanggal) : "";
+    const namaRute2 = extractNamaRute(sj.perpal_2x_rute);
+    const jam2 = extractJam(sj.perpal_2x_rute);
+
+    // Jika hanya 1x
+    if (sj.perpal_1x_tanggal && !sj.perpal_2x_tanggal) {
+      return `Perpal ${tanggal1} ${namaRute1} (${jam1})`;
     }
 
-    // perpal 2x
-    if (p.index === 1 && sj.perpal_2x_tanggal && sj.perpal_2x_rute) {
-      return `Perpal [2x] ke ${formatTanggal(sj.perpal_2x_tanggal)} ${sj.perpal_2x_rute}`;
+    // Jika hanya 2x
+    if (!sj.perpal_1x_tanggal && sj.perpal_2x_tanggal) {
+      return `Perpal ${tanggal2} ${namaRute2} (${jam2})`;
     }
 
-    // fallback
+    // Jika ada 1x dan 2x → gabungkan: gunakan tanggal1 sebagai dasar
+    if (sj.perpal_1x_tanggal && sj.perpal_2x_tanggal) {
+      // jika rute sama, tampilkan sekali nama rute dan dua jam; jika beda, tampilkan masing-masing
+      if (namaRute1 && namaRute1 === namaRute2) {
+        return `Perpal ${tanggal1} ${namaRute1} (${jam1}) (${jam2})`;
+      } else {
+        return `Perpal ${tanggal1} ${namaRute1} (${jam1}) / ${tanggal2} ${namaRute2} (${jam2})`;
+      }
+    }
+
     return "Perpal";
   };
 
@@ -382,7 +411,7 @@ export default function CetakPremiDriver() {
             <tr key={i}>
               <td className="border px-2 text-center">{i + 2}</td>
               <td className="border px-2 text-left">
-                {getPerpalKeterangan(suratJalan, p)}
+                {getPerpalKeterangan(suratJalan)}
               </td>
               <td className="border px-2 text-right">
                 <span className="float-left">Rp.</span>
@@ -576,6 +605,44 @@ export default function CetakPremiDriver() {
             height: 80px !important;
           }
         }
+ 
+        /* === FIX KHUSUS MOBILE AGAR PDF BISA LOADED === */
+        @media screen and (max-width: 768px) {
+          body {
+            overflow: auto !important;       /* HP TIDAK BOLEH overflow hidden */
+          }
+
+          .print-sheet {
+            width: 100% !important;           /* Jangan paksa width mm */
+            max-height: unset !important;
+            transform: none !important;
+          }
+        }
+
+        @media print and (max-width: 768px) {
+          @page {
+            size: auto !important;            /* HP tidak bisa handle A4 fixed */
+            margin: 5mm !important;           /* Margin aman */
+          }
+
+          body, html {
+            width: auto !important;
+            height: auto !important;
+            overflow: visible !important;     /* Anti halaman kosong */
+          }
+
+          .print-sheet {
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+
+          * {
+            page-break-inside: auto !important;  /* HP tidak support avoid terus-menerus */
+            break-inside: auto !important;
+          }
+        }
+
     `}</style>
     </div>
   );

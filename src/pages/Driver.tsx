@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"; // ✅ tambahkan useRef di sini
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload } from "react-icons/fi";
 import * as XLSX from "xlsx";
@@ -16,6 +16,8 @@ interface DriverData {
   sim_expired: string;
   mulai_kerja: string;
   keluar_kerja: string;
+  status_training: string;
+  premi_driver: number;
 }
 
 export default function Driver() {
@@ -40,6 +42,8 @@ export default function Driver() {
     sim_expired: "",
     mulai_kerja: "",
     keluar_kerja: "",
+    status_training: "Training",
+    premi_driver: 0,
   };
 
   const [formData, setFormData] = useState<DriverData>({ ...emptyDriver });
@@ -141,6 +145,7 @@ export default function Driver() {
         "SIM Expired": d.sim_expired,
         "Mulai Kerja": d.mulai_kerja,
         "Keluar Kerja": d.keluar_kerja,
+        Premi: d.premi_driver,
       }))
     );
     const wb = XLSX.utils.book_new();
@@ -150,10 +155,22 @@ export default function Driver() {
     saveAs(blob, "DataDriver.xlsx");
   };
 
+  // --- handleChange: special-case premi_driver parsing ---
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
+    const { name } = e.target;
+    let value = (e.target as HTMLInputElement).value;
+
+    if (name === "premi_driver") {
+      // Hapus semua karakter bukan digit (kecuali titik jika mau desimal)
+      // Di sini kita gunakan angka bulat, jadi ambil digit saja
+      const numericOnly = value.replace(/\D+/g, "");
+      const parsed = numericOnly === "" ? 0 : parseInt(numericOnly, 10);
+      setFormData({ ...formData, premi_driver: parsed });
+      return;
+    }
+
     setFormData({ ...formData, [name]: value });
   };
 
@@ -189,6 +206,14 @@ export default function Driver() {
       alert("Nama dan KTP wajib diisi!");
       return;
     }
+    if (!d.status_training) {
+      alert("Status Training wajib dipilih!");
+      return;
+    }
+    if (!d.premi_driver || Number(d.premi_driver) <= 0) {
+      alert("Premi Driver wajib diisi dan lebih dari 0!");
+      return;
+    }
 
     const { id, ...dataToSend } = d;
 
@@ -198,6 +223,8 @@ export default function Driver() {
       sim_expired: dataToSend.sim_expired || null,
       mulai_kerja: dataToSend.mulai_kerja || null,
       keluar_kerja: dataToSend.keluar_kerja || null,
+      status_training: dataToSend.status_training,
+      premi_driver: Number(dataToSend.premi_driver) || 0,
     };
 
     if (!id || id === 0) {
@@ -232,13 +259,25 @@ export default function Driver() {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        handleCancel(); // ⬅️ panggil fungsi batal
+        handleCancel();
       }
     };
 
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
+
+  //-- Format Rupiah dan Parse Number --
+  const formatRupiah = (num: number | string | null | undefined) => {
+    const n =
+      typeof num === "string"
+        ? parseFloat(num)
+        : typeof num === "number"
+        ? num
+        : 0;
+
+    return "Rp " + (!isFinite(n) ? "0" : n.toLocaleString("id-ID"));
+  };
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -313,7 +352,7 @@ export default function Driver() {
                   name="tgl_lahir"
                   value={formData.tgl_lahir || ""}
                   onChange={handleChange}
-                  onFocus={(e) => e.target.showPicker?.()}
+                  onFocus={(e) => (e.target as HTMLInputElement).showPicker?.()}
                   className="border border-gray-300 rounded px-3 py-2 w-full cursor-pointer"
                 />
               </div>
@@ -355,7 +394,7 @@ export default function Driver() {
                   name="sim_expired"
                   value={formData.sim_expired || ""}
                   onChange={handleChange}
-                  onFocus={(e) => e.target.showPicker?.()}
+                  onFocus={(e) => (e.target as HTMLInputElement).showPicker?.()}
                   className="border border-gray-300 rounded px-3 py-2 w-full cursor-pointer"
                 />
               </div>
@@ -368,9 +407,37 @@ export default function Driver() {
                   name="mulai_kerja"
                   value={formData.mulai_kerja || ""}
                   onChange={handleChange}
-                  onFocus={(e) => e.target.showPicker?.()}
+                  onFocus={(e) => (e.target as HTMLInputElement).showPicker?.()}
                   className="border border-gray-300 rounded px-3 py-2 w-full cursor-pointer"
                 />
+              </div>
+
+              {/* Status Training */}
+              <div>
+                <label className="block text-sm font-semibold mb-1">Status (Training / FIX)</label>
+                <select
+                  name="status_training"
+                  value={formData.status_training}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded px-3 py-2 w-full bg-white"
+                >
+                  <option value="Training">Training</option>
+                  <option value="FIX">FIX</option>
+                </select>
+              </div>
+
+              {/* Premi Driver - EDITABLE */}
+              <div>
+                <label className="block text-sm font-semibold mb-1">Premi Driver (Rp)</label>
+                <input
+                  name="premi_driver"
+                  value={formatRupiah(formData.premi_driver ?? 0)}
+                  onChange={handleChange}
+                  // optional: allow mobile numeric keyboard (still text because we show "Rp ...")
+                  inputMode="numeric"
+                  className="border border-gray-300 rounded px-3 py-2 w-full"
+                />
+                <small className="text-xs text-gray-500">Ketik angka saja — format akan otomatis ditampilkan.</small>
               </div>
 
               {/* Keluar Kerja */}
@@ -381,7 +448,7 @@ export default function Driver() {
                   name="keluar_kerja"
                   value={formData.keluar_kerja || ""}
                   onChange={handleChange}
-                  onFocus={(e) => e.target.showPicker?.()}
+                  onFocus={(e) => (e.target as HTMLInputElement).showPicker?.()}
                   className="border border-gray-300 rounded px-3 py-2 w-full cursor-pointer"
                 />
               </div>
@@ -406,48 +473,48 @@ export default function Driver() {
         </div>
       )}
 
-      {/* Tombol Aksi, Filter, Search */}
+      {/* Tombol Aksi, Filter, Search (sama seperti original) */}
       <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
         <div className="flex flex-wrap gap-3">
-        <button
-          onClick={handleAdd}
-          className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-        >
-          <FiPlus /> Tambah
-        </button>
+          <button
+            onClick={handleAdd}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+          >
+            <FiPlus /> Tambah
+          </button>
 
-        <button
-          onClick={handleDeleteSelected}
-          className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
-        >
-          <FiTrash2 /> Hapus
-        </button>
+          <button
+            onClick={handleDeleteSelected}
+            className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+          >
+            <FiTrash2 /> Hapus
+          </button>
 
-        <button
-          onClick={handleExportExcel}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-        >
-          <FiDownload /> Export Excel
-        </button>
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+          >
+            <FiDownload /> Export Excel
+          </button>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="border rounded px-3 py-2"
-        >
-          <option value="SEMUA">Semua Status</option>
-          <option value="AKTIF">AKTIF</option>
-          <option value="NON-AKTIF">NON-AKTIF</option>
-        </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="border rounded px-3 py-2"
+          >
+            <option value="SEMUA">Semua Status</option>
+            <option value="AKTIF">AKTIF</option>
+            <option value="NON-AKTIF">NON-AKTIF</option>
+          </select>
 
-        <button
-          onClick={() => setSimFilter(!simFilter)}
-          className={`px-4 py-2 rounded border transition ${
-            simFilter ? "bg-yellow-500 text-white" : "bg-gray-100 hover:bg-gray-200"
-          }`}
-        >
-          SIM Expired ≤ 2 Bulan
-        </button>
+          <button
+            onClick={() => setSimFilter(!simFilter)}
+            className={`px-4 py-2 rounded border transition ${
+              simFilter ? "bg-yellow-500 text-white" : "bg-gray-100 hover:bg-gray-200"
+            }`}
+          >
+            SIM Expired ≤ 2 Bulan
+          </button>
         </div>
 
         <div className="relative w-[200px]">
@@ -470,7 +537,7 @@ export default function Driver() {
         </div>
       </div>
 
-      {/* Tabel */}
+      {/* Tabel & Pagination (sama seperti original) */}
       <div className="w-full pr-8">
         <table className="w-full table-auto border border-gray-300 text-sm">
           <thead>
@@ -488,16 +555,22 @@ export default function Driver() {
                   title="Pilih Semua"
                 />
               </th>
-              <th rowSpan={2} className="border p-2 text-center align-middle">Status</th>
-              <th rowSpan={2} className="border p-2 text-center align-middle">Nama</th>
-              <th rowSpan={2} className="border p-2 text-center align-middle">Alamat</th>
-              <th rowSpan={2} className="border p-2 text-center align-middle">KTP</th>
-              <th rowSpan={2} className="border p-2 text-center align-middle">Tanggal Lahir</th>
-              <th rowSpan={2} className="border p-2 text-center align-middle">No HP</th>
-              <th colSpan={2} className="border p-2 text-center align-middle">SIM</th>
-              <th colSpan={2} className="border p-2 text-center align-middle">Masa Kerja</th>
-              <th rowSpan={2} className="border p-2 text-center align-middle">Aksi</th>
+
+              <th rowSpan={2} className="border p-2 text-center">Status</th>
+              <th rowSpan={2} className="border p-2 text-center">Nama</th>
+              <th rowSpan={2} className="border p-2 text-center">Alamat</th>
+              <th rowSpan={2} className="border p-2 text-center">KTP</th>
+              <th rowSpan={2} className="border p-2 text-center">Tanggal Lahir</th>
+              <th rowSpan={2} className="border p-2 text-center">No HP</th>
+
+              <th colSpan={2} className="border p-2 text-center">SIM</th>
+              <th colSpan={2} className="border p-2 text-center">Masa Kerja</th>
+
+              <th rowSpan={2} className="border p-2 text-center">Training / FIX</th>
+              <th rowSpan={2} className="border p-2 text-center">Premi</th>
+              <th rowSpan={2} className="border p-2 text-center">Aksi</th>
             </tr>
+
             <tr className="bg-gray-400 text-white">
               <th className="border p-1 text-center">Golongan</th>
               <th className="border p-1 text-center">Expired</th>
@@ -505,16 +578,17 @@ export default function Driver() {
               <th className="border p-1 text-center">Keluar</th>
             </tr>
           </thead>
+
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={12} className="text-center p-3">
+                <td colSpan={14} className="text-center p-3">
                   Memuat data...
                 </td>
               </tr>
             ) : paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={12} className="text-center p-3 text-gray-500">
+                <td colSpan={14} className="text-center p-3 text-gray-500">
                   Data kosong
                 </td>
               </tr>
@@ -525,7 +599,7 @@ export default function Driver() {
                   className={`transition-all duration-150 ${
                     item.status === "NON-AKTIF"
                       ? "bg-red-500 text-white hover:opacity-80"
-                      : "hover:bg-yellow-300 transition-all duration-150"
+                      : "hover:bg-yellow-300"
                   }`}
                 >
                   <td className="border text-center">
@@ -535,32 +609,52 @@ export default function Driver() {
                       onChange={() => handleSelect(item.id)}
                     />
                   </td>
+
                   <td className="border text-center">{item.status}</td>
                   <td className="border text-center">{item.nama}</td>
                   <td className="border text-center">{item.alamat}</td>
                   <td className="border text-center">{item.ktp}</td>
                   <td className="border text-center">{item.tgl_lahir}</td>
                   <td className="border text-center">{item.no_hp}</td>
+
                   <td className="border text-center">{item.sim_golongan}</td>
                   <td className="border text-center">{item.sim_expired}</td>
                   <td className="border text-center">{item.mulai_kerja}</td>
                   <td className="border text-center">{item.keluar_kerja}</td>
+
+                  <td className="border text-center">
+                    <span
+                      className={
+                        item.status_training === "FIX"
+                          ? "text-green-600 font-semibold"
+                          : "text-orange-600 font-semibold"
+                      }
+                    >
+                      {item.status_training}
+                    </span>
+                  </td>
+
+                  <td className="border text-left">
+                    {formatRupiah(item.premi_driver ?? 0)}
+                  </td>
+
                   <td className="border text-center">
                     <div className="flex justify-center gap-[0.5px]">
-                    <button
-                      onClick={() => handleEdit(item)}
-                      className="text-blue-600 hover:text-blue-800 px-[5px]"
-                      title="Edit"
-                    >
-                      <FiEdit size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="text-red-600 hover:text-red-800 px-[5px]"
-                      title="Hapus"
-                    >
-                      <FiTrash2 size={16} />
-                    </button>
+                      <button
+                        onClick={() => handleEdit(item)}
+                        className="text-blue-600 hover:text-blue-800 px-[5px]"
+                        title="Edit"
+                      >
+                        <FiEdit size={16} />
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="text-red-600 hover:text-red-800 px-[5px]"
+                        title="Hapus"
+                      >
+                        <FiTrash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
