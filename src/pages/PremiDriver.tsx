@@ -445,7 +445,6 @@ export default function PremiDriver() {
     no_polisi: detailSJ?.no_polisi ?? "",
     kode_unit: detailSJ?.kode_unit ?? "",
     kode_rute: detailSJ?.kode_rute ?? "",
-    // **PENTING**: simpan juga fields perpal supaya generateKeterangan punya data rute+jam
     perpal_1x_tanggal: detailSJ?.perpal_1x_tanggal ?? undefined,
     perpal_1x_rute: detailSJ?.perpal_1x_rute ?? undefined,
     perpal_2x_tanggal: detailSJ?.perpal_2x_tanggal ?? undefined,
@@ -454,21 +453,22 @@ export default function PremiDriver() {
     perpal: nilaiPerpal,
     kartu_etoll: etollRow?.kartu_etoll ?? "",
     biaya_etoll: 0,
-    // langsung generate keterangan dari detailSJ hanya jika user belum isi keterangan
     keterangan:
       prev.keterangan?.trim() !== ""
         ? prev.keterangan
-        : generateKeterangan(
-            {
-              perpal_1x_tanggal: detailSJ?.perpal_1x_tanggal,
-              perpal_1x_rute: detailSJ?.perpal_1x_rute,
-              perpal_2x_tanggal: detailSJ?.perpal_2x_tanggal,
-              perpal_2x_rute: detailSJ?.perpal_2x_rute,
-            },
-            sj.nama ?? "",
-            detailSJ?.no_polisi ?? "",
-            sj.no_surat_jalan
-          ),
+        : perpalAktif
+          ? generateKeterangan(
+              {
+                perpal_1x_tanggal: detailSJ?.perpal_1x_tanggal,
+                perpal_1x_rute: detailSJ?.perpal_1x_rute,
+                perpal_2x_tanggal: detailSJ?.perpal_2x_tanggal,
+                perpal_2x_rute: detailSJ?.perpal_2x_rute,
+              },
+              sj.nama ?? "",
+              detailSJ?.no_polisi ?? "",
+              sj.no_surat_jalan
+            )
+          : "",   // ⛔ kalau tidak perpal, biarkan kosong
   }));
 
   // ✅ Realisasi hanya untuk driver
@@ -736,8 +736,11 @@ export default function PremiDriver() {
 
     cleanedData.user_id = getCustomUserId();
 
-    // === AUTO KETERANGAN jika kosong tetapi perpal ada ===
-    if (!cleanedData.keterangan || String(cleanedData.keterangan).trim() === "") {
+   // === AUTO KETERANGAN jika kosong DAN perpal aktif ===
+    if (
+      (!cleanedData.keterangan || String(cleanedData.keterangan).trim() === "") &&
+      (formData.perpalAktif === true || (cleanedData.perpal && Number(cleanedData.perpal) > 0))
+    ) {
       const gen = generateKeterangan(
         {
           perpal_1x_tanggal: formData.perpal_1x_tanggal ? String(formData.perpal_1x_tanggal) : null,
