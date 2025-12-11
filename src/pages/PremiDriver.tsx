@@ -271,11 +271,11 @@ export default function PremiDriver() {
     if (tanggalUtama) parts.push(tanggalUtama);
     if (routePart) parts.push(routePart);
     if (jamParts.length > 0 && p1 && p2 && p1.route === p2.route) {
-      // jika route sama, jamParts sudah berisi jam terpisah seperti ["(04:30)","(20:00)"]
+      // 2x perpal dengan route sama → gabungkan jam
       parts.push(jamParts.join(" "));
-    } else if (jamParts.length > 0 && !(p1 && p2 && p1.route === p2.route)) {
-      // jika route berbeda dan kami sudah memasukkan jam di routePart, tidak tambahkan lagi
-      // (jam sudah di-routePart). Jadi nothing to add here.
+    } else if (jamParts.length > 0) {
+      // 1x perpal ATAU 2x perpal dengan route berbeda → tambahkan jamParts langsung
+      parts.push(jamParts.join(" "));
     }
     if (noSj) parts.push(String(noSj));
 
@@ -445,11 +445,16 @@ export default function PremiDriver() {
     no_polisi: detailSJ?.no_polisi ?? "",
     kode_unit: detailSJ?.kode_unit ?? "",
     kode_rute: detailSJ?.kode_rute ?? "",
+    // **PENTING**: simpan juga fields perpal supaya generateKeterangan punya data rute+jam
+    perpal_1x_tanggal: detailSJ?.perpal_1x_tanggal ?? undefined,
+    perpal_1x_rute: detailSJ?.perpal_1x_rute ?? undefined,
+    perpal_2x_tanggal: detailSJ?.perpal_2x_tanggal ?? undefined,
+    perpal_2x_rute: detailSJ?.perpal_2x_rute ?? undefined,
     perpalAktif,
     perpal: nilaiPerpal,
     kartu_etoll: etollRow?.kartu_etoll ?? "",
     biaya_etoll: 0,
-    // langsung generate keterangan dari detailSJ
+    // langsung generate keterangan dari detailSJ hanya jika user belum isi keterangan
     keterangan:
       prev.keterangan?.trim() !== ""
         ? prev.keterangan
@@ -733,26 +738,29 @@ export default function PremiDriver() {
 
     // === AUTO KETERANGAN jika kosong tetapi perpal ada ===
     if (!cleanedData.keterangan || String(cleanedData.keterangan).trim() === "") {
-      const gen = generateKeterangan({
-        perpal_1x_tanggal: cleanedData.perpal_1x_tanggal
-          ? String(cleanedData.perpal_1x_tanggal)
-          : null,
-        perpal_1x_rute: cleanedData.perpal_1x_rute
-          ? String(cleanedData.perpal_1x_rute)
-          : null,
-        perpal_2x_tanggal: cleanedData.perpal_2x_tanggal
-          ? String(cleanedData.perpal_2x_tanggal)
-          : null,
-        perpal_2x_rute: cleanedData.perpal_2x_rute
-          ? String(cleanedData.perpal_2x_rute)
-          : null,
-      });
+      const gen = generateKeterangan(
+        {
+          perpal_1x_tanggal: formData.perpal_1x_tanggal ? String(formData.perpal_1x_tanggal) : null,
+          perpal_1x_rute: formData.perpal_1x_rute ? String(formData.perpal_1x_rute) : null,
+          perpal_2x_tanggal: formData.perpal_2x_tanggal ? String(formData.perpal_2x_tanggal) : null,
+          perpal_2x_rute: formData.perpal_2x_rute ? String(formData.perpal_2x_rute) : null,
+        },
+        formData.driver,
+        formData.no_polisi,
+        formData.no_surat_jalan
+      );
 
       if (gen.trim() !== "") cleanedData.keterangan = gen;
     }
 
     // === Hapus kolom auto-generated ===
     delete cleanedData.id;
+
+    // 🚫 Hapus field perpal_xx karena bukan kolom premi_driver
+    delete cleanedData.perpal_1x_tanggal;
+    delete cleanedData.perpal_1x_rute;
+    delete cleanedData.perpal_2x_tanggal;
+    delete cleanedData.perpal_2x_rute;
 
     const isEdit = formData.id !== 0;
     let finalNomor = formData.no_premi_driver?.trim();
@@ -829,13 +837,31 @@ export default function PremiDriver() {
       });
     }
 
-    if (cleanedData.perpal) {
+    
       // build perpal keterangan lengkap sesuai format: Perpal [driver] [nopol] [tanggal] [ROUTE] (jam...) [no_surat_jalan]
+     if (cleanedData.perpal) {
+      const perpalKet = generateKeterangan(
+        {
+          perpal_1x_tanggal: formData.perpal_1x_tanggal ? String(formData.perpal_1x_tanggal) : null,
+          perpal_1x_rute: formData.perpal_1x_rute ? String(formData.perpal_1x_rute) : null,
+          perpal_2x_tanggal: formData.perpal_2x_tanggal ? String(formData.perpal_2x_tanggal) : null,
+          perpal_2x_rute: formData.perpal_2x_rute ? String(formData.perpal_2x_rute) : null,
+        },
+        formData.driver,
+        formData.no_polisi,
+        formData.no_surat_jalan
+      );
+
+      // 🚫 jangan kirim field perpal_xx ke premi_driver (karena adanya di surat_jalan)
+      delete cleanedData.perpal_1x_tanggal;
+      delete cleanedData.perpal_1x_rute;
+      delete cleanedData.perpal_2x_tanggal;
+      delete cleanedData.perpal_2x_rute;
 
       transaksi.push({
         tanggal: formData.tanggal,
         waktu: waktuNow,
-        keterangan: formData.keterangan,
+        keterangan: perpalKet,
         nominal: Number(cleanedData.perpal ?? 0),
         jenis_transaksi: "kredit",
         sumber_tabel: "perpal",
@@ -1613,10 +1639,10 @@ export default function PremiDriver() {
                         if (sj) {
                           const gen = generateKeterangan(
                             {
-                              perpal_1x_tanggal: sj.perpal_1x_tanggal,
-                              perpal_1x_rute: sj.perpal_1x_rute,
-                              perpal_2x_tanggal: sj.perpal_2x_tanggal,
-                              perpal_2x_rute: sj.perpal_2x_rute,
+                              perpal_1x_tanggal: sj.perpal_1x_tanggal ?? null,
+                              perpal_1x_rute: sj.perpal_1x_rute ?? null,
+                              perpal_2x_tanggal: sj.perpal_2x_tanggal ?? null,
+                              perpal_2x_rute: sj.perpal_2x_rute ?? null,
                             },
                             row.driver ?? row.crew ?? "",
                             row.no_polisi ?? "",
