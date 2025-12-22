@@ -456,7 +456,7 @@ export default function PremiDriver() {
     keterangan:
       prev.keterangan?.trim() !== ""
         ? prev.keterangan
-        : perpalAktif
+        : (prev.id === 0 && perpalAktif) // ✅ cek tambah baru pakai prev.id
           ? generateKeterangan(
               {
                 perpal_1x_tanggal: detailSJ?.perpal_1x_tanggal,
@@ -468,7 +468,7 @@ export default function PremiDriver() {
               detailSJ?.no_polisi ?? "",
               sj.no_surat_jalan
             )
-          : "",   // ⛔ kalau tidak perpal, biarkan kosong
+          : "", // ⛔ kalau edit atau tidak ada perpal, biarkan kosong
   }));
 
   // ✅ Realisasi hanya untuk driver
@@ -736,8 +736,20 @@ export default function PremiDriver() {
 
     cleanedData.user_id = getCustomUserId();
 
-   // === AUTO KETERANGAN jika kosong DAN perpal aktif ===
+    // === Hapus kolom auto-generated ===
+    delete cleanedData.id;
+
+    // 🚫 Hapus field perpal_xx karena bukan kolom premi_driver
+    delete cleanedData.perpal_1x_tanggal;
+    delete cleanedData.perpal_1x_rute;
+    delete cleanedData.perpal_2x_tanggal;
+    delete cleanedData.perpal_2x_rute;
+
+    const isEdit = formData.id !== 0;
+
+    // === AUTO KETERANGAN jika kosong DAN perpal aktif (hanya saat tambah baru) ===
     if (
+      !isEdit &&
       (!cleanedData.keterangan || String(cleanedData.keterangan).trim() === "") &&
       (formData.perpalAktif === true || (cleanedData.perpal && Number(cleanedData.perpal) > 0))
     ) {
@@ -756,18 +768,9 @@ export default function PremiDriver() {
       if (gen.trim() !== "") cleanedData.keterangan = gen;
     }
 
-    // === Hapus kolom auto-generated ===
-    delete cleanedData.id;
-
-    // 🚫 Hapus field perpal_xx karena bukan kolom premi_driver
-    delete cleanedData.perpal_1x_tanggal;
-    delete cleanedData.perpal_1x_rute;
-    delete cleanedData.perpal_2x_tanggal;
-    delete cleanedData.perpal_2x_rute;
-
-    const isEdit = formData.id !== 0;
     let finalNomor = formData.no_premi_driver?.trim();
     let finalId = formData.id;
+
 
     // === Simpan ke premi_driver ===
     if (isEdit) {
@@ -1548,7 +1551,7 @@ export default function PremiDriver() {
                 <div className="flex justify-center gap-[0.5px]">
                   <button
                     onClick={async () => {
-                      setFormData({ 
+                      setFormData({
                         ...row,
                         kartu_etoll: row.kartu_etoll ?? "",
                         biaya_etoll: row.biaya_etoll ?? 0,
@@ -1566,12 +1569,12 @@ export default function PremiDriver() {
                         .select("keterangan, nominal, jenis_transaksi")
                         .eq("bukti_transaksi", row.no_premi_driver)
                         .in("sumber_tabel", [
-                            "premi_driver",
-                            "perpal",
-                            "potongan",              // ← WAJIB agar potongan ikut kebaca
-                            "realisasi_saku_header",
-                            "realisasi_saku_sisa",
-                            "realisasi_saku_item"
+                          "premi_driver",
+                          "perpal",
+                          "potongan",
+                          "realisasi_saku_header",
+                          "realisasi_saku_sisa",
+                          "realisasi_saku_item"
                         ]);
 
                       let uang_saku = 0;
@@ -1631,39 +1634,7 @@ export default function PremiDriver() {
 
                       setPotonganList(potonganList);
 
-                      // === AUTO KETERANGAN pada saat EDIT jika kosong ===
-                      if ((!row.keterangan || row.keterangan.trim() === "") && row.no_surat_jalan) {
-                        const { data: sj } = await supabase
-                          .from("surat_jalan")
-                          .select("perpal_1x_tanggal, perpal_1x_rute, perpal_2x_tanggal, perpal_2x_rute")
-                          .eq("no_surat_jalan", row.no_surat_jalan)
-                          .single();
-
-                        if (sj) {
-                          const gen = generateKeterangan(
-                            {
-                              perpal_1x_tanggal: sj.perpal_1x_tanggal ?? null,
-                              perpal_1x_rute: sj.perpal_1x_rute ?? null,
-                              perpal_2x_tanggal: sj.perpal_2x_tanggal ?? null,
-                              perpal_2x_rute: sj.perpal_2x_rute ?? null,
-                            },
-                            row.driver ?? row.crew ?? "",
-                            row.no_polisi ?? "",
-                            row.no_surat_jalan ?? ""
-                          );
-
-                          if (gen && gen.trim() !== "") {
-                            setFormData(prev => ({
-                              ...prev,
-                              keterangan: gen,
-                              perpal_1x_tanggal: sj.perpal_1x_tanggal ?? prev.perpal_1x_tanggal,
-                              perpal_1x_rute: sj.perpal_1x_rute ?? prev.perpal_1x_rute,
-                              perpal_2x_tanggal: sj.perpal_2x_tanggal ?? prev.perpal_2x_tanggal,
-                              perpal_2x_rute: sj.perpal_2x_rute ?? prev.perpal_2x_rute,
-                            }));
-                          }
-                        }
-                      }
+                      
 
                     }}
                     className="text-blue-600 hover:text-blue-800 px-[5px]"
