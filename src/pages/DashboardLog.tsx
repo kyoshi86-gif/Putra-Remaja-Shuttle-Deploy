@@ -94,8 +94,8 @@ export default function DashboardLog() {
 
       // Simpan query dengan UTC
       query = query
-        .gte("waktu", startUTC.toISOString())
-        .lte("waktu", endUTC.toISOString());
+      .filter("waktu", "gte", startUTC.toISOString())
+      .filter("waktu", "lte", endUTC.toISOString());
     }
 
     const { data } = await query;
