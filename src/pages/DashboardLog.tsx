@@ -24,6 +24,7 @@ import * as XLSX from "xlsx";
 import { getWIBTimestampFromUTC } from "../utils/time";
 
 interface LogItem {
+  idx: number; 
   id: string;
   waktu: string; // UTC string
   user_id: string;
@@ -42,6 +43,8 @@ export default function DashboardLog() {
   const [filterTable, setFilterTable] = useState("");
   const [filterAction, setFilterAction] = useState("");
 
+  const [filterEntity, setFilterEntity] = useState("");
+
   const [range, setRange] = useState<Range[]>([
     {
       startDate: new Date(),
@@ -58,46 +61,70 @@ export default function DashboardLog() {
   const fetchLogs = async () => {
     setLoading(true);
 
-    let query = supabase
-      .from("log_transaksi_today")
-      .select("*")
-      .order("waktu", { ascending: false });
-      
-    // Filter keyword
-    if (search)
-      query = query.or(
-        `user_id.ilike.%${search}%,tabel.ilike.%${search}%,tipe.ilike.%${search}%`
-      );
+    const pageSize = 1000;
+    let allRows: LogItem[] = [];
+    let from = 0;
+    let to = pageSize - 1;
+    let hasMore = true;
 
-    if (filterUser) query = query.ilike("user_id", `%${filterUser}%`);
-    if (filterTable && filterTable !== "all") query = query.eq("tabel", filterTable);
-    if (filterAction && filterAction !== "all") query = query.eq("tipe", filterAction);
+    while (hasMore) {
+      let query = supabase
+        .from("log_transaksi")
+        .select("*")
+        .order("waktu", { ascending: false })
+        .range(from, to);
 
-    // --- FILTER RANGE TANGGAL (WIB → UTC) ---
-    const startDate = range[0].startDate;
-    const endDate = range[0].endDate;
+      // --- Filter keyword ---
+      if (search) {
+        query = query.or(
+          `user_id.ilike.%${search}%,tabel.ilike.%${search}%,tipe.ilike.%${search}%`
+        );
+      }
 
-    if (startDate && endDate) {
-      const startUTC = new Date(Date.UTC(
-        startDate.getFullYear(),
-        startDate.getMonth(),
-        startDate.getDate(),
-        0, 0, 0
-      ));
-      const endUTC = new Date(Date.UTC(
-        endDate.getFullYear(),
-        endDate.getMonth(),
-        endDate.getDate(),
-        23, 59, 59, 999
-      ));
+      if (filterUser) query = query.ilike("user_id", `%${filterUser}%`);
+      if (filterTable && filterTable !== "all") query = query.eq("tabel", filterTable);
+      if (filterAction && filterAction !== "all") query = query.eq("tipe", filterAction);
 
-     query = query
-      .gte("waktu", startUTC.toISOString())
-      .lte("waktu", endUTC.toISOString());
+      // --- Filter range tanggal (WIB → UTC) ---
+      const startDate = range[0].startDate;
+      const endDate = range[0].endDate;
+
+      if (startDate && endDate) {
+        const startUTC = new Date(Date.UTC(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate(),
+          0, 0, 0
+        ));
+        const endUTC = new Date(Date.UTC(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          endDate.getDate(),
+          23, 59, 59, 999
+        ));
+
+        
+        if (filterEntity && filterEntity !== "all") {
+          query = query.or(`entity_id.eq.${filterEntity},entity_id.is.null`);
+        }
+
+        query = query
+          .gte("waktu", startUTC.toISOString())
+          .lte("waktu", endUTC.toISOString());
+      }
+
+      const { data } = await query;
+
+      if (data && data.length > 0) {
+        allRows = [...allRows, ...data];
+        from += pageSize;
+        to += pageSize;
+      } else {
+        hasMore = false;
+      }
     }
 
-    const { data } = await query;
-    setLogs(data || []);
+    setLogs(allRows);
     setLoading(false);
   };
 
@@ -151,7 +178,7 @@ export default function DashboardLog() {
     <div className="p-4 bg-white rounded shadow">
       <div className="pr-8 space-y-6">
         <h1 className="text-2xl font-bold">Dashboard Log Aktivitas</h1>
-
+        <div className="flex flex-wrap gap-4 cols-2">
         <Input
           placeholder="Cari keyword bebas (user, tabel, aksi)"
           value={search}
@@ -159,6 +186,13 @@ export default function DashboardLog() {
           className="max-w-sm"
         />
 
+        <Input
+          placeholder="Filter Entity ID"
+          value={filterEntity}
+          onChange={(e) => setFilterEntity(e.target.value)}
+          className="max-w-sm"
+        />
+        </div>
         <Card className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Input
@@ -269,9 +303,9 @@ export default function DashboardLog() {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((row: LogItem) => (
+                {logs.map((row: LogItem, idx) => (
                   <motion.tr
-                    key={row.id}
+                    key={`${row.idx}-${idx}`} 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="border-b hover:bg-gray-50"
