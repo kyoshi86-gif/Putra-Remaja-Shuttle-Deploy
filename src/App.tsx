@@ -86,14 +86,17 @@ export default function App() {
                 }
               />
 
-              {dynamicRoutes.map(({ path, component: Component }) => (
-  <Route
-    key={path}
-    path={path}
-    element={<Component />}
-  />
-))}
-
+              {dynamicRoutes.map(({ path, access, component: Component }) => (
+                <Route
+                  key={path}
+                  path={path}
+                  element={
+                    <RoleProtectedRoute requiredAccess={access}>
+                      <Component />
+                    </RoleProtectedRoute>
+                  }
+                />
+              ))}
 
               <Route
                 path="/edit-role"

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { getEntityContext, type EntityContext } from "../lib/entityContext";
 
 export default function Dashboard() {
   // ===============================
@@ -13,8 +12,7 @@ export default function Dashboard() {
     tanggal?: string | null; // dari tabel uang_saku atau premi
     driver: string;
     kode_rute: string;
-    status: string | null;
-    entity_id: string;
+    status: string;
   }
 
   interface TabelProps {
@@ -38,85 +36,32 @@ export default function Dashboard() {
   const [sjBelumPremi, setSjBelumPremi] = useState<SuratJalan[]>([]);
 
   // ===============================
-  // 🧩 CONTEXT & ENTITY
+  // 🔥 LOAD DATA DASHBOARD
   // ===============================
-  const [entityCtx, setEntityCtx] = useState<EntityContext | null>(null);
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
-  const [entities, setEntities] = useState<{id:string; kode:string; nama:string; tipe:string}[]>([]);
-
   useEffect(() => {
-    const storedUser = localStorage.getItem("custom_user");
-    if (!storedUser) return;
-
-    try {
-      const parsed = JSON.parse(storedUser);
-      getEntityContext(parsed.entity_id).then((ctx) => {
-        setEntityCtx(ctx);
-
-        // ✅ set default outlet sesuai user
-        if (ctx?.tipe === "pusat") {
-          setSelectedEntityId(ctx.entity_id); // pusat → default pusat
-        } else {
-          setSelectedEntityId(ctx.entity_id); // cabang → default cabang
-        }
-      });
-    } catch (err) {
-      console.error("Gagal parse custom_user:", err);
-    }
+    loadDashboard();
   }, []);
-
-  const fetchEntities = async () => {
-    const { data, error } = await supabase
-      .from("entities")
-      .select("id, kode, nama, tipe")
-      .order("nama", { ascending: true });
-
-    if (!error && data) {
-      setEntities(data as {id:string; kode:string; nama:string; tipe:string}[]);
-    }
-  };
-
-  useEffect(() => {
-    if (entityCtx?.tipe === "pusat") {
-      fetchEntities();
-    }
-  }, [entityCtx]);
-  
- // 🔥 LOAD DATA DASHBOARD
-  useEffect(() => {
-    if (entityCtx) {
-      loadDashboard();
-    }
-  }, [entityCtx, selectedEntityId]);   // ✅ panggil ulang saat outlet berubah
 
   const loadDashboard = async () => {
     setLoading(true);
 
     try {
-      // tentukan outlet target
-      const targetEntity = selectedEntityId ?? entityCtx?.entity_id;
-
-      // 🚐 SURAT JALAN AKTIF
-      let queryAktif = supabase
+      // 🚐 SURAT JALAN AKTIF (tanpa kolom status)
+      const { data: aktif, error: errorAktif } = await supabase
         .from("surat_jalan")
-        .select("no_surat_jalan, tanggal_berangkat, driver, kode_rute, entity_id")
+        .select("no_surat_jalan, tanggal_berangkat, driver, kode_rute")
         .order("tanggal_berangkat", { ascending: false });
 
-      if (targetEntity) {
-        queryAktif = queryAktif.eq("entity_id", targetEntity); // ✅ filter outlet
+      if (errorAktif) {
+        console.error("Error fetch Surat Jalan Aktif:", errorAktif);
       }
 
-      const { data: aktif, error: errorAktif } = await queryAktif;
-      if (errorAktif) console.error("Error fetch Surat Jalan Aktif:", errorAktif);
-
       // 💸 BELUM UANG SAKU
-      const { data: belumSaku, error: errorSaku } = await supabase
-        .rpc("get_sj_belum_saku", { entity_filter: targetEntity }); // ✅ filter outlet
+      const { data: belumSaku, error: errorSaku } = await supabase.rpc("get_sj_belum_saku");
       if (errorSaku) console.error("Error fetch SJ Belum Saku:", errorSaku);
 
       // 🏆 BELUM PREMI
-      const { data: belumPremi, error: errorPremi } = await supabase
-        .rpc("get_sj_belum_premi", { entity_filter: targetEntity }); // ✅ filter outlet
+      const { data: belumPremi, error: errorPremi } = await supabase.rpc("get_sj_belum_premi");
       if (errorPremi) console.error("Error fetch SJ Belum Premi:", errorPremi);
 
       setSjAktif((aktif as SuratJalan[]) ?? []);
@@ -249,25 +194,6 @@ export default function Dashboard() {
           color="bg-orange-500"
         />
       </div>
-
-      {/* FILTER OUTLET */}
-      {entityCtx?.tipe === "pusat" && (
-        <div className="gap-3 flex items-center border p-2 rounded bg-gray-100">
-          <label className="mr-2 font-semibold">Filter Outlet</label>
-          <select
-            value={selectedEntityId ?? ""}
-            onChange={(e) => setSelectedEntityId(e.target.value || null)}
-            className="border rounded px-3 py-2"
-          >
-            <option value="">-- Semua Outlet --</option>
-            {entities.map((ent) => (
-              <option key={ent.id} value={ent.id}>
-                {ent.nama}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* TABEL */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
