@@ -10,6 +10,7 @@ import {
   FaCogs,
   FaCashRegister,
 } from "react-icons/fa";
+import { createPortal } from "react-dom";
 
 // ======== 🔹 Tipe Menu ========
 interface SubMenu {
@@ -245,7 +246,8 @@ export default function Sidebar({
               </div>
 
               {/* Tooltip collapsed */}
-              {isCollapsed && hoveredMenu === menuKey && menu.sub.length > 0 && (
+              {isCollapsed && hoveredMenu === menuKey && menu.sub.length > 0 &&
+              createPortal(
                 <div
                   style={{
                     position: "fixed",
@@ -268,6 +270,7 @@ export default function Sidebar({
                       fontWeight: "bold",
                       padding: "8px 12px",
                       borderBottom: "1px solid rgba(255,255,255,0.2)",
+                      color: "white",
                     }}
                   >
                     {menu.label}
@@ -280,7 +283,7 @@ export default function Sidebar({
                           style={{
                             display: "block",
                             padding: "8px 12px",
-                            color: isActive(sub.path) ? "#1abc9c" : "white",
+                            color: isActive(sub.path) ? "#1abcbc" : "white",
                             textDecoration: "none",
                           }}
                           onMouseEnter={(e) =>
@@ -296,7 +299,8 @@ export default function Sidebar({
                       </li>
                     ))}
                   </ul>
-                </div>
+                </div>,
+                document.body
               )}
 
               {/* Submenu Expanded */}

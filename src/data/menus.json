@@ -116,6 +116,12 @@
         "access": "Konfigurasi -> Rute",
         "path": "/rute",
         "component": "Rute"
+      },
+      { 
+        "label": "Daftar Cabang", 
+        "access": "Konfigurasi -> Entity",
+        "path": "/entity",
+        "component": "Entity"
       }
     ]
   }

@@ -59,10 +59,10 @@ export default function DashboardLog() {
     setLoading(true);
 
     let query = supabase
-      .from("log_transaksi")
+      .from("log_transaksi_today")
       .select("*")
       .order("waktu", { ascending: false });
-
+      
     // Filter keyword
     if (search)
       query = query.or(
@@ -78,7 +78,6 @@ export default function DashboardLog() {
     const endDate = range[0].endDate;
 
     if (startDate && endDate) {
-      // Mulai hari WIB → konversi ke UTC
       const startUTC = new Date(Date.UTC(
         startDate.getFullYear(),
         startDate.getMonth(),
@@ -92,10 +91,9 @@ export default function DashboardLog() {
         23, 59, 59, 999
       ));
 
-      // Simpan query dengan UTC
-      query = query
-        .gte("waktu", startUTC.toISOString())
-        .lte("waktu", endUTC.toISOString());
+     query = query
+      .gte("waktu", startUTC.toISOString())
+      .lte("waktu", endUTC.toISOString());
     }
 
     const { data } = await query;
