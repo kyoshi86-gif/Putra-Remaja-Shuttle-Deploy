@@ -5,7 +5,6 @@ import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiPrinter } from "react-icon
 import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { insertWithAutoNomor } from "../lib/dbUtils";
 import { getCustomUserId } from "../lib/authUser";
-import { getEntityContext, type EntityContext } from "../lib/entityContext";
 
 interface PremiData {
   id: number;
@@ -32,14 +31,6 @@ interface PremiData {
   [key: string]: unknown; // ✅ tambahkan ini
 }
 
-interface CustomUser {
-  id: string;
-  name?: string;
-  role: string;
-  access?: string[];
-  entity_id: string;
-}
-
 export const toDate = (v: unknown): Date | "" => {
   if (typeof v === "string" || typeof v === "number" || v instanceof Date) {
     const d = new Date(v);
@@ -62,49 +53,6 @@ export default function PremiDriver() {
   const [, setDriverOptions] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [suratJalanTersedia, setSuratJalanTersedia] = useState<{ no_surat_jalan: string, nama: string }[]>([]);
-
-  // Context Entity
-  const [entityCtx, setEntityCtx] = useState<EntityContext | null>(null);
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
-  const [entities, setEntities] = useState<{id:string; kode:string; nama:string; tipe:string}[]>([]);
-  const [customUser, setCustomUser] = useState<CustomUser | null>(null);
-  const [loadingCtx, setLoadingCtx] = useState(true);
-
-  // --- FETCH DAFTAR ENTITIES JIKA USER PUSAT ---
-  const fetchEntities = async () => {
-    if (!entityCtx?.entity_id) return; // ⛔ jangan query kalau belum siap
-    const { data, error } = await supabase
-      .from("entities")
-      .select("id, kode, nama, tipe")
-      .order("nama", { ascending: true });
-
-    if (error) {
-      console.error("❌ Gagal ambil daftar entities:", error.message);
-    } else {
-      setEntities(data as {id:string; kode:string; nama:string; tipe:string}[]);
-    }
-  };
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("custom_user");
-    if (!storedUser) {
-      setLoadingCtx(false);
-      return;
-    }
-    try {
-      const parsed: CustomUser = JSON.parse(storedUser);
-      setCustomUser(parsed);
-      getEntityContext(parsed.entity_id)
-        .then((ctx) => {
-          setEntityCtx(ctx);
-          setLoadingCtx(false);
-        })
-        .catch(() => setLoadingCtx(false));
-    } catch {
-      setLoadingCtx(false);
-    }
-  }, []);
-
   const [formData, setFormData] = useState<PremiData>({
     id: 0,
     tanggal: "",
@@ -352,26 +300,10 @@ export default function PremiDriver() {
 
   // -- Fetch Surat Jalan Di UangSakuDriver
   const fetchSuratJalanDipakai = async () => {
-    if (!entityCtx?.entity_id) return;
-
-    let query = supabase
+    const { data } = await supabase
       .from("uang_saku_driver")
-      .select("driver, crew, no_surat_jalan, tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute, entity_id")
+      .select("driver, crew, no_surat_jalan, tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute")
       .order("tanggal", { ascending: false });
-
-    // ✅ filter sesuai outlet/pusat
-    if (entityCtx.tipe === "pusat") {
-      const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-      query = query.eq("entity_id", targetEntity);
-    } else {
-      query = query.eq("entity_id", entityCtx.entity_id);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error("❌ Gagal ambil Surat Jalan Dipakai:", error.message);
-      return;
-    }
 
     if (data) {
       setSuratJalanDipakai(data);
@@ -383,19 +315,16 @@ export default function PremiDriver() {
 
       const uniqueNames = Array.from(new Set(allNames));
       setDriverOptions(uniqueNames);
-
-      // ✅ simpan juga ke semuaSJ
-      setSemuaSJ(data);
     }
   };
 
-  // ✅ panggil ulang saat mount dan saat filter outlet berubah
   useEffect(() => {
     fetchData();
     fetchSuratJalanDipakai();
-  }, [selectedEntityId, entityCtx]);
+    setSemuaSJ(data);
+  }, []);
 
-  // -- auto refresh --
+  //-- auto refresh--
   useEffect(() => {
     let lastRefresh = 0;
 
@@ -403,9 +332,8 @@ export default function PremiDriver() {
       const now = Date.now();
       if (document.visibilityState === "visible" && now - lastRefresh > 3000) {
         lastRefresh = now;
-        fetchData();        // ✅ ambil ulang data premi_driver
-        fetchKasHarian();   // ✅ pastikan kas_harian ikut update
-        fetchSJ();          // ✅ refresh daftar SJ juga
+        fetchData();       // ✅ ambil ulang data premi_driver
+        fetchKasHarian();  // ✅ pastikan kas_harian ikut update
       }
     };
 
@@ -413,29 +341,12 @@ export default function PremiDriver() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
-  // --- CEK FETCH SJ TERSEDIA ---
+  //--- CEK FETCH SJ TERSEDIA ---
   const fetchSJ = async () => {
-    if (!entityCtx?.entity_id) return;
-
-    let query = supabase
+    const { data: semuaSJ } = await supabase
       .from("uang_saku_driver")
-      .select("no_surat_jalan, driver, crew, tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute, entity_id")
+      .select("no_surat_jalan, driver, crew, tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute")
       .order("tanggal", { ascending: false });
-
-    if (entityCtx.tipe === "pusat") {
-      const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-      query = query.eq("entity_id", targetEntity);
-    } else {
-      query = query.eq("entity_id", entityCtx.entity_id);
-    }
-
-    const { data: semuaSJ, error } = await query;
-    if (error) {
-      console.error("❌ Gagal ambil SJ:", error.message);
-      setSuratJalanTersedia([]);
-      setSemuaSJ([]);
-      return;
-    }
 
     const { data: sudahDipakai } = await supabase
       .from("premi_driver")
@@ -467,10 +378,9 @@ export default function PremiDriver() {
     setSemuaSJ(semuaSJ ?? []);
   };
 
-  // ✅ panggil ulang saat mount dan saat filter outlet berubah
   useEffect(() => {
-    fetchSJ();
-  }, [selectedEntityId, entityCtx]);
+    fetchSJ(); // ✅ panggil saat mount
+  }, []);
 
   useEffect(() => {
     const handleRefresh = () => {
@@ -484,33 +394,20 @@ export default function PremiDriver() {
 
   // === FETCH DATA ===
   const fetchData = async () => {
-    if (!entityCtx?.entity_id) return;
+    const { data, error } = await supabase
+      .from("premi_driver")
+      .select("*")
+      .order("id", { ascending: false });
 
-    let query = supabase.from("premi_driver").select("*").order("id", { ascending: false });
-
-    if (entityCtx.tipe === "pusat") {
-      const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-      query = query.eq("entity_id", targetEntity);
-    } else {
-      query = query.eq("entity_id", entityCtx.entity_id);
-    }
-
-    const { data, error } = await query;
     if (!error && data) {
       setData(data);
       setFiltered(data);
     }
   };
 
-  // Auto fetch data saat filter outlet berubah
   useEffect(() => {
-    if (!entityCtx) return;
-    if (entityCtx.tipe === "pusat") {
-      fetchData(); // langsung ambil data sesuai outlet terpilih
-      fetchSJ(); // refresh daftar SJ sesuai filter
-      fetchEntities(); // ambil daftar outlet
-    }
-  }, [selectedEntityId, entityCtx]);
+    fetchData();
+  }, []);
 
   // --- Fungsi pilih SJ (ditrigger sebelum blur karena onMouseDown di item) ---
   const handleSelectSj = async (sj: SuratJalanRow) => {
@@ -691,42 +588,27 @@ export default function PremiDriver() {
 
   // === TAMBAH ===
   const handleTambah = async () => {
-  try {
-    // ✅ Tentukan entity target
-    const targetEntity =
-      entityCtx?.tipe === "pusat" && selectedEntityId
-        ? selectedEntityId
-        : entityCtx?.entity_id;
+    try {
+      const result = await insertWithAutoNomor({
+        table: "premi_driver",
+        prefix: "PD-",
+        nomorField: "no_premi_driver",
+        previewOnly: true, // ✅ hanya ambil nomor, belum insert
+        tanggal: formData.tanggal || undefined,
+        data: {},
+      });
 
-    // ✅ Tentukan prefix nomor
-    let outletPrefix = "PD-"; // default tanpa kode
-    if (entityCtx?.tipe === "outlet") {
-      outletPrefix = `${entityCtx.kode}-PD-`;
-    } else if (selectedEntityId && selectedEntityId !== entityCtx?.entity_id) {
-      const ent = entities.find((e) => e.id === selectedEntityId);
-      outletPrefix = ent?.kode ? `${ent.kode}-PD-` : "PD-";
+      if (!result || !result.success || !result.nomor) {
+        throw new Error(result?.error || "Gagal buat nomor premi");
+      }
+
+      setFormData(prepareFormData(result.nomor));
+      setShowForm(true);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert("❌ " + message);
     }
-
-    const result = await insertWithAutoNomor({
-      table: "premi_driver",
-      prefix: outletPrefix, // ✅ pakai prefix sesuai outlet/pusat
-      nomorField: "no_premi_driver",
-      previewOnly: true, // hanya ambil nomor, belum insert
-      tanggal: formData.tanggal || undefined,
-      data: { entity_id: targetEntity }, // simpan entity_id
-    });
-
-    if (!result || !result.success || !result.nomor) {
-      throw new Error(result?.error || "Gagal buat nomor premi");
-    }
-
-    setFormData(prepareFormData(result.nomor));
-    setShowForm(true);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    alert("❌ " + message);
-  }
-};
+  };
 
   // === EXPORT ===
   const handleExportExcel = () => {
@@ -889,43 +771,12 @@ export default function PremiDriver() {
     let finalNomor = formData.no_premi_driver?.trim();
     let finalId = formData.id;
 
-    // ✅ Tentukan entity target
-    const targetEntity =
-      entityCtx?.tipe === "pusat" && selectedEntityId
-        ? selectedEntityId
-        : entityCtx?.entity_id;
-
-    // ✅ Tentukan prefix nomor
-    let outletPrefix = "PD-"; // default tanpa kode
-    if (!entityCtx) {
-      alert("Entity context belum siap");
-      setIsSubmitting(false);
-      return false;
-    }
-
-    if (entityCtx.tipe === "outlet") {
-      // user outlet login → selalu pakai kode outlet
-      outletPrefix = `${entityCtx.kode}-PD-`;
-    } else if (formData.id === 0) {
-      // user pusat tambah baru
-      if (selectedEntityId && selectedEntityId !== entityCtx.entity_id) {
-        // ⛔ kalau filter outlet dipilih → pakai kode outlet
-        const ent = entities.find((e) => e.id === selectedEntityId);
-        outletPrefix = ent?.kode ? `${ent.kode}-PD-` : "PD-";
-      } else {
-        // ⛔ kalau filter pusat → tanpa kode
-        outletPrefix = "PD-";
-      }
-    } else {
-      // user pusat edit → nomor sudah ada, biarkan apa adanya
-      outletPrefix = formData.no_premi_driver?.split("-")[0] + "-PD-";
-    }
 
     // === Simpan ke premi_driver ===
     if (isEdit) {
       const { error } = await supabase
         .from("premi_driver")
-        .update({ ...cleanedData, entity_id: targetEntity }) // ✅ pastikan entity_id ikut tersimpan
+        .update(cleanedData)
         .eq("id", formData.id);
 
       if (error) {
@@ -935,13 +786,13 @@ export default function PremiDriver() {
     } else {
       const result = await insertWithAutoNomor({
         table: "premi_driver",
-        prefix: outletPrefix, // ✅ pakai prefix sesuai logika di atas
+        prefix: "PD-",
         nomorField: "no_premi_driver",
-        data: { ...cleanedData, entity_id: targetEntity }, // ✅ simpan entity_id
+        data: cleanedData,
         excludeFields: [],
         previewOnly: false,
-        monthlyReset: false,
-        resetAfterMax: true,
+        monthlyReset: false,  // ⛔ tidak reset tiap bulan
+        resetAfterMax: true,  // ✅ reset setelah 999
         maxSeq: 999,
         digitCount: 3,
       });
@@ -968,7 +819,6 @@ export default function PremiDriver() {
       urutan: number;
       user_id: string | null;
       updated_at: string;
-      entity_id?: string | null;
     }
 
     const transaksi: KasTransaksi[] = [];
@@ -990,7 +840,6 @@ export default function PremiDriver() {
         urutan: urutan++,
         user_id: currentUserId,
         updated_at: new Date().toISOString(),
-        entity_id: targetEntity,
       });
     }
 
@@ -1027,7 +876,6 @@ export default function PremiDriver() {
         urutan: urutan++,
         user_id: currentUserId,
         updated_at: new Date().toISOString(),
-        entity_id: targetEntity,
       });
     }
 
@@ -1045,7 +893,6 @@ export default function PremiDriver() {
           urutan: urutan++,
           user_id: currentUserId,
           updated_at: new Date().toISOString(),
-          entity_id: targetEntity,
         });
       }
     }
@@ -1079,7 +926,6 @@ export default function PremiDriver() {
           urutan: urutan++,
           user_id: currentUserId,
           updated_at: new Date().toISOString(),
-          entity_id: targetEntity,
         });
       }
 
@@ -1097,7 +943,6 @@ export default function PremiDriver() {
           urutan: urutan++,
           user_id: currentUserId,
           updated_at: new Date().toISOString(),
-          entity_id: targetEntity,
         });
       }
     }
@@ -1123,7 +968,6 @@ export default function PremiDriver() {
           urutan: urutan++,
           user_id: currentUserId,
           updated_at: new Date().toISOString(),
-          entity_id: targetEntity,
         });
       }
     }
@@ -1177,11 +1021,9 @@ export default function PremiDriver() {
         }
 
         // carikan transaksi baru yang cocok berdasarkan keterangan (case-insensitive)
-        const trx = transaksi.find(
-        (t) =>
-          t.sumber_tabel === old.sumber_tabel &&
-          t.urutan === old.urutan
-      );
+        const trx = transaksi.find((t) =>
+          String(t.keterangan || "").trim().toLowerCase() === String(old.keterangan || "").trim().toLowerCase()
+        );
 
         if (!trx) {
           // jika tidak ditemukan, kita biarkan nanti (akan dihapus di langkah delete diff)
@@ -1215,7 +1057,6 @@ export default function PremiDriver() {
             jenis_transaksi,
             updated_at: new Date().toISOString(),
             user_id: currentUserId,
-            entity_id: targetEntity,
           })
           .eq("id", old.id);
 
@@ -1242,12 +1083,12 @@ export default function PremiDriver() {
       const existingRows = (existingRowsRes || []) as KasHarianRow[];
 
       // Normalisasi key untuk compare (gunakan keterangan + jenis + nominal sebagai identitas sederhana)
-      const normalizeKey = (r: { sumber_tabel?: string; urutan?: number }) =>
-        `${String(r.sumber_tabel || "").trim().toLowerCase()}|${Number(r.urutan || 0)}`;
+      const normalizeKey = (r: { keterangan?: string; jenis_transaksi?: string; nominal?: number | string }) =>
+        `${String(r.keterangan || "").trim().toLowerCase()}|${String(r.jenis_transaksi || "").trim().toLowerCase()}|${Number(r.nominal || 0)}`;
 
       // Map existing by normalized key (pakai tipe eksplisit)
       const existingMap = new Map<string, KasHarianRow>();
-        existingRows.forEach((r) => existingMap.set(normalizeKey(r), r));
+      existingRows.forEach((r) => existingMap.set(normalizeKey(r), r));
 
       // Tipe internal untuk transaksi yang akan dimasukkan/ dibandingkan
       type KasTransaksi = {
@@ -1263,14 +1104,13 @@ export default function PremiDriver() {
         user_id?: string | null;
         updated_at?: string;
         created_at?: string;
-        entity_id?: string | null;
       };
 
-      // Map transaksi target by normalized key
+      // Map transaksi target by normalized key (pakai KasTransaksi)
       const transaksiMap = new Map<string, KasTransaksi>();
-      transaksi.forEach((t) => transaksiMap.set(normalizeKey(t), t as KasTransaksi));
+      transaksi.forEach((t) => transaksiMap.set(normalizeKey(t as KasTransaksi), t as KasTransaksi));
 
-      // DELETE
+      // 1) DELETE: hapus existing yang tidak ada di transaksi lagi
       const toDeleteIds: number[] = existingRows
         .filter((r) => !transaksiMap.has(normalizeKey(r)))
         .map((r) => r.id)
@@ -1342,7 +1182,6 @@ export default function PremiDriver() {
             user_id: await getCustomUserId(),
             updated_at: createdAtForRow,
             created_at: createdAtForRow,
-            entity_id: targetEntity,
           });
         }
 
@@ -1373,28 +1212,14 @@ export default function PremiDriver() {
 
         // Tentukan waktu sisipan: gunakan waktu dari nextRow (firstRealRow) agar konsisten.
         const nextWaktu = firstRealRow?.waktu ?? maxTime;
-        //const baseInsertTimes: string[] = new Array(nInsert).fill(nextWaktu);
+        const baseInsertTimes: string[] = new Array(nInsert).fill(nextWaktu);
 
-        // Build toInsertRows dengan urutan sesuai sumber_tabel
+        // Build toInsertRows with urutan starting at firstRealUrutan
         const toInsertRows: KasTransaksi[] = [];
-        for (const t of toInsert) {
-          // Tentukan anchor urutan berdasarkan sumber_tabel
-          let urutanPointer: number;
-          switch (t.sumber_tabel) {
-            case "premi_driver":
-              urutanPointer = 1;
-              break;
-            case "perpal":
-              urutanPointer = 2;
-              break;
-            case "potongan":
-              urutanPointer = 3;
-              break;
-            default:
-              urutanPointer = firstRealUrutan ?? maxUrutan + 1;
-          }
-
-          const waktuForRow = nextWaktu;
+        let urutanPointer = firstRealUrutan;
+        for (let i = 0; i < toInsert.length; i++) {
+          const t = toInsert[i];
+          const waktuForRow = baseInsertTimes[i];
           const msSuffix = String(urutanPointer).padStart(3, "0");
           const createdAtForRow = `${formData.tanggal}T${waktuForRow}.${msSuffix}Z`;
 
@@ -1407,11 +1232,10 @@ export default function PremiDriver() {
             sumber_tabel: t.sumber_tabel,
             sumber_id: finalId,
             bukti_transaksi: formData.no_premi_driver,
-            urutan: urutanPointer,
+            urutan: urutanPointer++,
             user_id: await getCustomUserId(),
             updated_at: createdAtForRow,
             created_at: createdAtForRow,
-            entity_id: targetEntity,
           });
         }
 
@@ -1422,39 +1246,31 @@ export default function PremiDriver() {
             throw insErr;
           }
         }
+      }
 
-        // ===== Tambahan safety: RE-SEQ urutan per grup sumber_tabel =====
-        const { data: afterRows } = await supabase
-          .from("kas_harian")
-          .select("id, urutan, sumber_tabel")
-          .eq("bukti_transaksi", formData.no_premi_driver)
-          .order("urutan", { ascending: true });
+      // ===== Tambahan safety: RE-SEQ urutan untuk mencegah duplikat urutan =====
+      // Ambil ulang rows dan pastikan urutan bersih (1..N) untuk bukti_transaksi ini
+      const { data: afterRows } = await supabase
+        .from("kas_harian")
+        .select("id, urutan")
+        .eq("bukti_transaksi", formData.no_premi_driver)
+        .order("urutan", { ascending: true });
 
-        if (afterRows && afterRows.length > 0) {
-          let seq = 1;
-          const orderGroups = [
-            "premi_driver",
-            "perpal",
-            "potongan",
-            "realisasi_saku_header",
-            "realisasi_saku_sisa",
-            "realisasi_saku_item",
-          ];
-
-          for (const sumber of orderGroups) {
-            for (const r of afterRows.filter((row) => row.sumber_tabel === sumber)) {
-              if (Number(r.urutan || 0) !== seq) {
-                const { error: updSeqErr } = await supabase
-                  .from("kas_harian")
-                  .update({ urutan: seq, updated_at: new Date().toISOString() })
-                  .eq("id", r.id);
-                if (updSeqErr) {
-                  console.error("Gagal re-seq urutan id", r.id, updSeqErr);
-                }
-              }
-              seq++;
+      if (afterRows && afterRows.length > 0) {
+        let seq = 1;
+        for (const r of afterRows) {
+          const currentUrut = Number(r.urutan || 0);
+          if (currentUrut !== seq) {
+            const { error: updSeqErr } = await supabase
+              .from("kas_harian")
+              .update({ urutan: seq, updated_at: new Date().toISOString() })
+              .eq("id", r.id);
+            if (updSeqErr) {
+              console.error("Gagal re-seq urutan id", r.id, updSeqErr);
+              // bukan fatal — lanjutkan
             }
           }
+          seq++;
         }
       }
 
@@ -1512,8 +1328,7 @@ export default function PremiDriver() {
       .from("kas_harian")
       .delete()
       .eq("bukti_transaksi", noPD)
-      .in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"])
-      .eq("entity_id", row.entity_id);
+      .in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
 
     if (kasDeleteError) {
       alert("❌ Gagal hapus kas_harian: " + kasDeleteError.message);
@@ -1523,8 +1338,7 @@ export default function PremiDriver() {
     const { error: deleteError } = await supabase
       .from("premi_driver")
       .delete()
-      .eq("id", id)
-      .eq("entity_id", row.entity_id);
+      .eq("id", id);
 
     if (deleteError) {
       alert("❌ Gagal hapus premi_driver: " + deleteError.message);
@@ -1630,15 +1444,6 @@ export default function PremiDriver() {
     }
   }, [potonganList.length]);
 
-  //-- loading dan validasi entity/user ---
-  if (loadingCtx) {
-    return <div className="p-4 text-gray-600">Memuat Data Cabang...</div>;
-  }
-
-  if (!customUser || !entityCtx) {
-    return <div className="p-4 text-red-600">Entity atau user tidak valid</div>;
-  }
-
   return (
     <div className="p-4 bg-white rounded shadow">
       <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
@@ -1660,29 +1465,6 @@ export default function PremiDriver() {
             <FiPrinter /> Cetak
           </button>
         </div>
-        
-        {/* -- TAMPILKAN -- */}
-        {entityCtx?.tipe === "pusat" && (
-          <div className="gap-3 flex items-center border p-2 rounded bg-gray-100">
-            <label className="mr-2 font-semibold">Filter Outlet:</label>
-            <select
-              value={selectedEntityId ?? entityCtx.entity_id}
-              onChange={(e) => setSelectedEntityId(e.target.value)}
-              className="border rounded px-2"
-            >
-              <option value={entityCtx.entity_id}>
-                {entityCtx.kode} - Kantor Pusat
-              </option>
-              {entities
-                .filter((ent) => ent.id !== entityCtx.entity_id)
-                .map((ent) => (
-                  <option key={ent.id} value={ent.id}>
-                    {ent.kode} - {ent.nama}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
 
         {/* Dropdown + Searchbox */}
         <div className="flex items-center gap-2">
@@ -1756,143 +1538,139 @@ export default function PremiDriver() {
           </tr>
         </thead>
         <tbody>
-           {paginatedData.length === 0 ? (
-              <tr>
-                <td colSpan={16} className="text-center p-3 text-gray-500">Data kosong</td>
-              </tr>
-            ) : (
-            paginatedData.map((row) => (
-              <tr key={row.id} className="hover:bg-yellow-300 transition-all duration-150">
-                <td className="p-2 border text-center">
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(row.id)}
-                    onChange={() => handleSelect(row.id)}
-                  />
-                </td>
-                <td className="border p-2 text-center">
-                  <div className="flex justify-center gap-[0.5px]">
-                    <button
-                      onClick={async () => {
-                        setFormData({
-                          ...row,
-                          kartu_etoll: row.kartu_etoll ?? "",
-                          biaya_etoll: row.biaya_etoll ?? 0,
-                          user_id: row.user_id ?? getCustomUserId() ?? "",
-                          perpalAktif: !!row.perpal,
-                        });
+          {paginatedData.map((row) => (
+            <tr key={row.id} className="hover:bg-yellow-300 transition-all duration-150">
+              <td className="p-2 border text-center">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(row.id)}
+                  onChange={() => handleSelect(row.id)}
+                />
+              </td>
+              <td className="border p-2 text-center">
+                <div className="flex justify-center gap-[0.5px]">
+                  <button
+                    onClick={async () => {
+                      setFormData({
+                        ...row,
+                        kartu_etoll: row.kartu_etoll ?? "",
+                        biaya_etoll: row.biaya_etoll ?? 0,
+                        user_id: row.user_id ?? getCustomUserId() ?? "",
+                        perpalAktif: !!row.perpal,
+                      });
 
-                        setSjSearch(row.no_surat_jalan || "");
-                        setShowForm(true);
-                        setPotonganList([]);
+                      setSjSearch(row.no_surat_jalan || "");
+                      setShowForm(true);
+                      setPotonganList([]);
 
-                        // ✅ Ambil semua baris kas_harian terkait
-                        const { data: kasRows } = await supabase
-                          .from("kas_harian")
-                          .select("keterangan, nominal, jenis_transaksi")
-                          .eq("bukti_transaksi", row.no_premi_driver)
-                          .in("sumber_tabel", [
-                            "premi_driver",
-                            "perpal",
-                            "potongan",
-                            "realisasi_saku_header",
-                            "realisasi_saku_sisa",
-                            "realisasi_saku_item"
-                          ]);
+                      // ✅ Ambil semua baris kas_harian terkait
+                      const { data: kasRows } = await supabase
+                        .from("kas_harian")
+                        .select("keterangan, nominal, jenis_transaksi")
+                        .eq("bukti_transaksi", row.no_premi_driver)
+                        .in("sumber_tabel", [
+                          "premi_driver",
+                          "perpal",
+                          "potongan",
+                          "realisasi_saku_header",
+                          "realisasi_saku_sisa",
+                          "realisasi_saku_item"
+                        ]);
 
-                        let uang_saku = 0;
-                        let sisa = 0;
-                        let bbm = 0;
-                        let makan = 0;
-                        let parkir = 0;
-                        const potonganList: { keterangan: string; nominal: number }[] = [];
+                      let uang_saku = 0;
+                      let sisa = 0;
+                      let bbm = 0;
+                      let makan = 0;
+                      let parkir = 0;
+                      const potonganList: { keterangan: string; nominal: number }[] = [];
 
-                        for (const kas of kasRows ?? []) {
-                          const ket = kas.keterangan || "";
-                          const nominal = kas.nominal || 0;
-                          const jenis = kas.jenis_transaksi;
+                      for (const kas of kasRows ?? []) {
+                        const ket = kas.keterangan || "";
+                        const nominal = kas.nominal || 0;
+                        const jenis = kas.jenis_transaksi;
 
-                          if (ket.startsWith("Realisasi Saku")) {
-                            uang_saku += nominal;
-                          }
+                        if (ket.startsWith("Realisasi Saku")) {
+                          uang_saku += nominal;
+                        }
 
-                          if (ket.startsWith("Sisa / Kembali")) {
-                            if (jenis === "debet") {
-                              sisa = nominal;
-                              uang_saku += nominal; // ✅ tambahkan ke uang_saku
-                            } else {
-                              sisa = -nominal;
-                            }
-                          }
-
-                          if (ket.startsWith("Biaya BBM")) bbm = nominal;
-                          if (ket.startsWith("Biaya Makan")) makan = nominal;
-                          if (ket.startsWith("Biaya Parkir")) parkir = nominal;
-
-                          if (ket.startsWith("Potongan ")) {
-                            const raw = ket.replace("Potongan ", "").trim();
-                            const potonganOnly =
-                              raw.split(row.driver)[0]?.trim() ||
-                              raw.split(row.no_polisi)[0]?.trim() ||
-                              raw.split(row.no_surat_jalan)[0]?.trim() ||
-                              raw;
-
-                            potonganList.push({
-                              keterangan: potonganOnly,
-                              nominal,
-                            });
+                        if (ket.startsWith("Sisa / Kembali")) {
+                          if (jenis === "debet") {
+                            sisa = nominal;
+                            uang_saku += nominal; // ✅ tambahkan ke uang_saku
+                          } else {
+                            sisa = -nominal;
                           }
                         }
 
-                        const jumlah = bbm + makan + parkir;
+                        if (ket.startsWith("Biaya BBM")) bbm = nominal;
+                        if (ket.startsWith("Biaya Makan")) makan = nominal;
+                        if (ket.startsWith("Biaya Parkir")) parkir = nominal;
 
-                        setUangSakuDetail({
-                          uang_saku,
-                          bbm,
-                          makan,
-                          parkir,
-                          jumlah,
-                          sisa,
-                        });
+                        if (ket.startsWith("Potongan ")) {
+                          const raw = ket.replace("Potongan ", "").trim();
+                          const potonganOnly =
+                            raw.split(row.driver)[0]?.trim() ||
+                            raw.split(row.no_polisi)[0]?.trim() ||
+                            raw.split(row.no_surat_jalan)[0]?.trim() ||
+                            raw;
 
-                        setPotonganList(potonganList);
-                      }}
-                      className="text-blue-600 hover:text-blue-800 px-[5px]"
-                      title="Edit"
-                    >
-                      <FiEdit size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(row.id)}
-                      className="text-red-600 hover:text-red-800 px-[5px]"
-                      title="Hapus"
-                    >
-                      <FiTrash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-                <td className="p-2 border text-center">{formatTanggal(row.tanggal)}</td>
-                <td className="p-2 border text-center">{row.no_premi_driver}</td>
-                <td className="p-2 border text-center">{row.no_surat_jalan}</td>
-                <td className="p-2 border text-center">
-                  {formatTanggal(row.tanggal_berangkat)} - {formatTanggal(row.tanggal_kembali)}
-                </td>
-                <td className="p-2 border text-center">
-                  {row.driver ? row.driver : row.crew ? row.crew : "-"}
-                </td>
-                <td className="p-2 border text-center">{row.no_polisi}</td>
-                <td className="p-2 border text-center">{row.kode_unit}</td>
-                <td className="p-2 border text-center">{row.kode_rute}</td>
-                <td className="p-2 border text-right">{formatRupiah(row.premi)}</td>
-                <td className="p-2 border text-right">{formatRupiah(row.perpal)}</td>
-                <td className="p-2 border text-right">{formatRupiah(row.potongan)}</td>
-                <td className="p-2 border text-right">{formatRupiah(row.jumlah)}</td>
-                <td className="p-2 border text-center">{row.kartu_etoll ?? ""}</td>
-                <td className="p-2 border text-right">{formatRupiah(row.biaya_etoll)}</td>
-                <td className="p-2 border">{row.keterangan}</td>
-              </tr>
-            ))
-          )}
+                          potonganList.push({
+                            keterangan: potonganOnly,
+                            nominal,
+                          });
+                        }
+                      }
+
+                      const jumlah = bbm + makan + parkir;
+
+                      setUangSakuDetail({
+                        uang_saku,
+                        bbm,
+                        makan,
+                        parkir,
+                        jumlah,
+                        sisa,
+                      });
+
+                      setPotonganList(potonganList);
+
+                      
+
+                    }}
+                    className="text-blue-600 hover:text-blue-800 px-[5px]"
+                    title="Edit"
+                  >
+                    <FiEdit size={16} />
+                  </button>
+                  <button onClick={() => handleDelete(row.id)} 
+                    className="text-red-600 hover:text-red-800 px-[5px]"
+                    title="Hapus"
+                  >
+                    <FiTrash2 size={16} />
+                  </button>
+                </div>
+              </td>
+              <td className="p-2 border text-center">{formatTanggal(row.tanggal)}</td>
+              <td className="p-2 border text-center">{row.no_premi_driver}</td>
+              <td className="p-2 border text-center">{row.no_surat_jalan}</td>
+              <td className="p-2 border text-center">
+                {formatTanggal(row.tanggal_berangkat)} - {formatTanggal(row.tanggal_kembali)}
+              </td>
+              <td className="p-2 border text-center">
+                {row.driver ? row.driver : row.crew ? row.crew : "-"}
+              </td>
+              <td className="p-2 border text-center">{row.no_polisi}</td>
+              <td className="p-2 border text-center">{row.kode_unit}</td>
+              <td className="p-2 border text-center">{row.kode_rute}</td>
+              <td className="p-2 border text-right">{formatRupiah(row.premi)}</td>
+              <td className="p-2 border text-right">{formatRupiah(row.perpal)}</td>
+              <td className="p-2 border text-right">{formatRupiah(row.potongan)}</td>
+              <td className="p-2 border text-right">{formatRupiah(row.jumlah)}</td>
+              <td className="p-2 border text-center">{row.kartu_etoll ?? ""}</td>
+              <td className="p-2 border text-right">{formatRupiah(row.biaya_etoll)}</td>
+              <td className="p-2 border">{row.keterangan}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
       </div>
@@ -1935,16 +1713,13 @@ export default function PremiDriver() {
               className="grid grid-cols-2 gap-4 pb-6"
             >
               <div className="col-span-2">
-                <label className="block font-semibold">No Premi Driver</label>
+                <label>No Premi Driver</label>
                 <input
                   type="text"
                   name="no_premi_driver"
+                  readOnly
                   value={formData.no_premi_driver}
-                  onChange={(e) =>
-                    setFormData({ ...formData, no_premi_driver: e.target.value })
-                  }
-                  readOnly={formData.id === 0} 
-                  className={`w-full border px-3 py-2 ${formData.id === 0 ? "bg-gray-100" : ""}`}
+                  className="w-full border px-3 py-2 bg-gray-100"
                 />
               </div>
               <div>

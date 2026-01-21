@@ -9,6 +9,7 @@ import { DateRangePicker } from "react-date-range";
 import { createPortal } from "react-dom";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
+import { getSaldoAwalDariHistori, injectSaldoKeData } from "../utils/finance";
 import { insertWithAutoNomor } from "../lib/dbUtils"; // pastikan path sesuai
 import { toWIBDateString, getWIBTimestampFromUTC, toWIBTimeString } from "../utils/time";
 import type { KasRow } from "../utils/types";
@@ -16,31 +17,12 @@ import type { UangSakuFormData }  from "../components/forms/PopupUangSakuDriver"
 import type { Range } from "react-date-range";
 import PopupUangSakuDriver from "../components/forms/PopupUangSakuDriver";
 import { getCustomUserId } from "../lib/authUser";
-import { getEntityContext, type EntityContext } from "../lib/entityContext";
 
 // === Fix TS: deklarasi properti custom untuk Window ===
 declare global {
   interface Window {
     __extraCashOpnameHTML__?: string;
   }
-}
-
-//-- ambil user dari localstorage --
-  interface CustomUser {
-    id: string;
-    name?: string;
-    username?: string;
-    role: string;        // nama role (bebas: admin, kasir, auditor, dll)
-    access?: string[];   // hak akses menu
-    entity_id: string;   // 🔴 KUNCI ENTITY
-  }
-
-// Tambahan untuk filter entity (khusus user pusat)
-interface EntityRow {
-  id: string;
-  kode: string;
-  nama: string;
-  tipe: string;
 }
 
 // --- helper untuk export excel ---
@@ -64,122 +46,33 @@ export default function KasHarian() {
   const [sjList] = useState<{ id?: number; no_surat_jalan: string }[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-
-  const [entityCtx, setEntityCtx] = useState<EntityContext | null>(null);
-  const [customUser, setCustomUser] = useState<CustomUser | null>(null);
-  const [loadingCtx, setLoadingCtx] = useState(true); // ✅ baru
-
-  const [entities, setEntities] = useState<EntityRow[]>([]);
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-
-  // === AMBIL USER LOGIN DARI LOCALSTORAGE ===
-  useEffect(() => {
-    const storedUser = localStorage.getItem("custom_user");
-    if (!storedUser) {
-      console.warn("❌ Tidak ada custom_user di localStorage");
-      setLoadingCtx(false);
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(storedUser);
-      setCustomUser(parsed);
-
-      getEntityContext(parsed.entity_id)
-        .then((ctx) => {
-          setEntityCtx(ctx);
-          setLoadingCtx(false);
-        })
-        .catch((err) => {
-          console.error("❌ Gagal ambil entity context:", err);
-          setLoadingCtx(false);
-        });
-    } catch (err) {
-      console.error("❌ JSON parse gagal:", err);
-      setLoadingCtx(false);
-    }
-  }, []);
-
-  // 🔑 FETCH DATA SETELAH ENTITY CONTEXT SIAP (WAJIB)
-  useEffect(() => {
-    if (!entityCtx?.entity_id) return;
-
-    fetchData();
-  }, [entityCtx?.entity_id]);
-
-    // =====================================================
-  // 🔑 AMBIL SALDO AWAL HISTORI DARI VIEW (SUMBER KEBENARAN)
-  // =====================================================
-  const fetchSaldoAwalHistori = async (startDate: string): Promise<number> => {
-    
-    let query = supabase
-      .from("v_kas_saldo_fisik_harian")
-      .select("tanggal, saldo_akhir, entity_id")
-      .lt("tanggal", startDate)
-      .order("tanggal", { ascending: false })
-      .limit(1);
-
-    if (entityCtx) {
-      if (entityCtx.tipe === "pusat") {
-        // kalau pusat → pakai selectedEntity kalau ada
-        const targetEntity = selectedEntity ?? entityCtx.entity_id;
-        query = query.eq("entity_id", targetEntity);
-      } else {
-        // kalau outlet → pakai entity outlet sendiri
-        query = query.eq("entity_id", entityCtx.entity_id);
-      }
-    }
-
-    const { data, error } = await query;
-
-    if (error || !data || data.length === 0) return 0;
-
-    return Number(data[0].saldo_akhir);
-  };
-
-  // ===============================
-// 🔁 HITUNG ULANG SALDO BERJALAN
-// ===============================
-function injectSaldoKeData(
-  rows: KasRow[],
-  saldoAwal: number
-): KasRow[] {
-  let runningSaldo = saldoAwal;
-
-  return rows.map((r) => {
-    const nominal = Number(r.nominal) || 0;
-
-    if (r.jenis_transaksi === "debet") {
-      runningSaldo += nominal;
-    } else if (r.jenis_transaksi === "kredit") {
-      runningSaldo -= nominal;
-    }
-
-    return {
-      ...r,
-      saldo_akhir: runningSaldo, // 🔴 OVERRIDE TOTAL
-    };
-  });
-}
-
+  // Untuk ambil user di localstorage
 
   const handleSelectSj = (sj: { no_surat_jalan: string }) => {
     setSjSearch(sj.no_surat_jalan);
     setShowDropdown(false);
   };
-  
-  // =====================================================
-  // 🔑 FETCH DATA SETELAH ENTITY USER SIAP (WAJIB)
-  // =====================================================
+
+  //-- ambil user dari localstorage --
+ interface CustomUser {
+    id: string;
+    name?: string;
+    email?: string;
+  }
+
+  const [customUser, setCustomUser] = useState<CustomUser | null>(null);
+
+  // === AMBIL USER LOGIN DARI LOCALSTORAGE ===
   useEffect(() => {
-    if (!entityCtx?.entity_id) return;
-
-    fetchData();
-    if (entityCtx.tipe === "pusat") {
-      fetchEntities(); // ✅ ambil daftar entity kalau user pusat
+    const storedUser = localStorage.getItem("custom_user");
+    if (storedUser) {
+      try {
+        setCustomUser(JSON.parse(storedUser));
+      } catch (err) {
+        console.error("Gagal parsing user:", err);
+      }
     }
-  }, [entityCtx?.entity_id, selectedEntity]);
-
+  }, []);
 
   // Search & Filter
   const [filterBy, setFilterBy] = useState<
@@ -200,11 +93,6 @@ function injectSaldoKeData(
     try {
       setLoading(true);
 
-      if (!entityCtx?.entity_id) {
-        console.warn("❌ fetchData dipanggil tanpa entityCtx");
-        return;
-      }
-
       const pageSize = 1000;
       let allRows: KasRow[] = [];
       let from = 0;
@@ -212,7 +100,7 @@ function injectSaldoKeData(
       let hasMore = true;
 
       while (hasMore) {
-        let query = supabase
+        const { data: rows, error } = await supabase
           .from("kas_harian")
           .select("*")
           .order("tanggal", { ascending: true })
@@ -220,22 +108,13 @@ function injectSaldoKeData(
           .order("urutan", { ascending: true })
           .range(from, to);
 
-        // 🔐 FILTER ENTITY
-        if (entityCtx.tipe === "pusat") {
-          const targetEntity = selectedEntity ?? entityCtx.entity_id;
-          query = query.eq("entity_id", targetEntity);
-        } else {
-          query = query.eq("entity_id", entityCtx.entity_id);
-        }
-
-        const { data: rows, error } = await query;
         if (error) throw error;
 
         if (rows && rows.length > 0) {
           allRows = [...allRows, ...(rows as KasRow[])];
           from += pageSize;
           to += pageSize;
-          hasMore = rows.length === pageSize;
+          hasMore = rows.length === pageSize; // kalau kurang dari 10k berarti sudah habis
         } else {
           hasMore = false;
         }
@@ -250,66 +129,45 @@ function injectSaldoKeData(
     }
   };
 
-  // === Fetch all entities for filter (user pusat) ===
-  const fetchEntities = async () => {
-    const { data, error } = await supabase
-      .from("entities")
-      .select("id, kode, nama, tipe")
-      .order("nama", { ascending: true });
-
-    if (error) {
-      console.error("❌ Gagal ambil daftar entities:", error.message);
-    } else {
-      setEntities(data as EntityRow[]);
-    }
-  };
-
-  //=== Fetch data on mount or when entity changes ===
   useEffect(() => {
-    if (!customUser?.entity_id) return;
+    fetchData();
+  }, []);
 
-    const processData = async () => {
-      const startStr = toWIBDateString(range[0].startDate ?? new Date());
-
-      const saldoAwal = await fetchSaldoAwalHistori(startStr);
-      setSaldoAwalHistori(saldoAwal);
-
-    };
-
-    processData();
-  }, [data, range, q, filterBy, customUser?.entity_id]);
-
-
-// Filter + inject saldo (FINAL & BENAR)
-useEffect(() => {
-  const processData = async () => {
+  // Filter + inject saldo (FINAL)
+  useEffect(() => {
     const startStr = toWIBDateString(range[0].startDate ?? new Date());
-    const endStr   = toWIBDateString(range[0].endDate ?? new Date());
+    const endStr = toWIBDateString(range[0].endDate ?? new Date());
 
-    // 🔑 SALDO AWAL HISTORI → DARI VIEW
-    const saldoAwal = await fetchSaldoAwalHistori(startStr);
-    setSaldoAwalHistori(saldoAwal);
-
-    // 1️⃣ Urutkan data (tanpa hitung saldo)
+    // 1️⃣ Urutkan berdasarkan tanggal + waktu
     const sorted = [...data].sort((a, b) => {
-      const tA = new Date(`${a.tanggal} ${a.waktu ?? "00:00:00"}`).getTime();
-      const tB = new Date(`${b.tanggal} ${b.waktu ?? "00:00:00"}`).getTime();
+      const tA = new Date(a.tanggal + " " + (a.waktu ?? "00:00:00")).getTime();
+      const tB = new Date(b.tanggal + " " + (b.waktu ?? "00:00:00")).getTime();
       return tA - tB;
     });
 
-    // 2️⃣ Filter rentang tanggal
+    // 2️⃣ INJECT SALDO UNTUK SEMUA DATA (sekali saja)
+    const injectedAll = injectSaldoKeData(sorted, 0);
+
+
+    const saldoKemarin = getSaldoAwalDariHistori(injectedAll, startStr);
+    setSaldoAwalHistori(saldoKemarin);
+
+
+    // 4️⃣ Filter rentang tanggal
     const startTime = new Date(`${startStr} 00:00:00`);
     const endTime   = new Date(`${endStr} 23:59:59`);
 
-    let filtered = sorted.filter((r) => {
+    const filteredRange = injectedAll.filter((r) => {
       const dt = new Date(`${r.tanggal} ${r.waktu ?? "00:00:00"}`);
       return dt >= startTime && dt <= endTime;
     });
 
-    // 3️⃣ Filter keyword
+    // 5️⃣ Filter keyword
+    let filteredKeyword = filteredRange;
     const keyword = q.toLowerCase().trim();
+
     if (keyword) {
-      filtered = filtered.filter((r) => {
+      filteredKeyword = filteredRange.filter((r) => {
         switch (filterBy) {
           case "bukti_transaksi":
             return r.bukti_transaksi?.toLowerCase().includes(keyword);
@@ -329,18 +187,15 @@ useEffect(() => {
       });
     }
 
-    // 4️⃣ HITUNG SALDO BERJALAN (JANGAN PAKAI saldo_akhir DB)
-    const recalculated = injectSaldoKeData(filtered, saldoAwal);
+    // 6️⃣ Inject saldo untuk data dalam range
+    const injectedFinal = injectSaldoKeData(filteredKeyword, saldoKemarin);
 
-    // 5️⃣ Set state
-    setFiltered(filtered);
-    setDataWithSaldo(recalculated);
+
+    // 7️⃣ Set state
+    setFiltered(filteredKeyword);
+    setDataWithSaldo(injectedFinal);
     setCurrentPage(1);
-  };
-
-  processData();
-}, [data, q, filterBy, range, customUser?.entity_id]);
-
+  }, [data, q, filterBy, range]);
 
   // Modal form
   const [showForm, setShowForm] = useState(false);
@@ -450,40 +305,94 @@ useEffect(() => {
 
   // Delete selected
   const handleDeleteSelected = async () => {
-    try {
-      if (selected.length === 0) {
-        alert("Pilih data terlebih dahulu!");
+    if (selected.length === 0) return alert("Pilih data terlebih dahulu!");
+    if (!confirm("Yakin ingin hapus data terpilih?")) return;
+
+    const { data: rows, error: fetchError } = await supabase
+      .from("kas_harian")
+      .select("*")
+      .in("id", selected);
+
+    if (fetchError) {
+      alert("❌ Gagal ambil data kas_harian: " + fetchError.message);
+      return;
+    }
+
+    const premiTransaksi = new Set<string>();
+    const uangSakuIds: number[] = [];
+    const kasIds: string[] = [];
+
+    for (const row of rows || []) {
+      kasIds.push(row.id);
+
+      if (row.sumber_tabel === "premi_driver" && row.bukti_transaksi) {
+        premiTransaksi.add(row.bukti_transaksi);
+      }
+
+      if (row.sumber_tabel === "uang_saku_driver" && row.sumber_id) {
+        uangSakuIds.push(row.sumber_id);
+      }
+    }
+
+    // 🔥 Hapus semua kas_harian dengan bukti_transaksi dari premi_driver
+    if (premiTransaksi.size > 0) {
+      const noPDs = Array.from(premiTransaksi);
+
+      const { error: deleteKasPD } = await supabase
+        .from("kas_harian")
+        .delete()
+        .in("bukti_transaksi", noPDs)
+        .in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
+
+      if (deleteKasPD) {
+        alert("❌ Gagal hapus kas_harian premi_driver: " + deleteKasPD.message);
         return;
       }
 
-      if (!confirm(`Yakin ingin hapus ${selected.length} data terpilih?`)) return;
-
-      // Kalau selected = array objek KasRow
-      // const kasIds = selected.map((row) => row.id);
-
-      // Kalau selected = array string id
-      const kasIds = selected;
-
-      const { error } = await supabase
-        .from("kas_harian")
+      const { error: deletePremi } = await supabase
+        .from("premi_driver")
         .delete()
-        .in("id", kasIds);
+        .in("no_premi_driver", noPDs);
 
-      if (error) {
-        alert("❌ Gagal hapus kas_harian: " + error.message);
-      } else {
-        alert("✅ Data terpilih berhasil dihapus.");
-        setSelected([]);
-        fetchData();
+      if (deletePremi) {
+        alert("❌ Gagal hapus premi_driver: " + deletePremi.message);
+        return;
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      alert("❌ Gagal hapus: " + message);
+
+      window.dispatchEvent(new Event("refresh-premi-driver"));
+    }
+
+    // 🔥 Hapus sumber uang_saku_driver jika ada
+    if (uangSakuIds.length > 0) {
+      const { error: deleteSaku } = await supabase
+        .from("uang_saku_driver")
+        .delete()
+        .in("id", uangSakuIds);
+
+      if (deleteSaku) {
+        alert("❌ Gagal hapus uang_saku_driver: " + deleteSaku.message);
+        return;
+      }
+    }
+
+    // 🔥 Hapus kas_harian biasa
+    const { error: deleteKas } = await supabase
+      .from("kas_harian")
+      .delete()
+      .in("id", kasIds);
+
+    if (deleteKas) {
+      alert("❌ Gagal hapus kas_harian: " + deleteKas.message);
+    } else {
+      setSelected([]);
+      fetchData();
     }
   };
 
   // Export Excel (Set Manual sesuai frontend)
-  const handleExportExcel = () => {    
+  const handleExportExcel = () => {
+    console.log("🔍 Sample row:", dataWithSaldo[0]);
+
     const columns: ColumnConfig[] = [
     { label: "Tanggal", key: "tanggal", type: "date", format: toDate, formatString: "dd/mm/yyyy" },
     { label: "Waktu", key: "waktu" },
@@ -805,130 +714,101 @@ useEffect(() => {
 
   const [isSaving, setIsSaving] = useState(false);
 
-  // Save form (insert only)
+  // Save form (insert or update)
   const handleSave = async () => {
-    if (isSaving) return;
+    if (isSaving) return; // ⛔ cegah double klik
     setIsSaving(true);
-
     try {
+      // Basic validation
       if (!formData.tanggal || !formData.nominal) {
         alert("Tanggal dan Nominal wajib diisi.");
         return;
       }
 
-      // 1️⃣ Tentukan entity target
-      const targetEntity =
-        entityCtx?.tipe === "pusat" && selectedEntity
-          ? selectedEntity
-          : entityCtx?.entity_id;
-
-      // 2️⃣ Ambil saldo awal
-      const { data: saldoRows, error: saldoError } = await supabase
-        .from("v_kas_saldo_fisik_harian")
-        .select("tanggal, saldo_akhir, entity_id")
-        .lte("tanggal", String(formData.tanggal))
-        .eq("entity_id", targetEntity!)
+      // Ambil saldo terakhir
+      const { error: saldoError } = await supabase
+        .from("kas_harian")
+        .select("*")
         .order("tanggal", { ascending: false })
+        .order("id", { ascending: false })
         .limit(1);
 
       if (saldoError) throw saldoError;
-      const saldoAwal = saldoRows?.[0]?.saldo_akhir ?? 0;
 
-      // 3️⃣ Hitung saldo akhir
+      const saldoAwal = data?.[0]?.saldo_akhir ?? 0;
       const nominal = Number(formData.nominal) || 0;
       const isDebet =
-        formMode === "add_debet" ||
-        (formMode === "edit" && formData.jenis_transaksi === "debet");
+        formMode === "edit"
+          ? formData.jenis_transaksi === "debet"
+          : formMode === "add_debet";
 
       const saldoAkhir = isDebet ? saldoAwal + nominal : saldoAwal - nominal;
 
-      // 4️⃣ Cegah saldo minus
-      if (saldoAkhir < 0) {
-        alert("❌ Transaksi tidak bisa disimpan karena saldo akan menjadi minus!");
-        return;
-      }
+      const currentUserId = getCustomUserId();
 
-      interface KasHarianPayload {
-        tanggal: string;
-        waktu: string;
-        bukti_transaksi: string;
-        keterangan: string;
-        jenis_transaksi: "debet" | "kredit";
-        nominal: number;
-        saldo_awal: number;
-        saldo_akhir: number;
-        user_id: string | null;
-        sumber_tabel: string | null;
-        sumber_id: number | null;
-        updated_at: string;
-        entity_id?: string | null; // ✅ tambahkan
-      }
 
-      // 5️⃣ Susun payload
-      const payload: KasHarianPayload = {
+      const payload = {
         tanggal: formData.tanggal,
-        waktu: formData.waktu ?? "00:00:00",
+        waktu: formData.waktu,
         bukti_transaksi: formData.bukti_transaksi?.trim() || "",
         keterangan: formData.keterangan || "",
         jenis_transaksi: isDebet ? "debet" : "kredit",
         nominal,
         saldo_awal: saldoAwal,
         saldo_akhir: saldoAkhir,
-        user_id: getCustomUserId(),
+        user_id: currentUserId, // ✅ sekarang ambil dari custom_users
+        sumber_id: formData.sumber_id ?? null,
         sumber_tabel: formData.sumber_tabel ?? null,
-        sumber_id: formData.sumber_id ? Number(formData.sumber_id) : null,
         updated_at: new Date().toISOString(),
-        entity_id: targetEntity ?? null,
       };
 
-      // 6️⃣ Tentukan prefix
-      let outletPrefix = isDebet ? "BM-" : "BK-";
-      if (entityCtx?.tipe === "outlet") {
-        outletPrefix = `${entityCtx.kode}-${outletPrefix}`;
-      } else {
-        const targetId = selectedEntity ?? entityCtx?.entity_id;
-        if (targetId !== entityCtx?.entity_id) {
-          const ent = entities.find((e) => e.id === targetId);
-          outletPrefix = ent?.kode ? `${ent.kode}-${isDebet ? "BM-" : "BK-"}` : outletPrefix;
+      if (formMode === "edit" && formData.id) {
+        const { error } = await supabase
+          .from("kas_harian")
+          .update(payload)
+          .eq("id", formData.id);
+        if (error) throw error;
+
+        // Sinkronisasi ke uang_saku_driver jika sumbernya cocok
+        if (formData.sumber_tabel === "uang_saku_driver" && formData.sumber_id) {
+          const { error: updateSakuError } = await supabase
+            .from("uang_saku_driver")
+            .update({
+              tanggal: formData.tanggal,
+              no_uang_saku: formData.bukti_transaksi,
+              bbm: formData.bbm,
+              uang_makan: formData.uang_makan,
+              parkir: formData.parkir,
+              jumlah: formData.jumlah,
+              kartu_etoll: formData.kartu_etoll,
+              no_surat_jalan: formData.no_surat_jalan,
+              user_id: currentUserId,
+            })
+            .eq("id", formData.sumber_id);
+
+          if (updateSakuError) {
+            alert("❌ Gagal update Uang Saku Driver: " + updateSakuError.message);
+          }
         }
-      }
 
-      // 7️⃣ Insert atau Update
-      let buktiNomor = payload.bukti_transaksi;
+        alert("Data berhasil diupdate.");
+      } else {
+        // Tambahkan nomor otomatis jika bukti_transaksi kosong
+        const prefix = isDebet ? "BM-" : "BK-";
 
-      if (!buktiNomor && formMode !== "edit") {
-        // Auto nomor
         const result = await insertWithAutoNomor({
           table: "kas_harian",
-          prefix: outletPrefix,
-          data: { ...payload, entity_id: targetEntity ?? null },
+          prefix,
+          data: payload,
           nomorField: "bukti_transaksi",
-          tanggal: String(formData.tanggal),
+          tanggal: formData.tanggal,
         });
-        if (!result.success) throw new Error(result.error);
 
-        alert(`✅ Data berhasil disimpan\nNo Bukti: ${result.nomor}`);
-      } else {
-        // Manual input atau edit
-        if (buktiNomor && formMode !== "edit") {
-          buktiNomor = `${outletPrefix}${buktiNomor}`;
-          payload.bukti_transaksi = buktiNomor;
+        if (!result.success) {
+          throw new Error(result.error);
         }
 
-        if (formMode === "edit" && formData.id) {
-          payload.entity_id =
-            typeof formData.entity_id === "string"
-              ? formData.entity_id
-              : targetEntity ?? null;
-
-          const { error } = await supabase
-            .from("kas_harian")
-            .update(payload)
-            .eq("id", formData.id);
-
-          if (error) throw error;
-          alert("✅ Transaksi berhasil diupdate.");
-        }
+        alert(`Data berhasil disimpan dengan No Bukti: ${result.nomor}`);
       }
 
       setShowForm(false);
@@ -936,19 +816,19 @@ useEffect(() => {
       fetchData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      alert("❌ Gagal simpan: " + message);
+      alert("Gagal simpan: " + message);
     } finally {
-      setIsSaving(false);
+      setIsSaving(false); // ✅ buka kunci submit
     }
   };
-  
+
   // --- Handler: Edit Kas yang berasal dari uang_saku_driver ---
   const handleEditKas = async (kasRow: KasRow) => {
     // ⛔ Blokir edit untuk transaksi dari premi_driver
-    //if (kasRow.sumber_tabel === "premi_driver") {
-      //alert("Silahkan edit di halaman premi driver.");
-      //return;
-    //}
+    if (kasRow.sumber_tabel === "premi_driver") {
+      alert("Silahkan edit di halaman premi driver.");
+      return;
+    }
 
     // 🔁 Edit untuk uang_saku_driver
     if (kasRow.sumber_tabel === "uang_saku_driver" && kasRow.sumber_id) {
@@ -990,98 +870,80 @@ useEffect(() => {
     setShowForm(true);
   };
 
-  // Handler TERBARU untuk hapus transaksi kas_harian biasa
-  const handleDeleteKas = async (row: KasRow) => {
+  // --- Handler: Single Delete Kas dan sumbernya jika dari uang_saku_driver ---
+  const handleDeleteKas = async (kasRow: KasRow) => {
     if (!confirm("Yakin ingin hapus transaksi ini?")) return;
 
-    if (row.sumber_tabel && row.sumber_tabel !== "kas_harian") {
-      alert("❌ Transaksi ini berasal dari tabel lain. Hapus dari halaman asalnya.");
-      return;
-    }
-
-    const { error } = await supabase.from("kas_harian").delete().eq("id", row.id);
-    if (error) {
-      alert("❌ Gagal hapus transaksi: " + error.message);
-      return;
-    }
-    alert("✅ Transaksi berhasil dihapus.");
-    fetchData();
-  };
-
-  // --- Handler: Single Delete Kas dan sumbernya jika dari uang_saku_driver ---
-  //const handleDeleteKas = async (kasRow: KasRow) => {
-    //if (!confirm("Yakin ingin hapus transaksi ini?")) return;
-
     // 🔥 Jika sumber premi_driver, hapus semua baris kas_harian dengan bukti_transaksi yang sama
-    //if (kasRow.sumber_tabel === "premi_driver" && kasRow.bukti_transaksi) {
+    if (kasRow.sumber_tabel === "premi_driver" && kasRow.bukti_transaksi) {
       // 1️⃣ Ambil semua baris kas_harian dengan bukti_transaksi yang sama
-      //const { data: relatedKas, error: fetchError } = await supabase
-        //.from("kas_harian")
-        //.select("id")
-        //.eq("bukti_transaksi", kasRow.bukti_transaksi)
-        //.in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
+      const { data: relatedKas, error: fetchError } = await supabase
+        .from("kas_harian")
+        .select("id")
+        .eq("bukti_transaksi", kasRow.bukti_transaksi)
+        .in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
 
-      //if (fetchError) {
-        //alert("❌ Gagal ambil transaksi terkait: " + fetchError.message);
-        //return;
-      //}
+      if (fetchError) {
+        alert("❌ Gagal ambil transaksi terkait: " + fetchError.message);
+        return;
+      }
 
-      //const kasIds = relatedKas?.map((row) => row.id) ?? [];
+      const kasIds = relatedKas?.map((row) => row.id) ?? [];
 
       // 2️⃣ Hapus semua baris kas_harian terkait
-      //if (kasIds.length > 0) {
-        //const { error: deleteKasError } = await supabase
-          //.from("kas_harian")
-          //.delete()
-          //.in("id", kasIds);
+      if (kasIds.length > 0) {
+        const { error: deleteKasError } = await supabase
+          .from("kas_harian")
+          .delete()
+          .in("id", kasIds);
 
-        //if (deleteKasError) {
-          //alert("❌ Gagal hapus kas_harian: " + deleteKasError.message);
-          //return;
-        //}
-      //}
+        if (deleteKasError) {
+          alert("❌ Gagal hapus kas_harian: " + deleteKasError.message);
+          return;
+        }
+      }
 
       // 3️⃣ Hapus baris premi_driver yang sesuai
-      //const { error: deletePremiError } = await supabase
-        //.from("premi_driver")
-        //.delete()
-        //.eq("no_premi_driver", kasRow.bukti_transaksi);
+      const { error: deletePremiError } = await supabase
+        .from("premi_driver")
+        .delete()
+        .eq("no_premi_driver", kasRow.bukti_transaksi);
 
-      //if (deletePremiError) {
-        //alert("❌ Gagal hapus Premi Driver: " + deletePremiError.message);
-        //return;
-      //}
+      if (deletePremiError) {
+        alert("❌ Gagal hapus Premi Driver: " + deletePremiError.message);
+        return;
+      }
 
-      //window.dispatchEvent(new Event("refresh-premi-driver"));
-      //await fetchData(); // refresh kas_harian
-      //return;
-    //}
+      window.dispatchEvent(new Event("refresh-premi-driver"));
+      await fetchData(); // refresh kas_harian
+      return;
+    }
 
     // 🔥 Jika sumber uang_saku_driver, hapus baris terkait
-    //if (kasRow.sumber_tabel === "uang_saku_driver" && kasRow.sumber_id) {
-      //const { error: deleteSakuError } = await supabase
-        //.from("uang_saku_driver")
-        //.delete()
-        //.eq("id", kasRow.sumber_id);
+    if (kasRow.sumber_tabel === "uang_saku_driver" && kasRow.sumber_id) {
+      const { error: deleteSakuError } = await supabase
+        .from("uang_saku_driver")
+        .delete()
+        .eq("id", kasRow.sumber_id);
 
-      //if (deleteSakuError) {
-        //alert("❌ Gagal hapus Uang Saku Driver: " + deleteSakuError.message);
-        //return;
-      //}
-    //}
+      if (deleteSakuError) {
+        alert("❌ Gagal hapus Uang Saku Driver: " + deleteSakuError.message);
+        return;
+      }
+    }
 
     // ✅ Hapus baris kas_harian biasa
-    //const { error: deleteKasError } = await supabase
-     // .from("kas_harian")
-     // .delete()
-     // .eq("id", kasRow.id);
+    const { error: deleteKasError } = await supabase
+      .from("kas_harian")
+      .delete()
+      .eq("id", kasRow.id);
 
-    //if (deleteKasError) {
-     // alert("❌ Gagal hapus Kas Harian: " + deleteKasError.message);
-    //} else {
-     // await fetchData(); // refresh kas_harian
-   // }
- // };
+    if (deleteKasError) {
+      alert("❌ Gagal hapus Kas Harian: " + deleteKasError.message);
+    } else {
+      await fetchData(); // refresh kas_harian
+    }
+  };
 
   // ESC untuk semua popup (form utama & cash opname)
   useEffect(() => {
@@ -1151,19 +1013,12 @@ useEffect(() => {
     // ✅ Dengarkan event refresh dari PremiDriver
     useEffect(() => {
       const handleRefresh = () => {
+        console.log("🔄 Refresh data Kas Harian dari PremiDriver");
         fetchData();
       };
       window.addEventListener("refresh-kas-harian", handleRefresh);
       return () => window.removeEventListener("refresh-kas-harian", handleRefresh);
     }, []);
-
-  if (loadingCtx) {
-      return <div className="p-4 text-gray-600">Memuat Data Cabang...</div>;
-    }
-
-  if (!customUser || !entityCtx) {
-      return <div className="p-4 text-red-600">Entity atau user tidak valid</div>;
-    }
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -1283,10 +1138,10 @@ useEffect(() => {
             </button>
 
             <button
-              onClick={handleDeleteSelected}
-              className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                onClick={handleDeleteSelected}
+                className="bg-red-600 text-white px-3 py-1 rounded"
             >
-              Hapus Terpilih
+                Hapus Terpilih
             </button>
 
             <button
@@ -1310,29 +1165,6 @@ useEffect(() => {
           </button>
           </div>
         </div>
-        
-        {entityCtx?.tipe === "pusat" && (
-          <div className="gap-3 flex items-center border p-2 rounded bg-gray-100 mb-4 w-fit">
-            <label className="mr-2 font-semibold">Filter Outlet:</label>
-            <select
-              value={selectedEntity ?? entityCtx.entity_id}
-              onChange={(e) => setSelectedEntity(e.target.value)}
-              className="border rounded px-2 py-1"
-            >
-              {entities.map((ent) => (
-                <option key={ent.id} value={ent.id}>
-                  {ent.kode} - {ent.nama}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={fetchData}
-              className="ml-2 px-3 py-1 bg-blue-500 text-white rounded"
-            >
-              Refresh
-            </button>
-          </div>
-        )}
 
       {/* Tabel */}
       <div className="w-full pr-8">
@@ -1349,16 +1181,16 @@ useEffect(() => {
                   onChange={handleSelectAll}
                 />
               </th>
-              <th className="border p-2 text-center w-[40px]">Aksi</th>
+              <th className="border p-2 text-center w-[60px]">Aksi</th>
               <th className="border p-2 text-center w-[80px]">Tanggal</th>
               <th className="border p-2 text-center w-[70px]">Waktu</th>
               <th className="border p-2 text-center w-[120px]">No Bukti</th>
               <th className="border p-2 text-center">Keterangan</th>
-              <th className="border p-2 text-center w-[50px]">Jenis</th>
+              <th className="border p-2 text-center w-[60px]">Jenis</th>
               <th className="border p-2 text-center w-[90px]">Debet</th>
               <th className="border p-2 text-center w-[90px]">Kredit</th>
-              <th className="border p-2 text-center w-[100px]">Saldo</th>
-              <th className="border p-2 text-center w-[30px]">User Id</th>
+              <th className="border p-2 text-center w-[120px]">Saldo</th>
+              <th className="border p-2 text-center w-[40px]">User Id</th>
               <th className="border p-2 text-center w-[130px]">Updated At</th>
             </tr>
           </thead>
@@ -1408,26 +1240,20 @@ useEffect(() => {
                         </td>
                         <td className="text-center py-0 px-0">
                           <div className="flex justify-center gap-[0.5px]">
-                            {(!row.sumber_tabel || row.sumber_tabel === "kas_harian") ? (
-                              <>
-                                <button
-                                  onClick={() => handleEditKas(row)}
-                                  className="text-blue-600 hover:text-blue-800 px-[5px]"
-                                  title="Edit"
-                                >
-                                  <FiEdit size={16} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteKas(row)}
-                                  className="text-red-600 hover:text-red-800 px-[5px]"
-                                  title="Hapus"
-                                >
-                                  <FiTrash2 size={16} />
-                                </button>
-                              </>
-                            ) : (
-                              <span className="text-gray-400 text-xs"></span>
-                            )}
+                            <button
+                              onClick={() => handleEditKas(row)}
+                              className="text-blue-600 hover:text-blue-800 px-[5px]"
+                              title="Edit"
+                            >
+                              <FiEdit size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteKas(row)}
+                              className="text-red-600 hover:text-red-800 px-[5px]"
+                              title="Hapus"
+                            >
+                              <FiTrash2 size={16} />
+                            </button>
                           </div>
                         </td>
                         <td className="tengah p-2 border">
@@ -1726,6 +1552,7 @@ useEffect(() => {
         </div>
       </div>
     )}
+      
 
       {createPortal(
       <style>

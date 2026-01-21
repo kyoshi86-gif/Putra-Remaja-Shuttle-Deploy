@@ -1,6 +1,7 @@
 // src/pages/Kaskasir.tsx
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { getSaldoAwalDariHistori, injectSaldoKeData } from "../utils/finance";
 import type { KasRow } from "../utils/types";
 import { createPortal } from "react-dom";
 import { DateRangePicker } from "react-date-range";
@@ -9,15 +10,6 @@ import { id } from "date-fns/locale";
 import type { Range, RangeKeyDict } from "react-date-range";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
-import { getEntityContext, type EntityContext } from "../lib/entityContext";
-
-interface CustomUser {
-  id: string;
-  name?: string;
-  role: string;
-  access?: string[];
-  entity_id: string;
-}
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -26,46 +18,6 @@ export default function KasKasir() {
   const [endDate, setEndDate] = useState(today);
   const [loading, setLoading] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
-
-  // Entity Context
-  const [entityCtx, setEntityCtx] = useState<EntityContext | null>(null);
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
-  const [entities, setEntities] = useState<{id:string; kode:string; nama:string; tipe:string}[]>([]);
-  const [customUser, setCustomUser] = useState<CustomUser | null>(null);
-  const [loadingCtx, setLoadingCtx] = useState(true);
-  useEffect(() => {
-    const storedUser = localStorage.getItem("custom_user");
-    if (!storedUser) {
-      setLoadingCtx(false);
-      return;
-    }
-    try {
-      const parsed: CustomUser = JSON.parse(storedUser);
-      setCustomUser(parsed);
-      getEntityContext(parsed.entity_id)
-        .then((ctx) => {
-          setEntityCtx(ctx);
-          setLoadingCtx(false);
-        })
-        .catch(() => setLoadingCtx(false));
-    } catch {
-      setLoadingCtx(false);
-    }
-  }, []);
-
-  const fetchEntities = async () => {
-    const { data, error } = await supabase
-      .from("entities")
-      .select("id, kode, nama, tipe")
-      .order("nama", { ascending: true });
-
-    if (error) {
-      console.error("❌ Gagal ambil daftar entities:", error.message);
-    } else {
-      setEntities(data as {id:string; kode:string; nama:string; tipe:string}[]);
-    }
-  };
-
 
   const [summary, setSummary] = useState({
     saldoAwal: 0,
@@ -131,10 +83,6 @@ export default function KasKasir() {
   }, [showPicker]);
 
   const fetchData = async () => {
-    const targetEntity =
-      entityCtx?.tipe === "pusat" && selectedEntityId
-        ? selectedEntityId
-        : entityCtx?.entity_id;
   setLoading(true);
   try {
     const pageSize = 1000;
@@ -168,32 +116,31 @@ export default function KasKasir() {
       }
     }
 
-    // fungsi ambil saldo awal dari histori sebelum startDate
-    const fetchSaldoAwalHistori = async (startDate: string): Promise<number> => {
-      let query = supabase
-        .from("v_kas_saldo_fisik_harian")
-        .select("tanggal, saldo_akhir, entity_id")
-        .lt("tanggal", startDate)
-        .order("tanggal", { ascending: false })
-        .limit(1);
+    // urutkan defensif berdasarkan tanggal+waktu
+    const sortedAll = [...allRows].sort((a, b) => {
+      const tA = new Date(`${a.tanggal} ${a.waktu ?? "00:00:00"}`).getTime();
+      const tB = new Date(`${b.tanggal} ${b.waktu ?? "00:00:00"}`).getTime();
+      return tA - tB;
+    });
 
-      if (entityCtx) {
-        if (entityCtx.tipe === "pusat") {
-          const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-          query = query.eq("entity_id", targetEntity);
-        } else {
-          query = query.eq("entity_id", entityCtx.entity_id);
-        }
-      }
+    // inject saldo untuk semua transaksi (mulai dari 0)
+    const injectedAll = injectSaldoKeData(sortedAll, 0);
 
-      const { data, error } = await query;
-      if (error || !data || data.length === 0) return 0;
+    // hitung saldo awal (saldo terakhir sebelum startDate)
+    const saldoAwalValid = getSaldoAwalDariHistori(injectedAll, startDate);
 
-      return Number(data[0].saldo_akhir);
-    };
-
-    // ambil saldo awal dari view sesuai entity
-    const saldoAwalValid = await fetchSaldoAwalHistori(startDate);
+    // fallback: apabila histori ada tetapi semua saldo_akhir null
+    let saldoAwal = saldoAwalValid;
+    const historiExist = injectedAll.length > 0;
+    const semuaTanpaSaldo =
+      historiExist &&
+      injectedAll.every(
+        (r) => r.saldo_akhir === null || r.saldo_akhir === undefined
+      );
+    if (historiExist && semuaTanpaSaldo) {
+      const inj = injectSaldoKeData(sortedAll, 0);
+      saldoAwal = inj.at(-1)?.saldo_akhir ?? 0;
+    }
 
       // 2) ambil summary lain (berdasarkan tanggal range)
       // Uang Saku Driver (kredit)
@@ -203,13 +150,12 @@ export default function KasKasir() {
         .eq("sumber_tabel", "uang_saku_driver")
         .eq("jenis_transaksi", "kredit")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       const uangSaku = (uangSakuData ?? []).reduce(
         (t, r: { nominal: number | null }) => t + (r.nominal ?? 0),
         0
-      );
+        );
 
       // Premi Driver (kredit)
       const { data: premiData } = await supabase
@@ -218,8 +164,7 @@ export default function KasKasir() {
         .eq("sumber_tabel", "premi_driver")
         .eq("jenis_transaksi", "kredit")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       const premiDriver = premiData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
 
@@ -230,8 +175,7 @@ export default function KasKasir() {
         .eq("sumber_tabel", "potongan")
         .eq("jenis_transaksi", "debet")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       const potonganDriver = potonganData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
 
@@ -242,8 +186,7 @@ export default function KasKasir() {
         .eq("sumber_tabel", "perpal")
         .eq("jenis_transaksi", "kredit")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       const perpalDriver = perpalData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
 
@@ -253,8 +196,7 @@ export default function KasKasir() {
         .select("nominal")
         .eq("sumber_tabel", "realisasi_saku_item")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       const realisasiSaku = realSakuData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
 
@@ -265,8 +207,7 @@ export default function KasKasir() {
         .eq("jenis_transaksi", "debet")
         .or("sumber_tabel.is.null,sumber_tabel.eq.kasbon_realisasi_sisa")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       if (masukError) console.error("❌ Kas Masuk fetch error:", masukError.message);
       const kasMasuk = masukData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
@@ -278,8 +219,7 @@ export default function KasKasir() {
         .eq("jenis_transaksi", "kredit")
         .is("sumber_tabel", null)
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       const kasKeluar = keluarData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
 
@@ -288,8 +228,7 @@ export default function KasKasir() {
         .from("kasbon")
         .select("jumlah_kasbon")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       if (kasbonError) console.error("Kasbon fetch error:", kasbonError.message);
       const kasbon = kasbonData?.reduce((t, r) => t + (r.jumlah_kasbon || 0), 0) || 0;
@@ -299,8 +238,7 @@ export default function KasKasir() {
         .from("kasbon_realisasi")
         .select("nominal")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       const realisasiKasbon = realKasbonData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
 
@@ -309,15 +247,15 @@ export default function KasKasir() {
         .from("premi_driver")
         .select("biaya_etoll")
         .gte("tanggal", startDate)
-        .lte("tanggal", endDate)
-        .eq("entity_id", targetEntity);
+        .lte("tanggal", endDate);
 
       if (etollError) console.error("Biaya EToll fetch error:", etollError.message);
+
       const biayaEtoll = etollData?.reduce((t, r) => t + (r.biaya_etoll || 0), 0) || 0;
 
       // simpan ringkasan
       setSummary({
-        saldoAwal: saldoAwalValid,
+        saldoAwal,
         uangSaku,
         premiDriver,
         perpalDriver,
@@ -329,7 +267,6 @@ export default function KasKasir() {
         realisasiKasbon,
         biayaEtoll,
       });
-
       
       
     } catch (err: unknown) {
@@ -340,10 +277,8 @@ export default function KasKasir() {
   };
 
   useEffect(() => {
-    if (!entityCtx) return;
     fetchData();
-    fetchEntities();
-  }, [selectedEntityId, entityCtx, startDate, endDate]);
+  }, [startDate, endDate]);
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("id-ID", {
@@ -352,15 +287,6 @@ export default function KasKasir() {
       minimumFractionDigits: 0,
     }).format(n);
 
-    //-- loading dan validasi entity/user ---
-    if (loadingCtx) {
-      return <div className="p-4 text-gray-600">Memuat Data Cabang...</div>;
-    }
-
-    if (!customUser || !entityCtx) {
-      return <div className="p-4 text-red-600">Entity atau user tidak valid</div>;
-    }
-    
   return (
   <div id="print-root" className="p-6 max-w-3xl mx-auto bg-white min-h-screen">
 
@@ -438,32 +364,7 @@ export default function KasKasir() {
             document.body
           )}
       </div>
-
-      {/* -- TAMPILKAN -- */}
-      {entityCtx?.tipe === "pusat" && (
-        <div className="flex items-center gap-3">
-          <label className="font-semibold">Filter Outlet:</label>
-          <select
-            value={selectedEntityId ?? entityCtx.entity_id}
-            onChange={(e) => setSelectedEntityId(e.target.value)}
-            className="border rounded px-2 py-1"
-          >
-            <option value={entityCtx.entity_id}>
-              {entityCtx.kode} - Kantor Pusat
-            </option>
-            {entities
-              .filter((ent) => ent.id !== entityCtx.entity_id)
-              .map((ent) => (
-                <option key={ent.id} value={ent.id}>
-                  {ent.kode} - {ent.nama}
-                </option>
-              ))}
-          </select>
-        </div>
-      )}
-      
     </div>
-
 
     {/* LAPORAN */}
     {loading ? (

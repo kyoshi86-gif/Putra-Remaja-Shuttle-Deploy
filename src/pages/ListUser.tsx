@@ -6,14 +6,13 @@ import {FiEdit, FiTrash2} from "react-icons/fi";
 
 interface User {
   id: string;
-  user_id?: string;
+  user_id: string;
   name: string;
   password?: string;
   role: string;
   created_at: string;
   access?: string[];
   username?: string;
-  entity_id: string;   // 🔴 WAJIB
 }
 
 interface Role {
@@ -27,15 +26,7 @@ interface UpdateUserData {
   name: string;
   role: string;
   access: string[];
-  entity_id: string;   // 🔴 WAJIB
   password?: string;
-}
-
-interface Entity {
-  id: string;
-  kode: string;
-  nama: string;
-  tipe?: "pusat" | "outlet";
 }
 
 export default function ListUser() {
@@ -51,16 +42,13 @@ export default function ListUser() {
   const [editingName, setEditingName] = useState("");
   const [editingPassword, setEditingPassword] = useState("");
   const [editingRole, setEditingRole] = useState("");
-
-  const [entities, setEntities] = useState<Entity[]>([]);
-  const [newEntityId, setNewEntityId] = useState<string>("");
-  const [editingEntityId, setEditingEntityId] = useState("");
+  
 
   // Fetch users
   const fetchUsers = async () => {
     const { data, error } = await supabase
       .from("custom_users")
-      .select("id, user_id, name, username, role, access, entity_id, created_at")
+      .select("id, user_id, name, username, role, access, created_at")
       .order("created_at", { ascending: true });
     if (error) alert("Gagal ambil user: " + error.message);
     else setUsers(data as User[]);
@@ -81,29 +69,10 @@ export default function ListUser() {
     fetchRoles();
   }, []);
 
-  // == UNTUK ENTITY (JIKA PERLU) ==
-  useEffect(() => {
-    const fetchEntities = async () => {
-      const { data, error } = await supabase
-        .from("entities")
-        .select("id, kode, nama, tipe")
-        .order("kode");
-
-      if (error) {
-        alert("Gagal ambil entity: " + error.message);
-      } else {
-        setEntities(data || []);
-      }
-    };
-
-    fetchEntities();
-  }, []);
-  
-
   // Tambah user baru
   const addUser = async () => {
-    if (!newName.trim() || !newPassword || !newRole || !newEntityId) {
-      return alert("Nama, password, role, dan entity wajib diisi");
+    if (!newName.trim() || !newPassword || !newRole) {
+      return alert("Nama, password, dan role wajib diisi");
     }
 
     setLoading(true);
@@ -157,10 +126,8 @@ export default function ListUser() {
             password: hashedPassword,
             role: newRole,
             access: accessFromRole,
-            entity_id: newEntityId, // 🔴 WAJIB
           },
         ])
-
         .select("*")
         .single();
 
@@ -170,7 +137,6 @@ export default function ListUser() {
       setNewName("");
       setNewPassword("");
       setNewRole("");
-      setNewEntityId("");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       alert("Gagal tambah user: " + message);
@@ -183,9 +149,6 @@ export default function ListUser() {
   const updateUser = async (userId: string) => {
     if (!editingName || !editingRole)
       return alert("Nama dan role wajib diisi");
-    if (!editingEntityId) {
-      return alert("Entity wajib dipilih");
-    }
 
     const selectedRole = roles.find((r) => r.name === editingRole);
     const accessFromRole = selectedRole?.access ?? [];
@@ -194,9 +157,7 @@ export default function ListUser() {
       name: editingName,
       role: editingRole,
       access: accessFromRole,
-      entity_id: editingEntityId, // 🔴 WAJIB
     };
-
     if (editingPassword)
       updateData.password = bcrypt.hashSync(editingPassword, 10);
 
@@ -213,7 +174,6 @@ export default function ListUser() {
 
       setUsers(users.map((u) => (u.id === userId ? (data as User) : u)));
       setEditingUserId(null);
-      setEditingEntityId("");
       setEditingPassword("");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -243,14 +203,6 @@ export default function ListUser() {
       await fetchUsers(); // ✅ refresh data
     }
   };
-
-  // == TAMPIL ENTITY LABEL ==
-  const getEntityLabel = (entityId: string) => {
-    const ent = entities.find((e) => e.id === entityId);
-    if (!ent) return "-";
-    return `${ent.kode} - ${ent.nama}`;
-  };
-
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -308,28 +260,6 @@ export default function ListUser() {
               </option>
             ))}
           </select>
-
-          <select
-            value={newEntityId}
-            onChange={(e) => setNewEntityId(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "6px",
-              border: "1px solid #d1d5db",
-              fontSize: "0.875rem",
-              flex: "1",
-            }}
-            required
-          >
-            <option value="">-- Pilih Entity --</option>
-
-            {entities.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.kode} - {e.nama}
-              </option>
-            ))}
-          </select>
-
           <button
             onClick={addUser}
             disabled={loading}
@@ -349,7 +279,6 @@ export default function ListUser() {
           <tr>
             <th className="border p-2 text-center w-[100px]">Nama</th>
             <th className="border p-2 text-center w-[50px]">Role</th>
-            <th className="border p-2 text-center w-[50px]">Entity</th>
             <th className="border p-2 text-center w-[60px]">User id</th>
             <th className="border p-2 text-center w-[60px]">Aksi</th>
           </tr>
@@ -382,21 +311,6 @@ export default function ListUser() {
                   user.role
                 )}
               </td>
-
-              <td className="border p-2 text-center">
-                {editingUserId === user.id ? (
-                  <select value={editingEntityId} onChange={(e) => setEditingEntityId(e.target.value)}>
-                    {entities.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.kode} - {e.nama}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  getEntityLabel(user.entity_id)
-                )}
-              </td>
-
               <td className="border p-2 text-center">
                 {user.user_id || user.id}
               </td>
@@ -452,7 +366,6 @@ export default function ListUser() {
                         setEditingName(user.name);
                         setEditingRole(user.role);
                         setEditingPassword("");
-                        setEditingEntityId(user.entity_id);
                       }}
                       className="text-blue-600 hover:text-blue-800 px-[5px]"
                       title="Edit"
