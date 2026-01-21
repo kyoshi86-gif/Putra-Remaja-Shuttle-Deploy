@@ -5,8 +5,6 @@ import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { insertWithAutoNomor } from "../lib/dbUtils";
 import { getCustomUserId } from "../lib/authUser";
 import { toDate } from "./SuratJalan";
-import { getEntityContext, type EntityContext } from "../lib/entityContext";
-import { toWIBDateString } from "@/utils/time";
 
 export interface UangSakuData {
   id: number;
@@ -28,14 +26,6 @@ export interface UangSakuData {
   id_kas_harian?: number | null;
 
   [key: string]: unknown; // ✅ tambahkan ini
-}
-
-interface CustomUser {
-  id: string;
-  name?: string;
-  role: string;
-  access?: string[];
-  entity_id: string;
 }
 
 export default function UangSakuDriver() {
@@ -86,57 +76,6 @@ export default function UangSakuDriver() {
     id_kas_harian: null,
   };  
 
-  // Context Entity
-  const [entityCtx, setEntityCtx] = useState<EntityContext | null>(null);
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
-  const [entities, setEntities] = useState<{id:string; kode:string; nama:string; tipe:string}[]>([]);
-  const [customUser, setCustomUser] = useState<CustomUser | null>(null);
-  const [loadingCtx, setLoadingCtx] = useState(true);
-  
-  // --- FETCH DAFTAR ENTITIES JIKA USER PUSAT ---
-  const fetchEntities = async () => {
-    if (!entityCtx?.entity_id) return; // ⛔ jangan query kalau belum siap
-    const { data, error } = await supabase
-      .from("entities")
-      .select("id, kode, nama, tipe")
-      .order("nama", { ascending: true });
-
-    if (error) {
-      console.error("❌ Gagal ambil daftar entities:", error.message);
-    } else {
-      setEntities(data as {id:string; kode:string; nama:string; tipe:string}[]);
-    }
-  };
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("custom_user");
-    if (!storedUser) {
-      setLoadingCtx(false);
-      return;
-    }
-    try {
-      const parsed: CustomUser = JSON.parse(storedUser);
-      setCustomUser(parsed);
-      getEntityContext(parsed.entity_id)
-        .then((ctx) => {
-          setEntityCtx(ctx);
-          setLoadingCtx(false);
-        })
-        .catch(() => setLoadingCtx(false));
-    } catch {
-      setLoadingCtx(false);
-    }
-  }, []);
-
-  // Auto fetch data saat filter outlet berubah
-  useEffect(() => {
-    if (!entityCtx) return;
-    if (entityCtx.tipe === "pusat") {
-      fetchData(); // langsung ambil data sesuai outlet terpilih
-      fetchEntities(); // ambil daftar outlet
-    }
-  }, [selectedEntityId, entityCtx]);
-
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
@@ -144,43 +83,22 @@ export default function UangSakuDriver() {
   // --- FETCH DATA ---
   const fetchData = async () => {
     setLoading(true);
-
-    if (!entityCtx?.entity_id) {
-      setLoading(false);
-      return;
-    }
-
-    let query = supabase
+    const { data, error } = await supabase
       .from("uang_saku_driver")
       .select("*")
       .order("id", { ascending: false });
 
-    if (entityCtx.tipe === "pusat") {
-      // ✅ kalau user pusat, pakai filter outlet jika dipilih
-      if (selectedEntityId) {
-        query = query.eq("entity_id", selectedEntityId);
-      } else {
-        query = query.eq("entity_id", entityCtx.entity_id);
-      }
-    } else {
-      // ✅ kalau user outlet, pakai entity outlet langsung
-      query = query.eq("entity_id", entityCtx.entity_id);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error("❌ Gagal ambil data:", error.message);
-    } else {
+    if (error) console.error("Gagal ambil data:", error.message);
+    else {
       setData(data as UangSakuData[]);
       setFiltered(data as UangSakuData[]);
     }
     setLoading(false);
   };
 
-  // ✅ panggil ulang setiap kali filter outlet atau context berubah
   useEffect(() => {
     fetchData();
-  }, [selectedEntityId, entityCtx]);
+  }, []);
 
   // --- CEGAH EDIT TERHAPUS ---
   const cekKasStatus = async (data: UangSakuData[]) => {
@@ -280,8 +198,7 @@ export default function UangSakuDriver() {
       .from("kas_harian")
       .delete()
       .eq("sumber_tabel", "uang_saku_driver")
-      .in("sumber_id", selected)
-      .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
+      .in("sumber_id", selected);
 
     if (kasError) {
       alert("❌ Gagal hapus data Kas Harian: " + kasError.message);
@@ -292,8 +209,7 @@ export default function UangSakuDriver() {
     const { error: usError } = await supabase
       .from("uang_saku_driver")
       .delete()
-      .in("id", selected)
-      .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
+      .in("id", selected);
 
     if (usError) {
       alert("❌ Gagal hapus Uang Saku: " + usError.message);
@@ -383,8 +299,7 @@ export default function UangSakuDriver() {
       .from("kas_harian")
       .delete()
       .eq("sumber_tabel", "uang_saku_driver")
-      .eq("sumber_id", id)
-      .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
+      .eq("sumber_id", id);
 
     if (kasError) {
       alert("❌ Gagal menghapus data di Kas Harian: " + kasError.message);
@@ -395,8 +310,7 @@ export default function UangSakuDriver() {
     const { error: usError } = await supabase
       .from("uang_saku_driver")
       .delete()
-      .eq("id", id)
-      .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
+      .eq("id", id);
 
     if (usError) {
       alert("❌ Gagal menghapus Uang Saku: " + usError.message);
@@ -412,16 +326,10 @@ export default function UangSakuDriver() {
   // --- SUBMIT ---
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
   if (e) e.preventDefault();
-  if (isSubmitting) return false;
+  if (isSubmitting) return false; // ⛔ cegah submit ganda
   setIsSubmitting(true);
-
-  // ✅ Tentukan entity target sekali di awal
-  const targetEntity =
-    entityCtx?.tipe === "pusat" && selectedEntityId
-      ? selectedEntityId
-      : entityCtx?.entity_id;
 
   try {
     // --- Validasi wajib ---
@@ -433,211 +341,221 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
       { field: "tanggal_berangkat", label: "Tanggal Berangkat" },
       { field: "tanggal_kembali", label: "Tanggal Kembali" },
     ];
+
     for (const { field, label } of wajibIsi) {
       const value = formData[field as keyof UangSakuData];
       if (!value || value.toString().trim() === "") {
         alert(`❌ ${label} wajib diisi.`);
-        return false;
+        return;
       }
     }
 
-    // --- Bersihkan numeric & hitung jumlah ---
-    const numericFields = ["bbm", "uang_makan", "parkir"];
-    const cleanedData = { ...formData } as Partial<Record<keyof UangSakuData, string | number | null>>;
+    // --- Bersihkan numeric ---
+    const numericFields = ["bbm", "uang_makan", "parkir", "jumlah"];
+    const cleanedData = {
+      ...formData,
+    } as Partial<Record<keyof UangSakuData, string | number | null>>;
+
     numericFields.forEach((f) => {
       const key = f as keyof UangSakuData;
       const val = cleanedData[key];
+
       const parsed =
         val === "" || val === undefined || val === null
-          ? 0
+          ? null
           : Number(String(val).replace(/[^\d.-]/g, ""));
-      cleanedData[key] = Number.isNaN(parsed) ? 0 : parsed;
+
+      cleanedData[key] = Number.isNaN(parsed) ? null : parsed;
     });
-    cleanedData.jumlah =
-      Number(cleanedData.bbm ?? 0) +
-      Number(cleanedData.uang_makan ?? 0) +
-      Number(cleanedData.parkir ?? 0);
 
     const isEdit = formData.id && Number(formData.id) !== 0;
     let finalNomor = formData.no_uang_saku?.trim();
     let dbError = null;
-    const waktu = new Date().toTimeString().slice(0, 8);
+
+    
+    const waktu = new Date().toTimeString().slice(0, 8); // hasil: HH:mm:ss lokal
 
     if (isEdit) {
-        // --- UPDATE Uang Saku Driver ---
-        const { error } = await supabase
-          .from("uang_saku_driver")
-          .update({
-            ...cleanedData,
-            no_uang_saku: finalNomor,
-            entity_id: targetEntity,
-          })
-          .eq("id", formData.id);
-        dbError = error;
+      // --- UPDATE Uang Saku Driver ---
+      const { error } = await supabase
+        .from("uang_saku_driver")
+        .update({ ...cleanedData, no_uang_saku: finalNomor })
+        .eq("id", formData.id);
+      dbError = error;
 
-        // --- UPDATE Kas Harian ---
-        if (formData.id_kas_harian) {
-          // pastikan jumlah dihitung ulang
-          const nominalBaru = 
-            Number(cleanedData.bbm ?? 0) + 
-            Number(cleanedData.uang_makan ?? 0) + 
-            Number(cleanedData.parkir ?? 0);
+      // --- UPDATE Kas Harian jika ada id_kas_harian ---
+      if (formData.id_kas_harian) {
+        const { data: kasLama, error: kasFetchError } = await supabase
+          .from("kas_harian")
+          .select("saldo_awal")
+          .eq("id", formData.id_kas_harian)
+          .single();
 
-          // ambil baris kas_harian yang terkait
-          const { data: kasLama } = await supabase
-            .from("kas_harian")
-            .select("saldo_awal")
-            .eq("id", formData.id_kas_harian)
-            .single();
-
-          const saldoAwalLama = Number(kasLama?.saldo_awal ?? 0);
+        if (!kasFetchError && kasLama) {
+          const saldoAwalLama = kasLama.saldo_awal ?? 0;
+          const nominalBaru = Number(cleanedData.jumlah ?? 0);
           const saldoAkhirBaru = saldoAwalLama - nominalBaru;
+
           const currentUserId = getCustomUserId() ?? "";
-          const keberangkatan = toWIBDateString(new Date(formData.tanggal_berangkat), "display");
-          const rute = formData.kode_rute ?? "";
 
           const kasPayload = {
             tanggal: cleanedData.tanggal,
             waktu,
             bukti_transaksi: finalNomor,
-            keterangan: `Uang Saku Driver ${formData.driver}; ${cleanedData.no_polisi}; ${cleanedData.no_surat_jalan}; ${keberangkatan}; ${rute}`,
+            keterangan: `Uang Saku Driver ${formData.driver} ${cleanedData.no_polisi} ${cleanedData.no_surat_jalan}`,
             jenis_transaksi: "kredit",
-            nominal: nominalBaru,              // ✅ overwrite nominal baru
+            nominal: nominalBaru,
             saldo_awal: saldoAwalLama,
             saldo_akhir: saldoAkhirBaru,
             user_id: currentUserId,
             sumber_id: formData.id,
             sumber_tabel: "uang_saku_driver",
             updated_at: new Date().toISOString(),
-            entity_id: targetEntity,
           };
 
           await supabase
             .from("kas_harian")
             .update(kasPayload)
-            .eq("id", formData.id_kas_harian)
-            .eq("entity_id", targetEntity);   // ✅ update langsung by id
+            .eq("id", formData.id_kas_harian);
         }
-      } else {
-        // --- INSERT BARU ---
-        delete cleanedData.id;
-
-        if (!entityCtx) {
-          alert("Entity context belum siap");
-          return false;
-        }
-
-        // ✅ Tentukan prefix nomor
-        let outletPrefix = "US-";
-        if (entityCtx.tipe === "outlet") {
-          outletPrefix = `${entityCtx.kode}-US-`;
-        } else if (selectedEntityId && selectedEntityId !== entityCtx.entity_id) {
-          const ent = entities.find((e) => e.id === selectedEntityId);
-          outletPrefix = ent?.kode ? `${ent.kode}-US-` : "US-";
-        }
-
-        // --- Generate nomor uang saku dulu ---
-        const result = await insertWithAutoNomor({
-          table: "uang_saku_driver",
-          prefix: outletPrefix,
-          nomorField: "no_uang_saku",
-          data: { ...cleanedData, entity_id: targetEntity }, // ✅ sertakan entity_id
-          previewOnly: false, // ✅ generate & insert nomor
-          monthlyReset: false,
-          resetAfterMax: true,
-          maxSeq: 999,
-          digitCount: 3,
-          entityId: targetEntity, // ✅ filter per entity
-        });
-        
-        if (!result.success || !result.nomor) {
-          alert("❌ Gagal menyimpan: " + result.error);
-          return false;
-        }
-        finalNomor = result.nomor;
-        cleanedData.no_uang_saku = finalNomor;
-
-        // --- Insert ke uang_saku_driver sekali saja ---
-        const { data: insertedRow, error: insertError } = await supabase
-          .from("uang_saku_driver")
-          .insert({ ...cleanedData, entity_id: targetEntity })
-          .select("id")
-          .single();
-        if (insertError || !insertedRow?.id) {
-          alert("❌ Gagal insert Uang Saku Driver: " + insertError?.message);
-          return false;
-        }
-
-        // --- Insert ke kas_harian dengan sumber_id & bukti_transaksi yang jelas ---
-        const { data: lastRow } = await supabase
-          .from("kas_harian")
-          .select("*")
-          .order("tanggal", { ascending: false })
-          .order("id", { ascending: false })
-          .limit(1)
-          .single();
-
-        const saldoAwal = Number(lastRow?.saldo_akhir ?? 0);
-        const nominal = Number(cleanedData.jumlah ?? 0);
-        const saldoAkhir = saldoAwal - nominal;
-        const currentUserId = getCustomUserId();
-
-        // ✅ rakit keterangan dengan format sama seperti update
-        const keberangkatan = toWIBDateString(new Date(formData.tanggal_berangkat), "display"); 
-        const rute = formData.kode_rute ?? "";
-
-        const kasPayload = {
-          tanggal: cleanedData.tanggal,
-          waktu,
-          bukti_transaksi: finalNomor,
-          keterangan: `Uang Saku Driver ${formData.driver}; ${formData.no_polisi}; ${formData.no_surat_jalan}; ${keberangkatan}; ${rute}`,
-          jenis_transaksi: "kredit",
-          nominal,
-          saldo_awal: saldoAwal,
-          saldo_akhir: saldoAkhir,
-          user_id: currentUserId,
-          sumber_id: insertedRow.id,
-          sumber_tabel: "uang_saku_driver",
-          updated_at: new Date().toISOString(),
-          entity_id: targetEntity,
-        };
-
-        // --- Insert kas_harian dan ambil id ---
-        const { data: insertedKas, error: kasError } = await supabase
-          .from("kas_harian")
-          .insert(kasPayload)
-          .select("id")
-          .single();
-
-        if (kasError || !insertedKas?.id) {
-          alert("❌ Gagal insert Kas Harian: " + kasError?.message);
-          return false;
-        }
-
-        // --- Update uang_saku_driver dengan id_kas_harian ---
-        await supabase
-          .from("uang_saku_driver")
-          .update({ id_kas_harian: insertedKas.id })
-          .eq("id", insertedRow.id);
       }
+    } else {
+      // --- INSERT BARU ---
+      delete cleanedData.id;
 
-      if (dbError) {
-        alert("❌ Gagal menyimpan: " + dbError.message);
+      const { data: lastRow } = await supabase
+        .from("kas_harian")
+        .select("*")
+        .order("tanggal", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(1)
+        .single();
+
+      const saldoAwal = Number(lastRow?.saldo_akhir ?? 0);
+      const nominal = Number(cleanedData.jumlah ?? 0);
+      const saldoAkhir = saldoAwal - nominal;
+
+      const currentUserId = getCustomUserId();
+
+      const kasPayload = {
+        tanggal: cleanedData.tanggal,
+        waktu,
+        bukti_transaksi: finalNomor,
+        keterangan: `Uang Saku Driver ${cleanedData.no_polisi} ${cleanedData.no_surat_jalan}`,
+        jenis_transaksi: "kredit",
+        nominal,
+        saldo_awal: saldoAwal,
+        saldo_akhir: saldoAkhir,
+        user_id: currentUserId,
+        sumber_id: null, // akan diisi nanti
+        sumber_tabel: "uang_saku_driver",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: kasData, error: kasError } = await supabase
+        .from("kas_harian")
+        .insert(kasPayload)
+        .select("id")
+        .single();
+
+      if (kasError) {
+        alert("❌ Gagal simpan Kas Harian: " + kasError.message);
         return false;
       }
 
-      alert(`✅ Saku Driver ${finalNomor} berhasil disimpan.`);
-      fetchData();
-      await fetchSjList();
-      return finalNomor;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      alert("Terjadi kesalahan: " + message);
-      return null;
-    } finally {
-      setIsSubmitting(false);
+      if (kasData?.id) {
+        cleanedData.id_kas_harian = kasData.id;
+      }
+
+      const result = await insertWithAutoNomor({
+        table: "uang_saku_driver",
+        prefix: "US",
+        nomorField: "no_uang_saku",
+        data: cleanedData,
+        previewOnly: false,
+        monthlyReset: false,
+        resetAfterMax: true,  // ✅ reset otomatis setelah 999
+        maxSeq: 999,
+        digitCount: 3,
+      });
+
+      if (!result.success) {
+        alert("❌ Gagal menyimpan: " + result.error);
+        return false;
+      }
+
+      finalNomor = result.nomor!;
+      cleanedData.no_uang_saku = finalNomor;
+
+// 🔍 Ambil ID uang_saku_driver yang baru
+const { data: insertedRow } = await supabase
+  .from("uang_saku_driver")
+  .select("id")
+  .eq("no_uang_saku", finalNomor)
+  .single();
+
+if (!insertedRow?.id) {
+  alert("❌ Gagal ambil ID uang_saku_driver.");
+  return false;
+}
+
+// ✅ Update uang_saku_driver dengan id_kas_harian
+const { error: finalSaveError } = await supabase
+  .from("uang_saku_driver")
+  .update({
+    no_uang_saku: finalNomor,
+    id_kas_harian: kasData.id,
+  })
+  .eq("id", insertedRow.id);
+
+if (finalSaveError) {
+  alert("❌ Gagal update uang_saku_driver: " + finalSaveError.message);
+  return false;
+}
+
+// ✅ Update kas_harian dengan nomor final yang benar
+const updatePayload = {
+  bukti_transaksi: finalNomor,     // ⬅️ WAJIB!
+  sumber_id: insertedRow.id,
+  sumber_tabel: "uang_saku_driver",
+};
+
+Object.entries(updatePayload).forEach(([key, value]) => {
+  if (value === undefined) {
+    delete (updatePayload as Record<string, unknown>)[key];
+  }
+});
+
+const { error: updateKasError } = await supabase
+  .from("kas_harian")
+  .update(updatePayload)
+  .eq("id", kasData.id);
+
+if (updateKasError) {
+  alert("❌ Gagal update sumber_id/tabel: " + updateKasError.message);
+  return false;
+}
     }
-  };
+
+    if (dbError) {
+      alert("❌ Gagal menyimpan: " + dbError.message);
+      return false;
+    }
+
+    alert(`✅ Saku Driver ${finalNomor} berhasil disimpan.`);
+    // setShowForm(false);
+    // setFormData(defaultFormData);
+    fetchData();
+    await fetchSjList(); // ⬅️ ini penting
+    return finalNomor;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    alert("Terjadi kesalahan: " + message);
+    return null;   // ⬅️ ubah jadi null (supaya bisa di-cek)
+  } finally {
+    setIsSubmitting(false); // ✅ kunci dibuka setelah selesai
+  }
+};
 
   // --- CHANGE HANDLER ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -666,56 +584,44 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
     "Rp " + (num ? num.toLocaleString("id-ID") : "0");
 
   // --- Tambahkan / ganti state & fetch di atas komponen ---
-  const [sjList, setSjList] = useState<SuratJalanRow[]>([]);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [sjSearch, setSjSearch] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
+const [sjList, setSjList] = useState<SuratJalanRow[]>([]);
+const [highlightedIndex, setHighlightedIndex] = useState(-1);
+const [sjSearch, setSjSearch] = useState("");
+const [showDropdown, setShowDropdown] = useState(false);
 
-  const fetchSjList = async () => {
-    try {
-      if (!entityCtx?.entity_id) return;
+const fetchSjList = async () => {
+  try {
+    // Ambil semua surat jalan, urut dari yang paling lama
+    const { data: semuaSj, error: sjError } = await supabase
+      .from("surat_jalan")
+      .select("*")
+      .order("no_surat_jalan", { ascending: true }); // ⬅️ urut dari yang lama
 
-      let query = supabase
-        .from("surat_jalan")
-        .select("*")
-        .order("no_surat_jalan", { ascending: true });
+    if (sjError) throw sjError;
 
-      if (entityCtx.tipe === "pusat") {
-        const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-        query = query.eq("entity_id", targetEntity); // ✅ filter outlet
-      } else {
-        query = query.eq("entity_id", entityCtx.entity_id);
-      }
+    // Ambil semua no_surat_jalan yang sudah dipakai di uang_saku_driver
+    const { data: dipakai, error: usdError } = await supabase
+      .from("uang_saku_driver")
+      .select("no_surat_jalan");
 
-      const { data: semuaSj, error: sjError } = await query;
-      if (sjError) throw sjError;
+    if (usdError) throw usdError;
 
-      // Ambil semua no_surat_jalan yang sudah dipakai
-      const { data: dipakai, error: usdError } = await supabase
-        .from("uang_saku_driver")
-        .select("no_surat_jalan, entity_id");
-      if (usdError) throw usdError;
+    const dipakaiSet = new Set(dipakai?.map((d) => d.no_surat_jalan));
+    const belumDipakai = semuaSj?.filter(
+      (sj) => !dipakaiSet.has(sj.no_surat_jalan)
+    );
 
-      const dipakaiSet = new Set(
-        dipakai?.filter((d) => d.entity_id === (selectedEntityId ?? entityCtx.entity_id))
-              .map((d) => d.no_surat_jalan)
-      );
+    setSjList(belumDipakai ?? []);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("❌ Gagal ambil SJ:", message);
+    setSjList([]);
+  }
+};
 
-      const belumDipakai = semuaSj?.filter(
-        (sj) => !dipakaiSet.has(sj.no_surat_jalan)
-      );
-
-      setSjList(belumDipakai ?? []);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error("❌ Gagal ambil SJ:", message);
-      setSjList([]);
-    }
-  };
-
-  useEffect(() => {
-    fetchSjList();
-  }, [selectedEntityId, entityCtx]);
+useEffect(() => {
+  fetchSjList();
+}, []);
 
 // --- Fungsi pilih SJ (ditrigger sebelum blur karena onMouseDown di item) ---
 interface SuratJalanRow {
@@ -773,46 +679,27 @@ const handleSelectSj = (sj: SuratJalanRow) => {
   // --- Auto isi NO USD saat klik Tambah (preview saja) ---
   const handleTambah = async (): Promise<void> => {
     try {
+      // Pastikan semua state form benar-benar bersih
       setFormData({ ...defaultFormData });
       setSjSearch("");
       setShowDropdown(false);
       setHighlightedIndex(-1);
 
-      // ✅ Tentukan entity target sekali di awal (di handleSubmit & handleTambah)
-      const targetEntity =
-        entityCtx?.tipe === "pusat" && selectedEntityId
-          ? selectedEntityId
-          : entityCtx?.entity_id;
-
-      // Validasi entity
-      if (!targetEntity) {
-        alert("❌ Entity target belum siap. Pilih outlet atau tunggu context ter-load.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Prefix konsisten
-      let outletPrefix = "US";
-      if (entityCtx?.tipe === "outlet") {
-        outletPrefix = `${entityCtx.kode}-US`; // ✅ tambahkan strip
-      } else if (selectedEntityId && selectedEntityId !== entityCtx?.entity_id) {
-        const ent = entities.find((e) => e.id === selectedEntityId);
-        outletPrefix = ent?.kode ? `${ent.kode}-US` : "US";
-      }
-
-      // Generate nomor preview
+      // Buat nomor baru (preview, belum insert)
       const { success, nomor, error } = await insertWithAutoNomor({
         table: "uang_saku_driver",
-        prefix: outletPrefix,
-        data: { entity_id: targetEntity },
-        entityId: targetEntity, // ✅ filter per entitas
+        prefix: "US",
+        data: {},
         nomorField: "no_uang_saku",
-        previewOnly: true,
+        previewOnly: true, // hanya preview, tidak insert
       });
 
       if (!success || !nomor) throw new Error(error || "Gagal buat nomor baru");
 
+      // Set nomor baru ke form
       setFormData((prev) => ({ ...prev, no_uang_saku: nomor }));
+
+      // Tampilkan popup form
       setShowForm(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -824,14 +711,6 @@ const handleSelectSj = (sj: SuratJalanRow) => {
   setFormData(defaultFormData); // reset semua isi form
   setShowForm(false);            // sembunyikan pop-up
   };
-
-  if (loadingCtx) {
-    return <div className="p-4 text-gray-600">Memuat Data Cabang...</div>;
-  }
-
-  if (!customUser || !entityCtx) {
-    return <div className="p-4 text-red-600">Entity atau user tidak valid</div>;
-  }
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -878,12 +757,10 @@ const handleSelectSj = (sj: SuratJalanRow) => {
             <input
               type="text"
               name="no_uang_saku"
+              required
               value={formData.no_uang_saku || ""}
-              readOnly={formData.id === 0} // tambah baru readonly
-              onChange={(e) =>
-                setFormData({ ...formData, no_uang_saku: e.target.value })
-              }
-              className={`w-full border rounded px-3 py-2 ${formData.id === 0 ? "bg-gray-100 cursor-not-allowed" : ""}`}
+              readOnly
+              className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
             />
           </div>
 
@@ -1185,29 +1062,6 @@ const handleSelectSj = (sj: SuratJalanRow) => {
             <FiPrinter /> Cetak
           </button>
         </div>
-
-        {/* -- TAMPILKAN -- */}
-        {entityCtx?.tipe === "pusat" && (
-          <div className="gap-3 flex items-center border p-2 rounded bg-gray-100">
-            <label className="mr-2 font-semibold">Filter Outlet:</label>
-            <select
-              value={selectedEntityId ?? entityCtx.entity_id}
-              onChange={(e) => setSelectedEntityId(e.target.value)}
-              className="border rounded px-2"
-            >
-              <option value={entityCtx.entity_id}>
-                {entityCtx.kode} - Kantor Pusat
-              </option>
-              {entities
-                .filter((ent) => ent.id !== entityCtx.entity_id)
-                .map((ent) => (
-                  <option key={ent.id} value={ent.id}>
-                    {ent.kode} - {ent.nama}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
 
         <div className="relative w-[320px]">
           <input
