@@ -8,7 +8,6 @@ import { hasAccess } from "../lib/hasAccess";
 import { getWIBTimestampFromUTC } from "../utils/time";
 import { getEntityContext, type EntityContext } from "../lib/entityContext";
 
-
 interface SuratJalanData {
   id: number;
   tanggal_berangkat: string;
@@ -480,7 +479,7 @@ const handleSelectKodeRute = (item: Rute) => {
 
     // Buka halaman print-ready
     const printWindow = window.open(
-      `/cetak-surat-jalan?no=${dataCetak.no_surat_jalan}&autoPrint=true`,
+      `/cetak-surat-jalan?no=${dataCetak.no_surat_jalan}&autoPrint=false`,
       "_blank"
     );
 

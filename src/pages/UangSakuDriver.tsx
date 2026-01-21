@@ -528,12 +528,12 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
         }
 
         // ✅ Tentukan prefix nomor
-        let outletPrefix = "US-";
+        let outletPrefix = "US";
         if (entityCtx.tipe === "outlet") {
-          outletPrefix = `${entityCtx.kode}-US-`;
+          outletPrefix = `${entityCtx.kode}-US`;
         } else if (selectedEntityId && selectedEntityId !== entityCtx.entity_id) {
           const ent = entities.find((e) => e.id === selectedEntityId);
-          outletPrefix = ent?.kode ? `${ent.kode}-US-` : "US-";
+          outletPrefix = ent?.kode ? `${ent.kode}-US` : "US";
         }
 
         // --- Generate nomor uang saku dulu ---
@@ -541,17 +541,13 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
           table: "uang_saku_driver",
           prefix: outletPrefix,
           nomorField: "no_uang_saku",
-          data: { ...cleanedData, entity_id: targetEntity }, // ✅ sertakan entity_id
-          previewOnly: false, // ✅ generate & insert nomor
-          monthlyReset: false,
-          resetAfterMax: true,
-          maxSeq: 999,
-          digitCount: 3,
-          entityId: targetEntity, // ✅ filter per entity
+          data: { ...cleanedData, entity_id: targetEntity },
+          previewOnly: true, // ✅ hanya generate nomor
+          entityId: targetEntity,
         });
-        
+
         if (!result.success || !result.nomor) {
-          alert("❌ Gagal menyimpan: " + result.error);
+          alert("❌ Gagal generate nomor: " + result.error);
           return false;
         }
         finalNomor = result.nomor;

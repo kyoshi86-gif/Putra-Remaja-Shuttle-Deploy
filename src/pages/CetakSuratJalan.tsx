@@ -266,6 +266,7 @@ useEffect(() => {
                 <th className="text-center px-2 py-1">Jam</th>
                 <th className="text-center px-2 py-1">Snack Berangkat</th>
                 <th className="text-center px-2 py-1">Sisa Snack</th>
+                <th className="text-center px-2 py-1">Terpakai</th>
               </tr>
             </thead>
           <tbody>
@@ -274,12 +275,14 @@ useEffect(() => {
               <td className="border border-black"></td>
               <td className="border border-black text-left px-4">{data.snack_berangkat || ""}</td>
               <td className="border border-black"></td>
+              <td className="border border-black"></td>
             </tr>
             <tr>
               <td className="border border-black">{end} - {start}</td>
               <td className="border border-black"></td>
               <td className="border border-black text-left px-4"></td>
               <td className="border border-black">{data.snack_kembali || ""}</td>
+              <td className="border border-black"></td>
             </tr>
             <tr>
               <td className="border border-black" >KM Berangkat</td>
