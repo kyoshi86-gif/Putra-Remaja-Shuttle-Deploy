@@ -479,7 +479,7 @@ const handleSelectKodeRute = (item: Rute) => {
 
     // Buka halaman print-ready
     const printWindow = window.open(
-      `/cetak-surat-jalan?no=${dataCetak.no_surat_jalan}&autoPrint=false`,
+      `/cetak-surat-jalan?no=${dataCetak.no_surat_jalan}&autoPrint=true`,
       "_blank"
     );
 
