@@ -41,29 +41,39 @@ export async function insertWithAutoNomor({
     let query = supabase
       .from(table)
       .select(nomorField)
-      .like(nomorField, `${prefix}%`)   // ✅ cukup prefix saja
-      .eq("entity_id", entityId)        // ✅ filter per entitas
+      .like(nomorField, `${prefix}%-${periodPart}`) // ✅ filter prefix + periode
       .order(nomorField, { ascending: false })
       .limit(1);
 
     if (entityId) {
-      query = query.eq("entity_id", entityId); // ✅ filter per entitas
+      query = query.eq("entity_id", entityId);
     }
 
+    console.log("DEBUG entityId:", entityId, "prefix:", prefix);
+
     const { data: lastRecords, error } = await query;
-    if (error) return { success: false, error: error.message };
+
+    if (error) {
+      console.error("DEBUG Supabase error:", error);
+      return { success: false, error: error.message };
+    }
+
+    console.log("DEBUG lastRecords:", lastRecords);
 
     if (lastRecords?.length > 0) {
       const firstRow = lastRecords[0] as unknown as Record<string, unknown>;
       const lastNomor = String(firstRow[nomorField] ?? "");
-      const match = lastNomor.match(/US(\d+)-\d{4}/);
+      console.log("DEBUG lastNomor:", lastNomor);
+
+      const match = lastNomor.match(new RegExp(`^${prefix}(\\d+)-${periodPart}$`));
       if (match?.[1]) {
-        nextSeq = parseInt(match[1]) + 1;
+        nextSeq = parseInt(match[1], 10) + 1; // ✅ jadi 275
         if (resetAfterMax && nextSeq > maxSeq) nextSeq = 1;
       }
     }
 
     const nomorBaru = `${prefix}${String(nextSeq).padStart(digitCount, "0")}-${periodPart}`;
+    console.log("DEBUG nomorBaru:", nomorBaru);
 
     if (previewOnly) return { success: true, nomor: nomorBaru };
 
