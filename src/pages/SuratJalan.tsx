@@ -6,6 +6,7 @@ import { getCustomUserId } from "../lib/authUser";
 import { insertWithAutoNomor } from "../lib/dbUtils";
 import { hasAccess } from "../lib/hasAccess";
 import { getWIBTimestampFromUTC } from "../utils/time";
+import { getEntityContext, type EntityContext } from "../lib/entityContext";
 
 
 interface SuratJalanData {
@@ -44,6 +45,14 @@ export const toDate = (v: unknown): Date | "" => {
   return "";
 };
 
+interface CustomUser {
+  id: string;
+  name?: string;
+  role: string;
+  access?: string[];
+  entity_id: string;
+}
+
 export default function SuratJalan() {
   const [data, setData] = useState<SuratJalanData[]>([]);
   const [filtered, setFiltered] = useState<SuratJalanData[]>([]);
@@ -56,6 +65,58 @@ export default function SuratJalan() {
   const [, setIsUsedInSaku] = useState(false);
   const [isUsedInPremi, setIsUsedInPremi] = useState(false);
   const [canTambahPerpal, setCanTambahPerpal] = useState(false);
+
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [entityCtx, setEntityCtx] = useState<EntityContext | null>(null);
+  const [customUser, setCustomUser] = useState<CustomUser | null>(null);
+  const [loadingCtx, setLoadingCtx] = useState(true);
+
+  // === AMBIL USER LOGIN DARI LOCALSTORAGE ===
+  useEffect(() => {
+    const storedUser = localStorage.getItem("custom_user");
+    if (!storedUser) {
+      setLoadingCtx(false);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(storedUser);
+      setCustomUser(parsed);
+
+      getEntityContext(parsed.entity_id)
+        .then((ctx) => {
+          setEntityCtx(ctx);
+          setLoadingCtx(false);
+        })
+        .catch(() => setLoadingCtx(false));
+    } catch {
+      setLoadingCtx(false);
+    }
+  }, []);
+
+
+  // === FETCH DAFTAR ENTITIES JIKA USER PUSAT === //
+  const fetchEntities = async () => {
+    const { data, error } = await supabase
+      .from("entities")
+      .select("id, kode, nama, tipe")
+      .order("nama", { ascending: true });
+
+    if (error) {
+      console.error("❌ Gagal ambil daftar entities:", error.message);
+    } else {
+      setEntities(data as EntityRow[]);
+    }
+  };
+
+  interface EntityRow {
+    id: string;
+    kode: string;
+    nama: string;
+    tipe: string;
+  }
+
+  const [entities, setEntities] = useState<EntityRow[]>([]);
 
   // --- TYPES ---
 interface Armada {
@@ -230,15 +291,35 @@ const handleSelectKodeRute = (item: Rute) => {
   // --- Fetch data ---
   const fetchData = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+
+    if (!entityCtx?.entity_id) {
+      console.warn("❌ fetchData dipanggil tanpa entityCtx");
+      setLoading(false);
+      return;
+    }
+
+    let query = supabase
       .from("surat_jalan")
       .select("*")
       .order("id", { ascending: false });
-    if (error) console.error("Gagal ambil data:", error.message);
-    else {
+
+    // 🔐 FILTER ENTITY
+    if (entityCtx.tipe === "pusat") {
+      const targetEntity = selectedEntityId ?? entityCtx.entity_id;
+      query = query.eq("entity_id", targetEntity);
+    } else {
+      query = query.eq("entity_id", entityCtx.entity_id);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Gagal ambil data:", error.message);
+    } else {
       setData(data as SuratJalanData[]);
       setFiltered(data as SuratJalanData[]);
     }
+
     setLoading(false);
   };
 
@@ -259,9 +340,13 @@ const handleSelectKodeRute = (item: Rute) => {
   };
 
   useEffect(() => {
+    if (!entityCtx?.entity_id) return;
     fetchData();
     fetchDropdownData();
-  }, []);
+    if (entityCtx.tipe === "pusat") {
+      fetchEntities();
+    }
+  }, [entityCtx?.entity_id, selectedEntityId]);
 
   // --- Search Filter ---
   useEffect(() => {
@@ -485,189 +570,157 @@ const handleSelectKodeRute = (item: Rute) => {
     if (isSubmitting) return false; // ⛔ cegah submit ganda
     setIsSubmitting(true);
 
-  const userId = await getCustomUserId();  
+    const userId = await getCustomUserId();
 
-  try {
-    // --- Validasi wajib ---
-    const wajibIsi: Array<{ field: keyof SuratJalanData; label: string }> = [
-      { field: "driver", label: "Driver" },
-      { field: "no_polisi", label: "Nomor Polisi" },
-      { field: "kode_rute", label: "Rute" },
-      { field: "tanggal_berangkat", label: "Tanggal Berangkat" },
-      { field: "tanggal_kembali", label: "Tanggal Kembali" },
-    ];
+    try {
+      // --- Validasi wajib ---
+      const wajibIsi: Array<{ field: keyof SuratJalanData; label: string }> = [
+        { field: "driver", label: "Driver" },
+        { field: "no_polisi", label: "Nomor Polisi" },
+        { field: "kode_rute", label: "Rute" },
+        { field: "tanggal_berangkat", label: "Tanggal Berangkat" },
+        { field: "tanggal_kembali", label: "Tanggal Kembali" },
+      ];
 
-    // === VALIDASI WAJIB KETERANGAN JIKA ADA PERPAL ===
-    const adaPerpal1 =
-      formData.perpal_1x_tanggal &&
-      formData.perpal_1x_tanggal.toString().trim() !== "" &&
-      formData.perpal_1x_rute &&
-      formData.perpal_1x_rute.toString().trim() !== "";
+      // === VALIDASI WAJIB KETERANGAN JIKA ADA PERPAL ===
+      const adaPerpal1 =
+        formData.perpal_1x_tanggal &&
+        formData.perpal_1x_tanggal.toString().trim() !== "" &&
+        formData.perpal_1x_rute &&
+        formData.perpal_1x_rute.toString().trim() !== "";
 
-    const adaPerpal2 =
-      formData.perpal_2x_tanggal &&
-      formData.perpal_2x_tanggal.toString().trim() !== "" &&
-      formData.perpal_2x_rute &&
-      formData.perpal_2x_rute.toString().trim() !== "";
+      const adaPerpal2 =
+        formData.perpal_2x_tanggal &&
+        formData.perpal_2x_tanggal.toString().trim() !== "" &&
+        formData.perpal_2x_rute &&
+        formData.perpal_2x_rute.toString().trim() !== "";
 
-    // Jika ada perpal, wajib isi keterangan
-    if ((adaPerpal1 || adaPerpal2) && (!formData.keterangan || formData.keterangan.trim() === "")) {
-      alert("❌ Wajib mengisi KETERANGAN karena ada Perpal.");
-      return false;
-    }
-
-    for (const { field, label } of wajibIsi) {
-      const value = formData[field];
-      if (!value || value.toString().trim() === "") {
-        alert(`❌ ${label} wajib diisi sebelum menyimpan.`);
-        return false;
-      }
-    }
-
-    // ✅ Validasi format nomor SJ
-    if (!/^SJ\d{3}-\d{4}$/.test(formData.no_surat_jalan)) {
-      alert("Format nomor surat jalan tidak valid!");
-      return false;
-    }
-
-    // --- Bersihkan data numeric sesuai kolom baru ---
-    const rawData = Object.fromEntries(
-      Object.entries(formData).filter(([key]) => key !== "perpalAktif")
-    ) as Partial<SuratJalanData>;
-
-    let cleanedData: Partial<SuratJalanData> = {
-      ...rawData,
-      km_berangkat: parseNumber(formData.km_berangkat),
-      km_kembali: parseNumber(formData.km_kembali),
-      snack_berangkat: parseNumber(formData.snack_berangkat),
-      snack_kembali: parseNumber(formData.snack_kembali),
-    };
-
-    cleanedData = cleanPerpalFields(cleanedData);
-
-    if (isUsedInPremi) {
-      cleanedData.perpal_1x_tanggal = null;
-      cleanedData.perpal_1x_rute = null;
-      cleanedData.perpal_1x_keterangan = null;
-      cleanedData.perpal_2x_tanggal = null;
-      cleanedData.perpal_2x_rute = null;
-      cleanedData.perpal_2x_keterangan = null;
-    }
-
-    // Bersihkan angka
-  const numericFields: Array<keyof SuratJalanData> = [
-    "km_berangkat",
-    "km_kembali",
-    "snack_berangkat",
-    "snack_kembali",
-  ];
-
-    numericFields.forEach((f) => {
-      const key = f as keyof SuratJalanData;
-      const val = cleanedData[key];
-      const parsed =
-        val === "" || val === undefined || val === null
-          ? null
-          : Number(String(val).replace(/[^\d.-]/g, ""));
-      // set ke field yang sesuai (tidak selalu km_berangkat)
-      (cleanedData as Partial<SuratJalanData>)[key] = Number.isNaN(parsed) ? undefined : parsed;
-    });
-
-    // --- Perpal: biarkan user menyimpan 1x dan/atau 2x secara bersamaan ---
-    // Jika sebuah perpal tidak diisi (kosong/undefined/""), set ke null untuk DB.
-    // Jika diisi, biarkan nilainya apa adanya.
-    const isFilled = (v: unknown) =>
-      v !== undefined && v !== null && String(v).toString().trim() !== "";
-
-    // perpal 1x
-    if (!isFilled(cleanedData.perpal_1x_tanggal) || !isFilled(cleanedData.perpal_1x_rute)) {
-      // tidak lengkap => simpan sebagai null
-      cleanedData.perpal_1x_tanggal = null;
-      cleanedData.perpal_1x_rute = null;
-      cleanedData.perpal_1x_keterangan =
-        cleanedData.perpal_1x_keterangan && String(cleanedData.perpal_1x_keterangan).trim() !== ""
-          ? cleanedData.perpal_1x_keterangan
-          : null;
-    } else {
-      // nilai valid: biarkan apa adanya (pastikan tipe string)
-      cleanedData.perpal_1x_tanggal = String(cleanedData.perpal_1x_tanggal);
-      cleanedData.perpal_1x_rute = String(cleanedData.perpal_1x_rute);
-      if (!isFilled(cleanedData.perpal_1x_keterangan)) cleanedData.perpal_1x_keterangan = null;
-    }
-
-    // perpal 2x
-    if (!isFilled(cleanedData.perpal_2x_tanggal) || !isFilled(cleanedData.perpal_2x_rute)) {
-      cleanedData.perpal_2x_tanggal = null;
-      cleanedData.perpal_2x_rute = null;
-      cleanedData.perpal_2x_keterangan =
-        cleanedData.perpal_2x_keterangan && String(cleanedData.perpal_2x_keterangan).trim() !== ""
-          ? cleanedData.perpal_2x_keterangan
-          : null;
-    } else {
-      cleanedData.perpal_2x_tanggal = String(cleanedData.perpal_2x_tanggal);
-      cleanedData.perpal_2x_rute = String(cleanedData.perpal_2x_rute);
-      if (!isFilled(cleanedData.perpal_2x_keterangan)) cleanedData.perpal_2x_keterangan = null;
-    }
-
-    // --- Simpan atau update ---
-    const isEdit = formData.id && Number(formData.id) !== 0;
-    let finalNomor = formData.no_surat_jalan?.trim();
-    let dbError = null;
-
-    if (isEdit) {
-      // === MODE EDIT ===
-      const { error } = await supabase
-        .from("surat_jalan")
-        .update({ ...cleanedData, no_surat_jalan: finalNomor, user_id: userId, })
-        .eq("id", formData.id);
-
-      dbError = error;
-    } else {
-      // === MODE TAMBAH BARU ===
-      delete cleanedData.id;
-
-      const result = await insertWithAutoNomor({
-        table: "surat_jalan",
-        prefix: "SJ",
-        nomorField: "no_surat_jalan",
-        data: {
-          ...cleanedData,
-          user_id: userId,
-        },
-        monthlyReset: true,   // ✅ reset per bulan
-        resetAfterMax: false, // ✅ tidak perlu reset setelah 999
-        digitCount: 3,        // ✅ agar bisa sampai SJ999
-      });
-
-      if (!result.success) {
-        alert("❌ Gagal menyimpan: " + result.error);
+      if ((adaPerpal1 || adaPerpal2) && (!formData.keterangan || formData.keterangan.trim() === "")) {
+        alert("❌ Wajib mengisi KETERANGAN karena ada Perpal.");
         return false;
       }
 
-      finalNomor = result.nomor!;
-    }
+      for (const { field, label } of wajibIsi) {
+        const value = formData[field];
+        if (!value || value.toString().trim() === "") {
+          alert(`❌ ${label} wajib diisi sebelum menyimpan.`);
+          return false;
+        }
+      }
 
-    if (dbError) {
-      alert("❌ Gagal menyimpan: " + dbError.message);
-      return false;
-    }
-    
-    alert(`✅ Surat Jalan ${finalNomor} berhasil disimpan.`);
-    setFormData((prev) => ({
-      ...prev,
-      no_surat_jalan: finalNomor, // ⬅️ update state agar bisa dipakai di onSubmit
-    }));
-    setShowForm(false);
-    fetchData();
-    return true;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    alert("Terjadi kesalahan: " + message);
-    return false;
-  } finally {
-    setIsSubmitting(false); // ✅ kunci dibuka setelah selesai
-  }
-};
+      // --- Bersihkan data numeric sesuai kolom baru ---
+      const rawData = Object.fromEntries(
+        Object.entries(formData).filter(([key]) => key !== "perpalAktif")
+      ) as Partial<SuratJalanData>;
+
+      let cleanedData: Partial<SuratJalanData> = {
+        ...rawData,
+        km_berangkat: parseNumber(formData.km_berangkat),
+        km_kembali: parseNumber(formData.km_kembali),
+        snack_berangkat: parseNumber(formData.snack_berangkat),
+        snack_kembali: parseNumber(formData.snack_kembali),
+      };
+
+      cleanedData = cleanPerpalFields(cleanedData);
+
+      if (isUsedInPremi) {
+        cleanedData.perpal_1x_tanggal = null;
+        cleanedData.perpal_1x_rute = null;
+        cleanedData.perpal_1x_keterangan = null;
+        cleanedData.perpal_2x_tanggal = null;
+        cleanedData.perpal_2x_rute = null;
+        cleanedData.perpal_2x_keterangan = null;
+      }
+
+      // --- Simpan atau update ---
+      const isEdit = formData.id && Number(formData.id) !== 0;
+      let finalNomor = formData.no_surat_jalan?.trim();
+      let dbError = null;
+
+      if (isEdit) {
+        // === MODE EDIT ===
+        const { error } = await supabase
+          .from("surat_jalan")
+          .update({
+            ...cleanedData,
+            no_surat_jalan: finalNomor,
+            user_id: userId,
+            entity_id: formData.entity_id, // ✅ tetap pakai entity_id asli dari row
+          })
+          .eq("id", formData.id);
+
+        dbError = error;
+      } else {
+        // === MODE TAMBAH BARU ===
+        delete cleanedData.id;
+
+        // tentukan entity target (id)
+        const targetEntity =
+          entityCtx?.tipe === "pusat" && selectedEntityId
+            ? selectedEntityId
+            : entityCtx?.entity_id;
+
+        // tentukan prefix
+        let outletPrefix = "SJ";
+        if (!entityCtx) {
+          alert("Entity context belum siap");
+          return false;
+        }
+        if (entityCtx?.tipe === "outlet") {
+          outletPrefix = entityCtx?.kode ? `${entityCtx.kode}-SJ` : "SJ";
+        } else {
+          const targetId = selectedEntityId ?? entityCtx.entity_id;
+          if (targetId !== entityCtx.entity_id) {
+            const ent = entities.find((e) => e.id === targetId);
+            outletPrefix = ent?.kode ? `${ent.kode}-SJ` : "SJ";
+          } else {
+            outletPrefix = "SJ";
+          }
+        }
+
+        const result = await insertWithAutoNomor({
+          table: "surat_jalan",
+          prefix: outletPrefix,
+          nomorField: "no_surat_jalan",
+          data: {
+            ...cleanedData,
+            user_id: userId,
+            entity_id: targetEntity,
+          },
+          monthlyReset: true,
+          resetAfterMax: false,
+          digitCount: 3,
+        });
+
+        if (!result.success) {
+          alert("❌ Gagal menyimpan: " + result.error);
+          return false;
+        }
+
+        finalNomor = result.nomor!;
+        } // <-- ini menutup blok else
+
+        if (dbError) {
+          alert("❌ Gagal menyimpan: " + dbError.message);
+          return false;
+        }
+
+        alert(`✅ Surat Jalan ${finalNomor} berhasil disimpan.`);
+        setFormData((prev) => ({
+          ...prev,
+          no_surat_jalan: finalNomor,
+        }));
+        setShowForm(false);
+        fetchData();
+        return true;
+        } catch (err: unknown) {   // <-- tambahkan catch
+          const message = err instanceof Error ? err.message : String(err);
+          alert("Terjadi kesalahan: " + message);
+          return false;
+        } finally {                // <-- tambahkan finally
+          setIsSubmitting(false);
+        }
+        };
 
   // --- Escape key untuk tutup form ---
  useEffect(() => {
@@ -775,6 +828,14 @@ const handleSelectKodeRute = (item: Rute) => {
     setIsLocked(false);            // reset status kunci
     setShowForm(false);            // sembunyikan pop-up
     };
+
+  if (loadingCtx) {
+      return <div className="p-4 text-gray-600">Memuat Data Cabang...</div>;
+    }
+
+  if (!customUser || !entityCtx) {
+      return <div className="p-4 text-red-600">Entity atau user tidak valid</div>;
+    }
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -1397,13 +1458,34 @@ const handleSelectKodeRute = (item: Rute) => {
           <button
             onClick={async () => {
               try {
-                // 🔹 Panggil fungsi auto nomor
+                if (!entityCtx?.entity_id) {
+                  alert("Konteks entity belum siap. Coba reload atau login ulang.");
+                  return;
+                }
+
+                let outletPrefix = "SJ";
+                if (entityCtx.tipe === "outlet") {
+                  // outlet login → pakai kode outlet sendiri
+                  outletPrefix = entityCtx.kode ? `${entityCtx.kode}-SJ` : "SJ";
+                } else {
+                  // pusat login → cek filter
+                  const targetId = selectedEntityId ?? entityCtx.entity_id;
+                  if (targetId !== entityCtx.entity_id) {
+                    // filter menunjuk outlet → cari kode outlet dari daftar entities
+                    const ent = entities.find((e) => e.id === targetId);
+                    outletPrefix = ent?.kode ? `${ent.kode}-SJ` : "SJ";
+                  } else {
+                    // filter pusat → tanpa kode
+                    outletPrefix = "SJ";
+                  }
+                }
+
                 const result = await insertWithAutoNomor({
                   table: "surat_jalan",
-                  prefix: "SJ",
+                  prefix: outletPrefix,
                   nomorField: "no_surat_jalan",
-                  data: {}, // belum insert, hanya preview
-                  previewOnly: true, // hanya generate nomor
+                  data: {},
+                  previewOnly: true,
                 });
 
                 if (!result.success) {
@@ -1411,7 +1493,6 @@ const handleSelectKodeRute = (item: Rute) => {
                   return;
                 }
 
-                // 🔹 Tampilkan nomor baru ke form
                 setFormData({
                   ...defaultFormData,
                   no_surat_jalan: result.nomor!,
@@ -1448,6 +1529,25 @@ const handleSelectKodeRute = (item: Rute) => {
           </button>
         </div>
 
+        {/* -- TAMPILKAN -- */}
+        {entityCtx?.tipe === "pusat" && (
+        <div className="gap-3 flex items-center border p-2 rounded bg-gray-100">
+          <label className="mr-2 font-semibold">Filter Outlet:</label>
+          <select
+            value={selectedEntityId ?? entityCtx.entity_id}
+            onChange={(e) => setSelectedEntityId(e.target.value)}
+            className="border rounded px-2"
+          >
+            {/* default pusat */}
+            {entities.map((ent) => (
+              <option key={ent.id} value={ent.id}>
+                {ent.kode} - {ent.nama}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
         <div className="relative w-[320px]">
           <input
             type="text"
@@ -1459,7 +1559,7 @@ const handleSelectKodeRute = (item: Rute) => {
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 z-10"
             >
               ✕
             </button>
@@ -1469,7 +1569,7 @@ const handleSelectKodeRute = (item: Rute) => {
 
       {/* TABEL */}
       <div className="w-full pr-8">
-        <table className="min-w-[1590px] table-auto border border-gray-300 text-sm">
+        <table className="min-w-[1640px] table-auto border border-gray-300 text-sm">
           <thead className="bg-gray-400 text-white">
             <tr>
               <th className="p-2 border text-center w-[40px]">
@@ -1488,7 +1588,7 @@ const handleSelectKodeRute = (item: Rute) => {
               <th className="border p-2 text-centerw-[90px]">Tanggal Kembali</th>
               <th className="border p-2 text-center w-[90px]">Driver</th>
               <th className="border p-2 text-center w-[90px]">Crew</th>
-              <th className="border p-2 text-center w-[100px]">No Surat Jalan</th>
+              <th className="border p-2 text-center w-[150px]">No Surat Jalan</th>
               <th className="border p-2 text-center w-[60px]">Kode Unit</th>
               <th className="border p-2 text-center w-[90px]">No Polisi</th>
               <th className="border p-2 text-center w-[180px]">Kode Rute</th>

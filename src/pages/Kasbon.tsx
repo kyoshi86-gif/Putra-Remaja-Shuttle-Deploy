@@ -6,6 +6,7 @@ import { exportTableToExcel } from "../utils/exportTableToExcel";
 import { insertWithAutoNomor } from "../lib/dbUtils";
 import { getCustomUserId } from "../lib/authUser";
 import { toDate } from "./SuratJalan";
+import { getEntityContext, type EntityContext } from "../lib/entityContext";
 
 
 interface KasbonRow {
@@ -43,6 +44,43 @@ const extractNumber = (value: string) => {
 
 // ---------- component ----------
 export default function Kasbon() {
+  const [entityCtx, setEntityCtx] = useState<EntityContext | null>(null);
+const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+const [entities, setEntities] = useState<{id:string; kode:string; nama:string; tipe:string}[]>([]);
+
+useEffect(() => {
+ // ambil entity context dari localStorage
+  const storedUser = localStorage.getItem("custom_user");
+    if (!storedUser) return;
+    try {
+      const parsed = JSON.parse(storedUser);
+      getEntityContext(parsed.entity_id).then((ctx) => {
+        setEntityCtx(ctx);
+        setSelectedEntityId(ctx.entity_id); // ✅ default outlet sesuai user
+      });
+    } catch (err) {
+      console.error("Gagal parse custom_user:", err);
+    }
+  }, []);
+
+  const fetchEntities = async () => {
+    const { data, error } = await supabase
+      .from("entities")
+      .select("id, kode, nama, tipe")
+      .order("nama", { ascending: true });
+
+    if (!error && data) {
+      setEntities(data as {id:string; kode:string; nama:string; tipe:string}[]);
+    }
+  };
+
+  useEffect(() => {
+    if (entityCtx?.tipe === "pusat") {
+      fetchEntities();   // ✅ dipanggil di sini
+      fetchData();
+    }
+  }, [entityCtx, selectedEntityId]);
+
   // data
   const [data, setData] = useState<KasbonRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -93,15 +131,19 @@ export default function Kasbon() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: rows, error } = await supabase
-        .from("kasbon")
-        .select("*")
+      const targetEntity = selectedEntityId ?? entityCtx?.entity_id;
+      let query = supabase.from("kasbon").select("*")
         .order("tanggal", { ascending: false })
         .order("id", { ascending: false });
 
+      if (targetEntity) {
+        query = query.eq("entity_id", targetEntity); // ✅ filter outlet
+      }
+
+      const { data: rows, error } = await query;
       if (error) throw error;
       setData((rows || []) as KasbonRow[]);
-    } catch (err: unknown) {
+    } catch (err) {
       console.error("Gagal ambil kasbon:", err);
       alert("Gagal ambil data kasbon. Cek console.");
     } finally {
@@ -209,10 +251,12 @@ export default function Kasbon() {
         alert("Tanggal dan Nominal Kasbon wajib diisi.");
         return;
       }
+
       const currentUser = String(await getCustomUserId() || "");
+      const currentEntity = selectedEntityId ?? entityCtx?.entity_id;
 
       if (isEdit && formData.id) {
-        // update header
+        // update header kasbon
         const { error } = await supabase
           .from("kasbon")
           .update({
@@ -220,13 +264,15 @@ export default function Kasbon() {
             waktu: formData.waktu,
             keterangan: formData.keterangan,
             jumlah_kasbon: Number(formData.jumlah_kasbon),
+            entity_id: currentEntity, // ✅ simpan entity juga saat update
             updated_at: new Date().toISOString(),
           })
-          .eq("id", formData.id);
+          .eq("id", formData.id)
+          .eq("entity_id", currentEntity); // ✅ filter entity agar tidak update outlet lain
 
         if (error) throw error;
 
-        // update kas_harian related debet row(s) that reference this kasbon (sumber_tabel = 'kasbon' and bukti_transaksi = no_kasbon)
+        // update kas_harian terkait
         const { error: upkErr } = await supabase
           .from("kas_harian")
           .update({
@@ -234,10 +280,12 @@ export default function Kasbon() {
             waktu: formData.waktu,
             keterangan: formData.keterangan,
             nominal: Number(formData.jumlah_kasbon),
+            entity_id: currentEntity, // ✅ ikut simpan entity
             updated_at: new Date().toISOString(),
           })
           .eq("sumber_tabel", "kasbon")
           .eq("bukti_transaksi", formData.no_kasbon);
+          
 
         if (upkErr) console.warn("Gagal update kas_harian kasbon:", upkErr.message);
 
@@ -251,7 +299,7 @@ export default function Kasbon() {
             prefix: "CA",
             nomorField: "no_kasbon",
             data: {},
-            previewOnly: true, // ⬅ hanya generate nomor saja!
+            previewOnly: true,
             tanggal: formData.tanggal,
             monthlyReset: true,
           });
@@ -260,7 +308,7 @@ export default function Kasbon() {
           finalNo = res.nomor!;
         }
 
-        // insert header
+        // insert header kasbon
         const { data: insertData, error } = await supabase
           .from("kasbon")
           .insert({
@@ -271,7 +319,8 @@ export default function Kasbon() {
             jumlah_kasbon: Number(formData.jumlah_kasbon),
             jumlah_realisasi: 0,
             status: "BELUM REALISASI",
-            user_id: String(currentUser),
+            user_id: currentUser,
+            entity_id: currentEntity, // ✅ simpan entity
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -292,9 +341,10 @@ export default function Kasbon() {
           nominal: Number(formData.jumlah_kasbon),
           saldo_awal: 0,
           saldo_akhir: 0,
-          user_id: String(currentUser),
+          user_id: currentUser,
           sumber_id: newKasbon.id,
           sumber_tabel: "kasbon",
+          entity_id: currentEntity, // ✅ ikut simpan entity
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -308,7 +358,6 @@ export default function Kasbon() {
       setShowForm(false);
       setFormData(defaultForm);
       fetchData();
-      // refresh kas harian consumer
       window.dispatchEvent(new Event("refresh-kas-harian"));
     } catch (err: unknown) {
       console.error(err);
@@ -347,7 +396,8 @@ export default function Kasbon() {
       await supabase
         .from("kasbon_realisasi")
         .delete()
-        .in("kasbon_id", kasbonIds);
+        .in("kasbon_id", kasbonIds)
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       // 4️⃣ Hapus kas_harian → realisasi item
       if (realIds.length > 0) {
@@ -355,7 +405,8 @@ export default function Kasbon() {
           .from("kas_harian")
           .delete()
           .eq("sumber_tabel", "kasbon_realisasi_item")
-          .in("sumber_id", realIds);
+          .in("sumber_id", realIds)
+          .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
       }
 
       // 5️⃣ Hapus kas_harian → realisasi header
@@ -363,24 +414,27 @@ export default function Kasbon() {
         .from("kas_harian")
         .delete()
         .eq("sumber_tabel", "kasbon_realisasi_header")
-        .in("sumber_id", kasbonIds);
+        .in("sumber_id", kasbonIds)
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       // 6️⃣ Hapus kas_harian → sisa kasbon
       await supabase
         .from("kas_harian")
         .delete()
         .eq("sumber_tabel", "kasbon_realisasi_sisa")
-        .in("sumber_id", kasbonIds);
+        .in("sumber_id", kasbonIds)
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       // 7️⃣ Hapus kas_harian → header kasbon (kredit awal)
       await supabase
         .from("kas_harian")
         .delete()
         .eq("sumber_tabel", "kasbon")
-        .in("sumber_id", kasbonIds);
+        .in("sumber_id", kasbonIds)
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       // 8️⃣ Hapus kasbon (header)
-      await supabase.from("kasbon").delete().in("id", kasbonIds);
+      await supabase.from("kasbon").delete().in("id", kasbonIds).eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       alert("Kasbon berhasil dihapus.");
 
@@ -543,27 +597,30 @@ export default function Kasbon() {
       const oldIds = oldRows?.map((x) => x.id) || [];
 
       // hapus realisasi lama
-      await supabase.from("kasbon_realisasi").delete().eq("kasbon_id", kasbonId);
+      await supabase.from("kasbon_realisasi").delete().eq("kasbon_id", kasbonId).eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       // hapus kas_harian realisasi lama
       await supabase
         .from("kas_harian")
         .delete()
         .in("sumber_id", oldIds)
-        .eq("sumber_tabel", "kasbon_realisasi_item");
+        .eq("sumber_tabel", "kasbon_realisasi_item")
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       // hapus header kasbon & sisa kasbon lama
       await supabase
         .from("kas_harian")
         .delete()
         .eq("sumber_tabel", "kasbon_realisasi_header")
-        .eq("sumber_id", kasbonId);
+        .eq("sumber_id", kasbonId)
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       await supabase
         .from("kas_harian")
         .delete()
         .eq("sumber_tabel", "kasbon_realisasi_sisa")
-        .eq("sumber_id", kasbonId);
+        .eq("sumber_id", kasbonId)
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       // hitung kasbon - realisasi
       const debetKasbon = Math.min(jumlahKasbon, totalRealisasi);
@@ -582,6 +639,7 @@ export default function Kasbon() {
         user_id: String(userId),
         sumber_tabel: "kasbon_realisasi_header",
         sumber_id: kasbonId,
+        entity_id: selectedEntityId ?? entityCtx?.entity_id, // ✅ simpan entity
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
       });
@@ -617,6 +675,7 @@ export default function Kasbon() {
             keterangan: r.keterangan,
             nominal: r.nominal,
             no_kasbon: kasbonNo,
+            entity_id: selectedEntityId ?? entityCtx?.entity_id, // ✅ simpan entity
             created_at: now.toISOString(),
             updated_at: now.toISOString(),
           })
@@ -633,6 +692,7 @@ export default function Kasbon() {
           user_id: String(userId),
           sumber_tabel: "kasbon_realisasi_item",
           sumber_id: inserted.id,
+          entity_id: selectedEntityId ?? entityCtx?.entity_id, // ✅ simpan entity
           created_at: now.toISOString(),
           updated_at: now.toISOString(),
         });
@@ -653,7 +713,8 @@ export default function Kasbon() {
               : "SELESAI",
           updated_at: now.toISOString(),
         })
-        .eq("id", kasbonId);
+        .eq("id", kasbonId)
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
 
       alert("Realisasi berhasil disimpan.");
       setShowRealisasi(false);
@@ -750,6 +811,24 @@ export default function Kasbon() {
             Realisasi
           </button>
         </div>
+
+        {/* FILTER OUTLET */}
+        {entityCtx?.tipe === "pusat" && (
+          <div className="gap-3 flex items-center border p-2 rounded bg-gray-100">
+            <label className="mr-2 font-semibold">Filter Outlet</label>
+            <select
+              value={selectedEntityId ?? ""}
+              onChange={(e) => setSelectedEntityId(e.target.value || null)}
+              className="border rounded px-2 py-1"
+            >
+              {entities.map((ent) => (
+                <option key={ent.id} value={ent.id}>
+                  {ent.nama}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="w-[320px]">
           <input
