@@ -541,13 +541,15 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
           table: "uang_saku_driver",
           prefix: outletPrefix,
           nomorField: "no_uang_saku",
-          data: {}, // jangan insert, hanya preview nomor
-          previewOnly: true, // ✅ hanya generate nomor
+          data: { ...cleanedData, entity_id: targetEntity }, // ✅ sertakan entity_id
+          previewOnly: false, // ✅ generate & insert nomor
           monthlyReset: false,
           resetAfterMax: true,
           maxSeq: 999,
           digitCount: 3,
+          entityId: targetEntity, // ✅ filter per entity
         });
+        
         if (!result.success || !result.nomor) {
           alert("❌ Gagal menyimpan: " + result.error);
           return false;
@@ -776,25 +778,34 @@ const handleSelectSj = (sj: SuratJalanRow) => {
       setShowDropdown(false);
       setHighlightedIndex(-1);
 
-      // ✅ Tentukan entity target
+      // ✅ Tentukan entity target sekali di awal (di handleSubmit & handleTambah)
       const targetEntity =
         entityCtx?.tipe === "pusat" && selectedEntityId
           ? selectedEntityId
           : entityCtx?.entity_id;
 
-      // ✅ Tentukan prefix nomor
-      let outletPrefix = "US-"; // default tanpa kode
-      if (entityCtx?.tipe === "outlet") {
-        outletPrefix = `${entityCtx.kode}-US-`;
-      } else if (selectedEntityId && selectedEntityId !== entityCtx?.entity_id) {
-        const ent = entities.find((e) => e.id === selectedEntityId);
-        outletPrefix = ent?.kode ? `${ent.kode}-US-` : "US-";
+      // Validasi entity
+      if (!targetEntity) {
+        alert("❌ Entity target belum siap. Pilih outlet atau tunggu context ter-load.");
+        setIsSubmitting(false);
+        return;
       }
 
+      // Prefix konsisten
+      let outletPrefix = "US";
+      if (entityCtx?.tipe === "outlet") {
+        outletPrefix = `${entityCtx.kode}-US`; // ✅ tambahkan strip
+      } else if (selectedEntityId && selectedEntityId !== entityCtx?.entity_id) {
+        const ent = entities.find((e) => e.id === selectedEntityId);
+        outletPrefix = ent?.kode ? `${ent.kode}-US` : "US";
+      }
+
+      // Generate nomor preview
       const { success, nomor, error } = await insertWithAutoNomor({
         table: "uang_saku_driver",
-        prefix: outletPrefix, // ✅ pakai prefix sesuai filter
+        prefix: outletPrefix,
         data: { entity_id: targetEntity },
+        entityId: targetEntity, // ✅ filter per entitas
         nomorField: "no_uang_saku",
         previewOnly: true,
       });

@@ -5,6 +5,7 @@ interface InsertWithAutoNomorParams {
   prefix: string;
   data: Record<string, unknown>;
   nomorField: string;
+  entityId?: string;
   previewOnly?: boolean;
   tanggal?: string; // opsional
   excludeFields?: string[];
@@ -19,6 +20,7 @@ export async function insertWithAutoNomor({
   prefix,
   data,
   nomorField,
+  entityId,
   previewOnly = false,
   tanggal,
   excludeFields = [],
@@ -35,20 +37,26 @@ export async function insertWithAutoNomor({
     const periodPart = monthlyReset ? `${mm}${yy}` : `${mm}${yy}`; // tetap sertakan agar unik
     let nextSeq = 1;
 
-    // 🔍 Ambil nomor terakhir
-    const { data: lastRecords, error } = await supabase
+    // Ambil nomor terakhir berdasarkan prefix + entity_id
+    let query = supabase
       .from(table)
       .select(nomorField)
-      .like(nomorField, `${prefix}%${periodPart}`)
+      .like(nomorField, `${prefix}%`)   // ✅ cukup prefix saja
+      .eq("entity_id", entityId)        // ✅ filter per entitas
       .order(nomorField, { ascending: false })
       .limit(1);
 
+    if (entityId) {
+      query = query.eq("entity_id", entityId); // ✅ filter per entitas
+    }
+
+    const { data: lastRecords, error } = await query;
     if (error) return { success: false, error: error.message };
 
-    if (lastRecords?.length > 0 && typeof lastRecords[0] === "object" && lastRecords[0] !== null) {
-      const firstRow = lastRecords[0] as Record<string, unknown>;
+    if (lastRecords?.length > 0) {
+      const firstRow = lastRecords[0] as unknown as Record<string, unknown>;
       const lastNomor = String(firstRow[nomorField] ?? "");
-      const match = lastNomor.match(new RegExp(`${prefix}(\\d{${digitCount}})`));
+      const match = lastNomor.match(/US(\d+)-\d{4}/);
       if (match?.[1]) {
         nextSeq = parseInt(match[1]) + 1;
         if (resetAfterMax && nextSeq > maxSeq) nextSeq = 1;
