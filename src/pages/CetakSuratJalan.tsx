@@ -258,7 +258,8 @@ useEffect(() => {
       </div>
 
       {/* Snack & KM */}
-      <div className="grid grid-cols-2 gap-2 mb-2 text-[11px]">
+      <div className="grid grid-cols-[1fr_1fr] gap-2 mb-2 text-[11px]">
+        {/* Snack & KM lebih lebar */}
         <table className="w-full border text-[11px]">
           <thead>
               <tr className="bg-gray-100">
