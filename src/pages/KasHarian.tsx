@@ -223,7 +223,7 @@ function injectSaldoKeData(
           .select("*")
           .order("tanggal", { ascending: true })
           .order("waktu", { ascending: true })
-          .order("id", { ascending: true })
+          .order("urutan", { ascending: true })
           .range(from, to);
 
         // 🔐 FILTER ENTITY
