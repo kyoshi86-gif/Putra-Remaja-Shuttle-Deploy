@@ -50,6 +50,12 @@ export const toDate = (v: unknown): Date | "" => {
   return isNaN(d.getTime()) ? "" : d;
 };
 
+// --- helper untuk normalisasi tanggal ---
+const normalizeDate = (d: string | Date) => {
+  const dateObj = new Date(d);
+  return dateObj.toISOString().slice(0, 10); // YYYY-MM-DD
+};
+
 export default function KasHarian() {
   // Data
   const [data, setData] = useState<KasRow[]>([]);
@@ -866,7 +872,7 @@ useEffect(() => {
 
       // 5️⃣ Susun payload
       const payload: KasHarianPayload = {
-        tanggal: formData.tanggal,
+        tanggal: normalizeDate(formData.tanggal),
         waktu: formData.waktu ?? "00:00:00",
         bukti_transaksi: formData.bukti_transaksi?.trim() || "",
         keterangan: formData.keterangan || "",
@@ -903,9 +909,16 @@ useEffect(() => {
           prefix: outletPrefix,
           data: { ...payload, entity_id: targetEntity ?? null },
           nomorField: "bukti_transaksi",
-          tanggal: String(formData.tanggal),
+          tanggal: normalizeDate(formData.tanggal), // ✅ normalisasi tanggal
         });
         if (!result.success) throw new Error(result.error);
+
+        // setelah auto nomor → insert payload
+        payload.bukti_transaksi = result.nomor ?? "";
+        const { error: insertError } = await supabase
+          .from("kas_harian")
+          .insert(payload);
+        if (insertError) throw insertError;
 
         alert(`✅ Data berhasil disimpan\nNo Bukti: ${result.nomor}`);
       } else {
@@ -913,18 +926,24 @@ useEffect(() => {
         if (buktiNomor && formMode !== "edit") {
           buktiNomor = `${outletPrefix}${buktiNomor}`;
           payload.bukti_transaksi = buktiNomor;
+
+          const { error: insertError } = await supabase
+            .from("kas_harian")
+            .insert(payload);
+          if (insertError) throw insertError;
+
+          alert(`✅ Data berhasil disimpan\nNo Bukti: ${buktiNomor}`);
         }
 
         if (formMode === "edit" && formData.id) {
-          payload.entity_id =
-            typeof formData.entity_id === "string"
-              ? formData.entity_id
-              : targetEntity ?? null;
+          // pastikan entity_id selalu terisi
+          payload.entity_id = targetEntity;
 
           const { error } = await supabase
             .from("kas_harian")
             .update(payload)
-            .eq("id", formData.id);
+            .eq("id", formData.id)
+            .eq("entity_id", targetEntity); // ✅ filter entity juga
 
           if (error) throw error;
           alert("✅ Transaksi berhasil diupdate.");

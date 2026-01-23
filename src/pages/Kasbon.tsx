@@ -317,7 +317,7 @@ useEffect(() => {
             tanggal: formData.tanggal,
             waktu: formData.waktu,
             no_kasbon: finalNo,
-            keterangan: formData.keterangan,
+            keterangan: `Kasbon: ${formData.keterangan || ""}`,
             jumlah_kasbon: Number(formData.jumlah_kasbon),
             jumlah_realisasi: 0,
             status: "BELUM REALISASI",
@@ -590,9 +590,17 @@ useEffect(() => {
       const userId = await getCustomUserId();
 
       // ambil tanggal realisasi dari state, fallback ke hari ini
-      const tanggalHeader: string = tanggalRealisasi && tanggalRealisasi.trim() !== ""
-        ? tanggalRealisasi
-        : now.toISOString().slice(0, 10);
+      const tanggalHeader: string =
+        tanggalRealisasi && tanggalRealisasi.trim() !== ""
+          ? tanggalRealisasi
+          : now.toISOString().slice(0, 10);
+
+      // pastikan entity ada
+      const targetEntity = selectedEntityId ?? entityCtx?.entity_id;
+      if (!targetEntity) {
+        alert("Entity tidak ditemukan, silakan login ulang.");
+        return;
+      }
 
       // ambil realisasi lama
       const { data: oldRows } = await supabase
@@ -603,7 +611,7 @@ useEffect(() => {
       const oldIds = oldRows?.map((x) => x.id) || [];
 
       // hapus realisasi lama
-      await supabase.from("kasbon_realisasi").delete().eq("kasbon_id", kasbonId).eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
+      await supabase.from("kasbon_realisasi").delete().eq("kasbon_id", kasbonId).eq("entity_id", targetEntity);
 
       // hapus kas_harian realisasi lama
       await supabase
@@ -611,30 +619,17 @@ useEffect(() => {
         .delete()
         .in("sumber_id", oldIds)
         .eq("sumber_tabel", "kasbon_realisasi_item")
-        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
+        .eq("entity_id", targetEntity);
 
       // hapus header kasbon & sisa kasbon lama
-      await supabase
-        .from("kas_harian")
-        .delete()
-        .eq("sumber_tabel", "kasbon_realisasi_header")
-        .eq("sumber_id", kasbonId)
-        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
-
-      await supabase
-        .from("kas_harian")
-        .delete()
-        .eq("sumber_tabel", "kasbon_realisasi_sisa")
-        .eq("sumber_id", kasbonId)
-        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
+      await supabase.from("kas_harian").delete().eq("sumber_tabel", "kasbon_realisasi_header").eq("sumber_id", kasbonId).eq("entity_id", targetEntity);
+      await supabase.from("kas_harian").delete().eq("sumber_tabel", "kasbon_realisasi_sisa").eq("sumber_id", kasbonId).eq("entity_id", targetEntity);
 
       // hitung kasbon - realisasi
       const debetKasbon = Math.min(jumlahKasbon, totalRealisasi);
       const sisaKasbon = Math.max(jumlahKasbon - totalRealisasi, 0);
 
-      // ============================
       // 1️⃣ INSERT KASBON (DEBET)
-      // ============================
       await supabase.from("kas_harian").insert({
         tanggal: tanggalHeader,
         waktu: waktuNow,
@@ -645,7 +640,7 @@ useEffect(() => {
         user_id: String(userId),
         sumber_tabel: "kasbon_realisasi_header",
         sumber_id: kasbonId,
-        entity_id: selectedEntityId ?? entityCtx?.entity_id, // ✅ simpan entity
+        entity_id: targetEntity,
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
       });
@@ -662,15 +657,13 @@ useEffect(() => {
           user_id: String(userId),
           sumber_tabel: "kasbon_realisasi_sisa",
           sumber_id: kasbonId,
-          entity_id: selectedEntityId ?? entityCtx?.entity_id, // ✅ WAJIB: ikut simpan entity
+          entity_id: targetEntity,
           created_at: now.toISOString(),
           updated_at: now.toISOString(),
         });
       }
 
-      // ============================
       // 3️⃣ INSERT REALISASI (KREDIT)
-      // ============================
       for (const r of realisasiRows) {
         const { data: inserted } = await supabase
           .from("kasbon_realisasi")
@@ -680,7 +673,7 @@ useEffect(() => {
             keterangan: r.keterangan,
             nominal: r.nominal,
             no_kasbon: kasbonNo,
-            entity_id: selectedEntityId ?? entityCtx?.entity_id, // ✅ simpan entity
+            entity_id: targetEntity,
             created_at: now.toISOString(),
             updated_at: now.toISOString(),
           })
@@ -697,7 +690,7 @@ useEffect(() => {
           user_id: String(userId),
           sumber_tabel: "kasbon_realisasi_item",
           sumber_id: inserted.id,
-          entity_id: selectedEntityId ?? entityCtx?.entity_id, // ✅ simpan entity
+          entity_id: targetEntity,
           created_at: now.toISOString(),
           updated_at: now.toISOString(),
         });
@@ -710,16 +703,11 @@ useEffect(() => {
           jumlah_realisasi: totalRealisasi,
           tanggal_realisasi: tanggalHeader,
           waktu: waktuNow,
-          status:
-            totalRealisasi === 0
-              ? "BELUM REALISASI"
-              : totalRealisasi === jumlahKasbon
-              ? "SELESAI"
-              : "SELESAI",
+          status: totalRealisasi === 0 ? "BELUM REALISASI" : "SELESAI",
           updated_at: now.toISOString(),
         })
         .eq("id", kasbonId)
-        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id); // ✅ filter entity
+        .eq("entity_id", targetEntity);
 
       alert("Realisasi berhasil disimpan.");
       setShowRealisasi(false);
@@ -858,18 +846,18 @@ useEffect(() => {
                   checked={selected.length === paginatedData.length && paginatedData.length > 0}
                 />
               </th>
-              <th className="p-2 border w-[60px]">Aksi</th>
-              <th className="p-2 border">Tanggal</th>
-              <th className="p-2 border">Tanggal Realisasi</th>
-              <th className="p-2 border">Waktu</th>
-              <th className="p-2 border">No Kasbon</th>
-              <th className="p-2 border">Keterangan</th>
-              <th className="p-2 border text-center">Jumlah Kasbon</th>
-              <th className="p-2 border text-center">Jumlah Realisasi</th>
-              <th className="p-2 border text-center">Sisa</th>
-              <th className="p-2 border">Status</th>
-              <th className="p-2 border">User ID</th>
-              <th className="p-2 border">Updated At</th>
+              <th className="p-2 border w-[50px]">Aksi</th>
+              <th className="p-2 border w-[100px]">Tanggal</th>
+              <th className="p-2 border w-[90px]">Tanggal Realisasi</th>
+              <th className="p-2 border w-[70px]">Waktu</th>
+              <th className="p-2 border w-[40px]">No Kasbon</th>
+              <th className="p-2 border w-[500px]">Keterangan</th>
+              <th className="p-2 border text-center w-[100px]">Jumlah Kasbon</th>
+              <th className="p-2 border text-center w-[100px]">Jumlah Realisasi</th>
+              <th className="p-2 border text-center w-[100px]">Sisa</th>
+              <th className="p-2 border w-[70px]">Status</th>
+              <th className="p-2 border w-[30px]">User ID</th>
+              <th className="p-2 border w-[120px]">Updated At</th>
             </tr>
           </thead>
           <tbody>
