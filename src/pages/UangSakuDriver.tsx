@@ -501,6 +501,8 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
             waktu,
             bukti_transaksi: finalNomor,
             keterangan: `Uang Saku Driver ${formData.driver}; ${cleanedData.no_polisi}; ${cleanedData.no_surat_jalan}; ${keberangkatan}; ${rute}`,
+            tanggal_berangkat: formData.tanggal_berangkat,
+            tanggal_kembali: formData.tanggal_kembali,
             jenis_transaksi: "kredit",
             nominal: nominalBaru,              // ✅ overwrite nominal baru
             saldo_awal: saldoAwalLama,
@@ -587,6 +589,8 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
           waktu,
           bukti_transaksi: finalNomor,
           keterangan: `Uang Saku Driver ${formData.driver}; ${formData.no_polisi}; ${formData.no_surat_jalan}; ${keberangkatan}; ${rute}`,
+          tanggal_berangkat: formData.tanggal_berangkat,
+          tanggal_kembali: formData.tanggal_kembali,
           jenis_transaksi: "kredit",
           nominal,
           saldo_awal: saldoAwal,
@@ -875,11 +879,11 @@ const handleSelectSj = (sj: SuratJalanRow) => {
               type="text"
               name="no_uang_saku"
               value={formData.no_uang_saku || ""}
-              readOnly={formData.id === 0} // tambah baru readonly
+              readOnly={true} // kalau pas edit bisa ganti no, pakai {formData.id === 0}
               onChange={(e) =>
                 setFormData({ ...formData, no_uang_saku: e.target.value })
               }
-              className={`w-full border rounded px-3 py-2 ${formData.id === 0 ? "bg-gray-100 cursor-not-allowed" : ""}`}
+              className={`w-full border rounded px-3 py-2 ${true ? "bg-gray-100 cursor-not-allowed" : ""}`}
             />
           </div>
 

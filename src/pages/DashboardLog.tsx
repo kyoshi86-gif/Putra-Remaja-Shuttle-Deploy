@@ -32,6 +32,9 @@ interface LogItem {
   tipe: string;
   data_lama?: Record<string, unknown>;
   data_baru?: Record<string, unknown>;
+  user_name?: string;
+  user_name_lama?: string;
+  user_name_baru?: string;
 }
 
 export default function DashboardLog() {
@@ -58,6 +61,8 @@ export default function DashboardLog() {
   const triggerRef = useRef<HTMLDivElement>(null);
   const [pickerStyle, setPickerStyle] = useState({ top: 0, left: 0 });
 
+  const [userMap, setUserMap] = useState<Map<string, string>>(new Map());
+
   const fetchLogs = async () => {
     setLoading(true);
 
@@ -67,6 +72,7 @@ export default function DashboardLog() {
     let to = pageSize - 1;
     let hasMore = true;
 
+    // 1) Ambil semua log_transaksi dengan paging
     while (hasMore) {
       let query = supabase
         .from("log_transaksi")
@@ -80,7 +86,6 @@ export default function DashboardLog() {
           `user_id.ilike.%${search}%,tabel.ilike.%${search}%,tipe.ilike.%${search}%`
         );
       }
-
       if (filterUser) query = query.ilike("user_id", `%${filterUser}%`);
       if (filterTable && filterTable !== "all") query = query.eq("tabel", filterTable);
       if (filterAction && filterAction !== "all") query = query.eq("tipe", filterAction);
@@ -88,7 +93,6 @@ export default function DashboardLog() {
       // --- Filter range tanggal (WIB → UTC) ---
       const startDate = range[0].startDate;
       const endDate = range[0].endDate;
-
       if (startDate && endDate) {
         const startUTC = new Date(Date.UTC(
           startDate.getFullYear(),
@@ -103,7 +107,6 @@ export default function DashboardLog() {
           23, 59, 59, 999
         ));
 
-        
         if (filterEntity && filterEntity !== "all") {
           query = query.or(`entity_id.eq.${filterEntity},entity_id.is.null`);
         }
@@ -124,7 +127,29 @@ export default function DashboardLog() {
       }
     }
 
-    setLogs(allRows);
+    // 2) Ambil data user sekali saja setelah semua log terkumpul
+    const { data: users } = await supabase
+      .from("custom_users")
+      .select("id, name");
+
+    const map = new Map((users ?? []).map(u => [String(u.id), u.name]));
+    setUserMap(map);
+
+    // 3) Enrich log dengan nama user
+    const enrichedLogs: LogItem[] = allRows.map((log) => {
+      const toKey = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+      const oldId = (log.data_lama as Record<string, unknown> | undefined)?.["user_id"];
+      const newId = (log.data_baru as Record<string, unknown> | undefined)?.["user_id"];
+
+      return {
+        ...log,
+        user_name: map.get(String(log.user_id)) || log.user_id,
+        user_name_lama: oldId ? (map.get(toKey(oldId)) || toKey(oldId)) : undefined,
+        user_name_baru: newId ? (map.get(toKey(newId)) || toKey(newId)) : undefined,
+      };
+    });
+
+    setLogs(enrichedLogs);
     setLoading(false);
   };
 
@@ -208,9 +233,10 @@ export default function DashboardLog() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua</SelectItem>
+                <SelectItem value="surat_jalan">Surat Jalan</SelectItem>
+                <SelectItem value="uang_saku_driver">Uang Saku Driver</SelectItem>
                 <SelectItem value="premi_driver">Premi Driver</SelectItem>
                 <SelectItem value="kas_harian">Kas Harian</SelectItem>
-                <SelectItem value="surat_jalan">Surat Jalan</SelectItem>
               </SelectContent>
             </Select>
 
@@ -311,7 +337,7 @@ export default function DashboardLog() {
                     className="border-b hover:bg-gray-50"
                   >
                     <td className="p-2">{getWIBTimestampFromUTC(row.waktu)}</td>
-                    <td className="p-2">{row.user_id}</td>
+                    <td className="p-2">{userMap.get(String(row.user_id)) || row.user_id}</td>
                     <td className="p-2">{row.tabel}</td>
                     <td className="p-2 font-bold">{row.tipe}</td>
                     <td className="p-2">
@@ -324,13 +350,31 @@ export default function DashboardLog() {
                               const oldData = row.data_lama || {};
                               const newData = row.data_baru || {};
                               const keys = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
-                              let diff = "";
+
+                              // helper normalisasi id ke string aman
+                              const toKey = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+
+                              let html = "";
                               keys.forEach((k) => {
-                                if (oldData[k] !== newData[k]) {
-                                  diff += `- ${k}: ${oldData[k]} → ${newData[k]}\n`;
+                                const oldVal = (oldData as Record<string, unknown>)[k];
+                                const newVal = (newData as Record<string, unknown>)[k];
+
+                                if (oldVal !== newVal) {
+                                  // jika field user_id berubah, tampilkan juga name lama -> baru
+                                  if (k === "user_id") {
+                                    const oldName = userMap.get(toKey(oldVal)) || toKey(oldVal);
+                                    const newName = userMap.get(toKey(newVal)) || toKey(newVal);
+                                    html += `<span class="bg-yellow-200">- name: ${oldName} → ${newName}</span>\n`;
+                                  }
+                                  html += `<span class="bg-yellow-200">- ${k}: ${toKey(oldVal)} → ${toKey(newVal)}</span>\n`;
                                 }
                               });
-                              return diff || "Tidak ada perbedaan";
+                              return (
+                                <pre
+                                  className="whitespace-pre-wrap"
+                                  dangerouslySetInnerHTML={{ __html: html || "Tidak ada perbedaan" }}
+                                />
+                              );
                             })()}
                           </pre>
 

@@ -260,15 +260,17 @@ useEffect(() => {
         const { error } = await supabase
           .from("kasbon")
           .update({
-            tanggal: formData.tanggal,
-            waktu: formData.waktu,
-            keterangan: formData.keterangan,
+            tanggal: formData.tanggal,              // ✅ pakai formData.tanggal
+            waktu: formData.waktu,                  // ✅ pakai formData.waktu
+            keterangan: formData.keterangan,        // ✅ pakai formData.keterangan
             jumlah_kasbon: Number(formData.jumlah_kasbon),
-            entity_id: currentEntity, // ✅ simpan entity juga saat update
+            status: formData.status,                // ✅ kalau mau tetap simpan status dari form
+            entity_id: currentEntity,
             updated_at: new Date().toISOString(),
           })
           .eq("id", formData.id)
-          .eq("entity_id", currentEntity); // ✅ filter entity agar tidak update outlet lain
+          .eq("entity_id", currentEntity);
+
 
         if (error) throw error;
 
@@ -540,6 +542,7 @@ useEffect(() => {
         .from("kasbon")
         .select("*")
         .neq("status", "SELESAI")
+        .eq("entity_id", selectedEntityId ?? entityCtx?.entity_id) // ✅ filter outlet
         .order("tanggal", { ascending: false });
       if (error) throw error;
       setRealisasiKasbonList((rows || []) as KasbonRow[]);
@@ -586,7 +589,10 @@ useEffect(() => {
       const waktuNow = now.toTimeString().slice(0, 8);
       const userId = await getCustomUserId();
 
-      const tanggalHeader = tanggalRealisasi;
+      // ambil tanggal realisasi dari state, fallback ke hari ini
+      const tanggalHeader: string = tanggalRealisasi && tanggalRealisasi.trim() !== ""
+        ? tanggalRealisasi
+        : now.toISOString().slice(0, 10);
 
       // ambil realisasi lama
       const { data: oldRows } = await supabase
@@ -644,9 +650,7 @@ useEffect(() => {
         updated_at: now.toISOString(),
       });
 
-      // ============================
       // 2️⃣ INSERT SISA KASBON (DEBET)
-      // ============================
       if (sisaKasbon > 0) {
         await supabase.from("kas_harian").insert({
           tanggal: tanggalHeader,
@@ -658,6 +662,7 @@ useEffect(() => {
           user_id: String(userId),
           sumber_tabel: "kasbon_realisasi_sisa",
           sumber_id: kasbonId,
+          entity_id: selectedEntityId ?? entityCtx?.entity_id, // ✅ WAJIB: ikut simpan entity
           created_at: now.toISOString(),
           updated_at: now.toISOString(),
         });

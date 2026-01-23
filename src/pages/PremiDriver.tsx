@@ -1943,8 +1943,8 @@ export default function PremiDriver() {
                   onChange={(e) =>
                     setFormData({ ...formData, no_premi_driver: e.target.value })
                   }
-                  readOnly={formData.id === 0} 
-                  className={`w-full border px-3 py-2 ${formData.id === 0 ? "bg-gray-100" : ""}`}
+                  readOnly={true}  // kalau pas edit bisa ganti no, pakai {formData.id === 0}
+                  className={`w-full border px-3 py-2 ${true ? "bg-gray-100" : ""}`}
                 />
               </div>
               <div>
