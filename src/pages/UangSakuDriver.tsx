@@ -501,8 +501,6 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
             waktu,
             bukti_transaksi: finalNomor,
             keterangan: `Uang Saku Driver ${formData.driver}; ${cleanedData.no_polisi}; ${cleanedData.no_surat_jalan}; ${keberangkatan}; ${rute}`,
-            tanggal_berangkat: formData.tanggal_berangkat,
-            tanggal_kembali: formData.tanggal_kembali,
             jenis_transaksi: "kredit",
             nominal: nominalBaru,              // ✅ overwrite nominal baru
             saldo_awal: saldoAwalLama,
@@ -589,8 +587,6 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
           waktu,
           bukti_transaksi: finalNomor,
           keterangan: `Uang Saku Driver ${formData.driver}; ${formData.no_polisi}; ${formData.no_surat_jalan}; ${keberangkatan}; ${rute}`,
-          tanggal_berangkat: formData.tanggal_berangkat,
-          tanggal_kembali: formData.tanggal_kembali,
           jenis_transaksi: "kredit",
           nominal,
           saldo_awal: saldoAwal,
