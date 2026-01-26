@@ -637,15 +637,28 @@ const handleSelectKodeRute = (item: Rute) => {
       let dbError = null;
 
       if (isEdit) {
-        // === MODE EDIT ===
+        // === MODE EDIT (FIX PERPAL NULL) ===
+
+        const updatePayload = {
+          ...cleanedData,
+
+          // 🔥 PAKSA PERPAL BENAR-BENAR KE-RESET DI DB
+          perpal_1x_tanggal: cleanedData.perpal_1x_tanggal ?? null,
+          perpal_1x_rute: cleanedData.perpal_1x_rute ?? null,
+          perpal_1x_keterangan: cleanedData.perpal_1x_keterangan ?? null,
+
+          perpal_2x_tanggal: cleanedData.perpal_2x_tanggal ?? null,
+          perpal_2x_rute: cleanedData.perpal_2x_rute ?? null,
+          perpal_2x_keterangan: cleanedData.perpal_2x_keterangan ?? null,
+
+          no_surat_jalan: finalNomor,
+          user_id: userId,
+          entity_id: formData.entity_id, // tetap pakai entity asli
+        };
+
         const { error } = await supabase
           .from("surat_jalan")
-          .update({
-            ...cleanedData,
-            no_surat_jalan: finalNomor,
-            user_id: userId,
-            entity_id: formData.entity_id, // ✅ tetap pakai entity_id asli dari row
-          })
+          .update(updatePayload)
           .eq("id", formData.id);
 
         dbError = error;
@@ -757,32 +770,24 @@ const handleSelectKodeRute = (item: Rute) => {
 
   // --- Handle Cancel Perpal (defensif + debug) ---
   const handleCancelPerpal = (which?: "1" | "2" | "all") => {
-
     setFormData((prev) => {
       const next: SuratJalanData = { ...prev };
 
-      if (which === "1") {
-        next.perpal_1x_tanggal = undefined;
-        next.perpal_1x_rute = undefined;
-        next.perpal_1x_keterangan = undefined;
-      } else if (which === "2") {
-        next.perpal_2x_tanggal = undefined;
-        next.perpal_2x_rute = undefined;
-        next.perpal_2x_keterangan = undefined;
-      } else if (which === "all") {
-        next.perpal_1x_tanggal = undefined;
-        next.perpal_1x_rute = undefined;
-        next.perpal_1x_keterangan = undefined;
-        next.perpal_2x_tanggal = undefined;
-        next.perpal_2x_rute = undefined;
-        next.perpal_2x_keterangan = undefined;
-      } else {
-        
-        return prev;
+      if (which === "1" || which === "all") {
+        next.perpal_1x_tanggal = null;
+        next.perpal_1x_rute = null;
+        next.perpal_1x_keterangan = null;
       }
+
+      if (which === "2" || which === "all") {
+        next.perpal_2x_tanggal = null;
+        next.perpal_2x_rute = null;
+        next.perpal_2x_keterangan = null;
+      }
+
       return next;
     });
-  };
+  }
 
   // --- FUNGSI PENGECEKAN: Apakah SJ sudah diproses di Uangsakudriver ---
   const checkIfUsedInModules = async (no_surat_jalan: string) => {
@@ -1207,8 +1212,10 @@ const handleSelectKodeRute = (item: Rute) => {
             </div>
 
             {/* === Input Keterangan Perpal === */}
-           {(formData.perpal_1x_tanggal !== undefined ||
-            formData.perpal_2x_tanggal !== undefined) && (
+           {(
+              (formData.perpal_1x_tanggal && formData.perpal_1x_tanggal !== "") ||
+              (formData.perpal_1x_rute && formData.perpal_1x_rute !== "")
+            ) && (
             <div className="mb-2">
               <div className="flex gap-2 items-start">
                 {/* Label Perpal 1x + input tanggal */}
@@ -1278,7 +1285,10 @@ const handleSelectKodeRute = (item: Rute) => {
             </div>
           )}
 
-          {formData.perpal_2x_tanggal !== undefined && (
+          {(
+            (formData.perpal_2x_tanggal && formData.perpal_2x_tanggal !== "") ||
+            (formData.perpal_2x_rute && formData.perpal_2x_rute !== "")
+          ) && (
           <div className="mb-2">
             <div className="flex gap-2 items-start">
               <div className="w-1/2">
@@ -1665,9 +1675,10 @@ const handleSelectKodeRute = (item: Rute) => {
                   <td className="p-2 border">{item.no_polisi}</td>
                   <td className="px-3 py-2">
                     {item.kode_rute}
+
                     {(
-                      (item.perpal_1x_tanggal && item.perpal_1x_tanggal.trim() !== "") ||
-                      (item.perpal_2x_tanggal && item.perpal_2x_tanggal.trim() !== "")
+                      (item.perpal_1x_tanggal && item.perpal_1x_rute) ||
+                      (item.perpal_2x_tanggal && item.perpal_2x_rute)
                     ) && (
                       <span
                         title="Ada Perpal"
@@ -1676,7 +1687,6 @@ const handleSelectKodeRute = (item: Rute) => {
                         🅿️
                       </span>
                     )}
-
                   </td>
                   <td className="p-2 border">{item.km_berangkat ? Number(item.km_berangkat).toLocaleString("id-ID") : ""}</td>
                   <td className="p-2 border">{item.km_kembali ? Number(item.km_kembali).toLocaleString("id-ID") : ""}</td>
