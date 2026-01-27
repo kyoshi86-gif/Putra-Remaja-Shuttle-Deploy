@@ -513,7 +513,19 @@ const handleSelectKodeRute = (item: Rute) => {
         : "",
   };
 
-    setFormData(cleanItem);
+    setFormData({
+      ...cleanItem,
+
+      // 🔒 SEMBUNYIKAN PERPAL SAAT AWAL EDIT (TOTAL)
+      perpal_1x_tanggal: undefined,
+      perpal_1x_rute: "",              // ⬅️ WAJIB STRING KOSONG
+      perpal_1x_keterangan: "",
+
+      perpal_2x_tanggal: undefined,
+      perpal_2x_rute: "",              // ⬅️ WAJIB STRING KOSONG
+      perpal_2x_keterangan: "",
+    });
+
     setShowForm(true);
     checkIfUsedInModules(item.no_surat_jalan);
   };
@@ -771,23 +783,23 @@ const handleSelectKodeRute = (item: Rute) => {
   // --- Handle Cancel Perpal (defensif + debug) ---
   const handleCancelPerpal = (which?: "1" | "2" | "all") => {
     setFormData((prev) => {
-      const next: SuratJalanData = { ...prev };
+      const next = { ...prev };
 
       if (which === "1" || which === "all") {
-        next.perpal_1x_tanggal = null;
-        next.perpal_1x_rute = null;
-        next.perpal_1x_keterangan = null;
+        next.perpal_1x_tanggal = undefined;   // ⬅️ PENTING
+        next.perpal_1x_rute = "";              // select HARUS string
+        next.perpal_1x_keterangan = "";
       }
 
       if (which === "2" || which === "all") {
-        next.perpal_2x_tanggal = null;
-        next.perpal_2x_rute = null;
-        next.perpal_2x_keterangan = null;
+        next.perpal_2x_tanggal = undefined;   // ⬅️ PENTING
+        next.perpal_2x_rute = "";
+        next.perpal_2x_keterangan = "";
       }
 
       return next;
     });
-  }
+  };
 
   // --- FUNGSI PENGECEKAN: Apakah SJ sudah diproses di Uangsakudriver ---
   const checkIfUsedInModules = async (no_surat_jalan: string) => {
@@ -1134,12 +1146,14 @@ const handleSelectKodeRute = (item: Rute) => {
                   autoComplete="off"
                 />
 
-                {showRtDropdown && (
-                  <ul className="absolute z-50 w-full max-h-60 overflow-auto bg-white border rounded mt-1 shadow-lg">
-                    {rute
-                      .sort((a, b) => a.kode_rute.localeCompare(b.kode_rute))
-                      .filter((rt) => rt.kode_rute.toLowerCase().includes(rtSearch.toLowerCase()))
-                      .map((rt, idx) => (
+                {showRtDropdown && (() => {
+                  const filtered = rute
+                    .filter(rt => rt.kode_rute.toLowerCase().includes(rtSearch.toLowerCase()))
+                    .sort((a, b) => a.kode_rute.localeCompare(b.kode_rute));
+
+                  return (
+                    <ul className="absolute z-50 w-full max-h-60 overflow-auto bg-white border rounded mt-1 shadow-lg">
+                      {filtered.map((rt, idx) => (
                         <li
                           key={idx}
                           id={`rt-item-${idx}`}
@@ -1155,11 +1169,12 @@ const handleSelectKodeRute = (item: Rute) => {
                         </li>
                       ))}
 
-                    {rute.filter((rt) => rt.kode_rute.toLowerCase().includes(rtSearch.toLowerCase())).length === 0 && (
-                      <li className="px-3 py-2 text-gray-400">Tidak ditemukan</li>
-                    )}
-                  </ul>
-                )}
+                      {filtered.length === 0 && (
+                        <li className="px-3 py-2 text-gray-400">Tidak ditemukan</li>
+                      )}
+                    </ul>
+                  );
+                })()}
               </div>
 
               {/* === Tombol Perpal === */}
@@ -1212,18 +1227,86 @@ const handleSelectKodeRute = (item: Rute) => {
             </div>
 
             {/* === Input Keterangan Perpal === */}
-           {(
-              (formData.perpal_1x_tanggal && formData.perpal_1x_tanggal !== "") ||
-              (formData.perpal_1x_rute && formData.perpal_1x_rute !== "")
-            ) && (
+            {formData.perpal_1x_tanggal !== undefined && (
+              <div className="mb-2">
+                <div className="flex gap-2 items-start">
+                  <div className="w-1/2">
+                    <label className="block font-semibold mb-1">Perpal 1x</label>
+                    <input
+                      type="date"
+                      value={formData.perpal_1x_tanggal ?? ""}
+                      disabled={isUsedInPremi}
+                      readOnly={isUsedInPremi}
+                      className={`border px-2 py-1 text-sm w-full ${
+                        isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                      }`}
+                      onChange={(e) =>
+                        !isUsedInPremi &&
+                        setFormData((prev) => ({
+                          ...prev,
+                          perpal_1x_tanggal: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  {/* Kode Rute Baru */}
+                  <div className="w-1/3">
+                    <label className="block font-semibold mb-1">Rute Perpal</label>
+                    <select
+                      value={formData.perpal_1x_rute ?? ""}
+                      disabled={isUsedInPremi}
+                      className={`border px-2 py-1 text-sm w-full ${
+                        isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
+                      }`}
+                      onChange={(e) =>
+                        !isUsedInPremi &&
+                        setFormData((prev) => ({
+                          ...prev,
+                          perpal_1x_rute: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Pilih Rute Aktif</option>
+                      {(() => {
+                        const normal = rute.map(r => r.kode_rute);
+                        const reversed = generateReverseRoutes();
+                        const combined = [...normal, ...reversed];
+                        const sorted = sortRoutes(combined);
+
+                        return sorted.map((rt, idx) => (
+                          <option key={idx} value={rt}>
+                            {rt}
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                  </div>
+
+                  {/* Tombol tong hanya muncul jika belum diproses */}
+                  {!isUsedInPremi && (
+                    <div className="mt-6">
+                      <button
+                        type="button"
+                        onClick={() => handleCancelPerpal("1")}
+                        className="text-red-500 text-sm hover:text-red-700"
+                        title="Batalkan Perpal"
+                      >
+                        <FiTrash2 />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {formData.perpal_2x_tanggal !== undefined && (
             <div className="mb-2">
               <div className="flex gap-2 items-start">
-                {/* Label Perpal 1x + input tanggal */}
                 <div className="w-1/2">
-                  <label className="block font-semibold mb-1">Perpal 1x</label>
+                  <label className="block font-semibold mb-1">Perpal 2x</label>
                   <input
                     type="date"
-                    value={formData.perpal_1x_tanggal ?? ""}
+                    value={formData.perpal_2x_tanggal ?? ""}
                     disabled={isUsedInPremi}
                     readOnly={isUsedInPremi}
                     className={`border px-2 py-1 text-sm w-full ${
@@ -1231,23 +1314,22 @@ const handleSelectKodeRute = (item: Rute) => {
                     }`}
                     onChange={(e) =>
                       !isUsedInPremi &&
-                      setFormData((prev) => ({ ...prev, perpal_1x_tanggal: e.target.value }))
+                      setFormData((prev) => ({ ...prev, perpal_2x_tanggal: e.target.value }))
                     }
                   />
                 </div>
 
-                {/* Kode Rute Baru */}
                 <div className="w-1/3">
                   <label className="block font-semibold mb-1">Rute Perpal</label>
                   <select
-                    value={formData.perpal_1x_rute ?? ""}
+                    value={formData.perpal_2x_rute ?? ""}
                     disabled={isUsedInPremi}
                     className={`border px-2 py-1 text-sm w-full ${
                       isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
                     }`}
                     onChange={(e) =>
                       !isUsedInPremi &&
-                      setFormData((prev) => ({ ...prev, perpal_1x_rute: e.target.value }))
+                      setFormData((prev) => ({ ...prev, perpal_2x_rute: e.target.value }))
                     }
                   >
                     <option value="">Pilih Rute Aktif</option>
@@ -1273,7 +1355,7 @@ const handleSelectKodeRute = (item: Rute) => {
                   <div className="mt-6">
                     <button
                       type="button"
-                      onClick={() => handleCancelPerpal("1")}
+                      onClick={() => handleCancelPerpal("2")}
                       className="text-red-500 text-sm hover:text-red-700"
                       title="Batalkan Perpal"
                     >
@@ -1284,77 +1366,6 @@ const handleSelectKodeRute = (item: Rute) => {
               </div>
             </div>
           )}
-
-          {(
-            (formData.perpal_2x_tanggal && formData.perpal_2x_tanggal !== "") ||
-            (formData.perpal_2x_rute && formData.perpal_2x_rute !== "")
-          ) && (
-          <div className="mb-2">
-            <div className="flex gap-2 items-start">
-              <div className="w-1/2">
-                <label className="block font-semibold mb-1">Perpal 2x</label>
-                <input
-                  type="date"
-                  value={formData.perpal_2x_tanggal ?? ""}
-                   disabled={isUsedInPremi}
-                   readOnly={isUsedInPremi}
-                  className={`border px-2 py-1 text-sm w-full ${
-                    isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
-                  }`}
-                  onChange={(e) =>
-                    !isUsedInPremi &&
-                    setFormData((prev) => ({ ...prev, perpal_2x_tanggal: e.target.value }))
-                  }
-                />
-              </div>
-
-              <div className="w-1/3">
-                <label className="block font-semibold mb-1">Rute Perpal</label>
-                <select
-                  value={formData.perpal_2x_rute ?? ""}
-                  disabled={isUsedInPremi}
-                  className={`border px-2 py-1 text-sm w-full ${
-                    isUsedInPremi ? "bg-gray-300 cursor-not-allowed text-gray-600" : ""
-                  }`}
-                  onChange={(e) =>
-                    !isUsedInPremi &&
-                    setFormData((prev) => ({ ...prev, perpal_2x_rute: e.target.value }))
-                  }
-                >
-                  <option value="">Pilih Rute Aktif</option>
-                  {/* Rute Asli */}
-                  {(() => {
-                    const normal = rute.map(r => r.kode_rute);
-                    const reversed = generateReverseRoutes();
-                    const combined = [...normal, ...reversed];
-
-                    const sorted = sortRoutes(combined);
-
-                    return sorted.map((rt, idx) => (
-                      <option key={idx} value={rt}>
-                        {rt}
-                      </option>
-                    ));
-                  })()}
-                </select>
-              </div>
-
-              {/* Tombol tong hanya muncul jika belum diproses */}
-              {!isUsedInPremi && (
-                <div className="mt-6">
-                  <button
-                    type="button"
-                    onClick={() => handleCancelPerpal("2")}
-                    className="text-red-500 text-sm hover:text-red-700"
-                    title="Batalkan Perpal"
-                  >
-                    <FiTrash2 />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
             
              <div className="col-span-2 grid grid-cols-2 gap-4">
               {/* KM Berangkat */}
