@@ -79,6 +79,7 @@ export default function KasKasir() {
     kasbon: 0,
     realisasiKasbon: 0,
     biayaEtoll: 0,
+    overKasbon: 0,
   });
 
   // date range state for picker (keperluan UI)
@@ -315,6 +316,37 @@ export default function KasKasir() {
       if (etollError) console.error("Biaya EToll fetch error:", etollError.message);
       const biayaEtoll = etollData?.reduce((t, r) => t + (r.biaya_etoll || 0), 0) || 0;
 
+      // 🔴 DEBET KASBON REALISASI (BATAS)
+      const { data: debetKasbonData } = await supabase
+        .from("kas_harian")
+        .select("nominal")
+        .eq("sumber_tabel", "kasbon_realisasi_header")
+        .eq("jenis_transaksi", "debet")
+        .gte("tanggal", startDate)
+        .lte("tanggal", endDate)
+        .eq("entity_id", targetEntity);
+
+      const debetKasbon =
+        debetKasbonData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
+
+
+      // 🔴 KREDIT REALISASI KASBON
+      const { data: kreditKasbonData } = await supabase
+        .from("kas_harian")
+        .select("nominal")
+        .eq("sumber_tabel", "kasbon_realisasi_item")
+        .eq("jenis_transaksi", "kredit")
+        .gte("tanggal", startDate)
+        .lte("tanggal", endDate)
+        .eq("entity_id", targetEntity);
+
+      const kreditKasbon =
+        kreditKasbonData?.reduce((t, r) => t + (r.nominal || 0), 0) || 0;
+
+
+      // ✅ OVER REALISASI KASBON (INI YANG BENAR)
+      const overKasbon = Math.max(kreditKasbon - debetKasbon, 0);
+
       // simpan ringkasan
       setSummary({
         saldoAwal: saldoAwalValid,
@@ -328,10 +360,9 @@ export default function KasKasir() {
         kasbon,
         realisasiKasbon,
         biayaEtoll,
+        overKasbon,
       });
 
-      
-      
     } catch (err: unknown) {
       console.error("fetchData error:", err);
     } finally {
@@ -530,6 +561,15 @@ export default function KasKasir() {
             <span className="font-semibold text-red-700">{formatCurrency(summary.kasKeluar)}</span>
           </div>
 
+          {summary.overKasbon > 0 && (
+            <div className="flex justify-between py-1">
+              <span>Over Realisasi Kasbon</span>
+              <span className="font-semibold text-red-700">
+                {formatCurrency(summary.overKasbon)}
+              </span>
+            </div>
+          )}
+
           <div className="flex justify-between font-semibold border-t border-gray-300 mt-2 pt-2 text-gray-800">
             <span>Sub Total</span>
             <span className="text-red-800">
@@ -538,7 +578,8 @@ export default function KasKasir() {
                   summary.premiDriver +
                   summary.perpalDriver +
                   summary.kasbon +
-                  summary.kasKeluar
+                  summary.kasKeluar +
+                  summary.overKasbon
               )}
             </span>
           </div>
@@ -555,7 +596,8 @@ export default function KasKasir() {
                   summary.premiDriver +
                   summary.perpalDriver +
                   summary.kasbon +
-                  summary.kasKeluar)
+                  summary.kasKeluar +
+                  summary.overKasbon)
             )}
           </span>
         </div>
