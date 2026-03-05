@@ -6,7 +6,14 @@ import { insertWithAutoNomor } from "../lib/dbUtils";
 import { getCustomUserId } from "../lib/authUser";
 import { toDate } from "./SuratJalan";
 import { getEntityContext, type EntityContext } from "../lib/entityContext";
+import type { Range } from "react-date-range";
 import { toWIBDateString } from "@/utils/time";
+import { DateRangePicker } from "react-date-range";
+import { format } from "date-fns";
+import { id } from "date-fns/locale";
+import { createPortal } from "react-dom";
+import "react-date-range/dist/styles.css";
+import "react-date-range/dist/theme/default.css";
 
 export interface UangSakuData {
   id: number;
@@ -131,15 +138,65 @@ export default function UangSakuDriver() {
   // Auto fetch data saat filter outlet berubah
   useEffect(() => {
     if (!entityCtx) return;
+
+    fetchData();
+
     if (entityCtx.tipe === "pusat") {
-      fetchData(); // langsung ambil data sesuai outlet terpilih
-      fetchEntities(); // ambil daftar outlet
+      fetchEntities();
     }
   }, [selectedEntityId, entityCtx]);
 
   // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 100;
+const [currentPage, setCurrentPage] = useState(1);
+const itemsPerPage = 100;
+
+// ================= DEFAULT DATE RANGE BULAN BERJALAN =================
+const today = new Date();
+const firstDayOfMonth = new Date(
+  today.getFullYear(),
+  today.getMonth(),
+  1
+);
+
+const [range, setRange] = useState<Range[]>([
+  {
+    startDate: firstDayOfMonth,
+    endDate: today,
+    key: "selection",
+  },
+]);
+
+const [showPicker, setShowPicker] = useState(false);
+const triggerRef = useRef<HTMLDivElement | null>(null);
+const pickerRef = useRef<HTMLDivElement | null>(null);
+
+const [pickerStyle, setPickerStyle] = useState({
+  top: 0,
+  left: 0,
+});
+
+// ✅ AUTO CLOSE DATEPICKER SAAT KLIK DI LUAR
+useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as Node;
+
+    if (
+      showPicker &&
+      pickerRef.current &&
+      triggerRef.current &&
+      !pickerRef.current.contains(target) &&
+      !triggerRef.current.contains(target)
+    ) {
+      setShowPicker(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handleClickOutside);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, [showPicker]);
 
   // --- FETCH DATA ---
   const fetchData = async () => {
@@ -172,7 +229,6 @@ export default function UangSakuDriver() {
       console.error("❌ Gagal ambil data:", error.message);
     } else {
       setData(data as UangSakuData[]);
-      setFiltered(data as UangSakuData[]);
     }
     setLoading(false);
   };
@@ -225,7 +281,10 @@ export default function UangSakuDriver() {
 
   // --- SEARCH ---
   useEffect(() => {
+    if (loading) return; // 🔥 cegah filter jalan saat loading
     let filteredData = [...data];
+
+    // 🔍 SEARCH
     if (search.trim() !== "") {
       const keyword = search.toLowerCase();
       filteredData = filteredData.filter(
@@ -236,14 +295,39 @@ export default function UangSakuDriver() {
           d.no_polisi?.toLowerCase().includes(keyword)
       );
     }
+
+    // 📅 DATE RANGE FILTER (berdasarkan field tanggal)
+    const start = range[0]?.startDate;
+    const end = range[0]?.endDate;
+
+    if (start && end) {
+      const endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
+
+      filteredData = filteredData.filter((d) => {
+        const tgl = new Date(d.tanggal);
+        return tgl >= start && tgl <= endDate;
+      });
+    }
+
     setFiltered(filteredData);
     setCurrentPage(1);
-  }, [search, data]);
+  }, [search, data, range]);
 
   // --- PAGINATION ---
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedData = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+  useEffect(() => {
+    if (showPicker && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPickerStyle({
+        top: rect.bottom + 5,
+        left: rect.left,
+      });
+    }
+  }, [showPicker]);
 
   // --- Reset checkbox saat pindah halaman ---
   useEffect(() => {
@@ -1151,78 +1235,160 @@ const handleSelectSj = (sj: SuratJalanRow) => {
   )}
 
       {/* BUTTONS */}
-      <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={handleTambah}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-          >
-            <FiPlus /> Tambah
-          </button>
+      <div className="w-full pr-8 mb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
-          <button
-            onClick={handleDeleteSelected}
-            className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-          >
-            <FiTrash2 /> Hapus
-          </button>
+          {/* LEFT GROUP */}
+          <div className="flex flex-wrap items-center gap-3">
 
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            <FiDownload /> Export Excel
-          </button>
-
-          <button
-            onClick={handlePrintSelected}
-            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"
-          >
-            <FiPrinter /> Cetak
-          </button>
-        </div>
-
-        {/* -- TAMPILKAN -- */}
-        {entityCtx?.tipe === "pusat" && (
-          <div className="gap-3 flex items-center border p-2 rounded bg-gray-100">
-            <label className="mr-2 font-semibold">Filter Outlet:</label>
-            <select
-              value={selectedEntityId ?? entityCtx.entity_id}
-              onChange={(e) => setSelectedEntityId(e.target.value)}
-              className="border rounded px-2"
-            >
-              <option value={entityCtx.entity_id}>
-                {entityCtx.kode} - Kantor Pusat
-              </option>
-              {entities
-                .filter((ent) => ent.id !== entityCtx.entity_id)
-                .map((ent) => (
-                  <option key={ent.id} value={ent.id}>
-                    {ent.kode} - {ent.nama}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
-
-        <div className="relative w-[320px]">
-          <input
-            type="text"
-            placeholder="Cari Tanggal / No SJ / Driver / Nopol..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="border rounded px-3 py-2 w-full pr-8"
-          />
-          {search && (
             <button
-              onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+              onClick={handleTambah}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
             >
-              ✕
+              <FiPlus /> Tambah
             </button>
-          )}
+
+            <button
+              onClick={handleDeleteSelected}
+              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+            >
+              <FiTrash2 /> Hapus
+            </button>
+
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              <FiDownload /> Export Excel
+            </button>
+
+            <button
+              onClick={handlePrintSelected}
+              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"
+            >
+              <FiPrinter /> Cetak
+            </button>
+
+            {/* FILTER OUTLET */}
+            {entityCtx?.tipe === "pusat" && (
+              <div className="flex items-center gap-2 border px-3 py-2 rounded bg-gray-100">
+                <label className="font-semibold text-sm whitespace-nowrap">
+                  Outlet:
+                </label>
+                <select
+                  value={selectedEntityId ?? entityCtx.entity_id}
+                  onChange={(e) => setSelectedEntityId(e.target.value)}
+                  className="border rounded px-2 py-1 text-sm"
+                >
+                  <option value={entityCtx.entity_id}>
+                    {entityCtx.kode} - Kantor Pusat
+                  </option>
+                  {entities
+                    .filter((ent) => ent.id !== entityCtx.entity_id)
+                    .map((ent) => (
+                      <option key={ent.id} value={ent.id}>
+                        {ent.kode} - {ent.nama}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+
+          </div>
+
+          {/* RIGHT GROUP */}
+          <div className="flex flex-wrap items-center gap-4">
+
+            {/* DATE RANGE */}
+            <div ref={triggerRef} className="flex items-center gap-2">
+              <label className="font-semibold text-sm whitespace-nowrap">
+                Date:
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={
+                  range[0]?.startDate && range[0]?.endDate
+                    ? `${format(range[0].startDate, "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate, "dd-MM-yyyy", { locale: id })}`
+                    : ""
+                }
+                onClick={() => setShowPicker(true)}
+                className="border border-gray-300 rounded px-2 py-1 text-sm w-[220px] cursor-pointer"
+              />
+            </div>
+
+            {/* SEARCH */}
+            <div className="relative w-[320px]">
+              <input
+                type="text"
+                placeholder="Cari Tanggal / No SJ / Driver / Nopol..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="border rounded px-3 py-2 w-full pr-8"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+          </div>
         </div>
       </div>
+
+      {/* DATE PICKER PORTAL (DI LUAR FLEX SUPAYA TIDAK GANGGU LAYOUT) */}
+      {showPicker &&
+        createPortal(
+          <div
+            ref={pickerRef}
+            className="z-50 shadow-lg border bg-white p-2"
+            style={{
+              position: "fixed",
+              top: pickerStyle.top,
+              left: pickerStyle.left,
+            }}
+          >
+            <DateRangePicker
+              className="custom-datepicker"
+              onChange={(ranges) => {
+                const selection = ranges.selection;
+                if (selection?.startDate && selection?.endDate) {
+                  setRange([selection]);
+                }
+              }}
+              moveRangeOnFirstSelection={false}
+              showMonthAndYearPickers
+              staticRanges={[]}
+              inputRanges={[]}
+              months={1}
+              ranges={range}
+              direction="horizontal"
+              locale={id}
+              preventSnapRefocus={true}
+              calendarFocus="forwards"
+            />
+
+            <div className="flex justify-end mt-2 space-x-2">
+              <button
+                onClick={() => setShowPicker(false)}
+                className="px-3 py-1 bg-green-600 text-white rounded"
+              >
+                Apply
+              </button>
+              <button
+                onClick={() => setShowPicker(false)}
+                className="px-3 py-1 bg-gray-300 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* TABLE */}
       <div className="w-full pr-8">

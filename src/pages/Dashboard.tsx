@@ -10,10 +10,9 @@ export default function Dashboard() {
     no_surat_jalan: string;
     tanggal_berangkat?: string | null;
     tanggal_kembali?: string | null;
-    tanggal?: string | null; // dari tabel uang_saku atau premi
+    tanggal?: string | null;
     driver: string;
     kode_rute: string;
-    status: string | null;
     entity_id: string;
   }
 
@@ -33,9 +32,11 @@ export default function Dashboard() {
   // 🧩 STATE
   // ===============================
   const [loading, setLoading] = useState<boolean>(true);
-  const [sjAktif, setSjAktif] = useState<SuratJalan[]>([]);
+  const [, setSjAktif] = useState<SuratJalan[]>([]);
   const [sjBelumSaku, setSjBelumSaku] = useState<SuratJalan[]>([]);
   const [sjBelumPremi, setSjBelumPremi] = useState<SuratJalan[]>([]);
+
+  const [totalSuratJalan, setTotalSuratJalan] = useState<number>(0);
 
   // ===============================
   // 🧩 CONTEXT & ENTITY
@@ -94,58 +95,74 @@ export default function Dashboard() {
     setLoading(true);
 
     try {
-      // tentukan outlet target
       const targetEntity = selectedEntityId ?? entityCtx?.entity_id;
 
-      // 🚐 SURAT JALAN AKTIF
-      let queryAktif = supabase
-        .from("surat_jalan")
-        .select("no_surat_jalan, tanggal_berangkat, driver, kode_rute, entity_id")
-        .order("tanggal_berangkat", { ascending: false });
-
-      if (targetEntity) {
-        queryAktif = queryAktif.eq("entity_id", targetEntity); // ✅ filter outlet
+      if (!targetEntity) {
+        setLoading(false);
+        return;
       }
 
-      const { data: aktif, error: errorAktif } = await queryAktif;
-      if (errorAktif) console.error("Error fetch Surat Jalan Aktif:", errorAktif);
+      // ===============================
+      // 🚐 TOTAL SURAT JALAN (REAL COUNT)
+      // ===============================
+      const { count, error: errorCount } = await supabase
+        .from("surat_jalan")
+        .select("*", { count: "exact", head: true })
+        .eq("entity_id", targetEntity);
 
-      // 💸 BELUM UANG SAKU
-      const { data: belumSaku, error: errorSaku } = await supabase
-        .rpc("get_sj_belum_saku", { entity_filter: targetEntity }); // ✅ filter outlet
-      if (errorSaku) console.error("Error fetch SJ Belum Saku:", errorSaku);
+      if (errorCount) {
+        console.error("Error count Surat Jalan:", errorCount);
+      }
 
-      // 🏆 BELUM PREMI
-      const { data: belumPremi, error: errorPremi } = await supabase
-        .rpc("get_sj_belum_premi", { entity_filter: targetEntity }); // ✅ filter outlet
-      if (errorPremi) console.error("Error fetch SJ Belum Premi:", errorPremi);
+      setTotalSuratJalan(count ?? 0);
+
+      // ===============================
+      // 🚐 OPTIONAL: Ambil data terbaru (max 10 saja biar ringan)
+      // ===============================
+      const { data: aktif, error: errorAktif } = await supabase
+        .from("surat_jalan")
+        .select(
+          "no_surat_jalan, tanggal_berangkat, driver, kode_rute, entity_id"
+        )
+        .eq("entity_id", targetEntity)
+        .order("tanggal_berangkat", { ascending: false })
+        .limit(10);
+
+      if (errorAktif) {
+        console.error("Error fetch Surat Jalan Aktif:", errorAktif);
+      }
 
       setSjAktif((aktif as SuratJalan[]) ?? []);
+
+      // ===============================
+      // 💸 BELUM UANG SAKU
+      // ===============================
+      const { data: belumSaku, error: errorSaku } = await supabase
+        .rpc("get_sj_belum_saku", { entity_filter: targetEntity });
+
+      if (errorSaku) {
+        console.error("Error fetch SJ Belum Saku:", errorSaku);
+      }
+
       setSjBelumSaku((belumSaku as SuratJalan[]) ?? []);
+
+      // ===============================
+      // 🏆 BELUM PREMI
+      // ===============================
+      const { data: belumPremi, error: errorPremi } = await supabase
+        .rpc("get_sj_belum_premi", { entity_filter: targetEntity });
+
+      if (errorPremi) {
+        console.error("Error fetch SJ Belum Premi:", errorPremi);
+      }
+
       setSjBelumPremi((belumPremi as SuratJalan[]) ?? []);
+
     } catch (err) {
       console.error("Error loadDashboard:", err);
     } finally {
       setLoading(false);
     }
-  };
-
-  // ===============================
-  // 🔖 BADGE STATUS
-  // ===============================
-  const BadgeStatus = ({ status }: { status: string | null }) => {
-    const color =
-      status === "berangkat"
-        ? "bg-blue-100 text-blue-700"
-        : status === "ongoing"
-        ? "bg-yellow-100 text-yellow-700"
-        : "bg-gray-200 text-gray-700";
-
-    return (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>
-        {status ?? "-"}
-      </span>
-    );
   };
 
   // ===============================
@@ -176,7 +193,6 @@ export default function Dashboard() {
               <th className="border p-2">Tanggal</th>
               <th className="border p-2">Driver</th>
               <th className="border p-2">Rute</th>
-              <th className="border p-2">Status</th>
             </tr>
           </thead>
 
@@ -207,9 +223,6 @@ export default function Dashboard() {
                   </td>
                   <td className="border p-2">{row.driver ?? "-"}</td>
                   <td className="border p-2">{row.kode_rute ?? "-"}</td>
-                  <td className="border p-2">
-                    <BadgeStatus status={row.status} />
-                  </td>
                 </tr>
               ))
             )}
@@ -231,7 +244,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <CardStat
           title="Surat Jalan Terbit"
-          value={sjAktif.length}
+          value={totalSuratJalan}
           icon="🚐"
           color="bg-blue-500"
         />

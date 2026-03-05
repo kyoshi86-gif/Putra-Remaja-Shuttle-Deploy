@@ -7,6 +7,13 @@ import { insertWithAutoNomor } from "../lib/dbUtils";
 import { hasAccess } from "../lib/hasAccess";
 import { getWIBTimestampFromUTC } from "../utils/time";
 import { getEntityContext, type EntityContext } from "../lib/entityContext";
+import type { Range } from "react-date-range";
+import "react-date-range/dist/styles.css";
+import "react-date-range/dist/theme/default.css";
+import { DateRangePicker } from "react-date-range";
+import { format } from "date-fns";
+import { id } from "date-fns/locale";
+import { createPortal } from "react-dom";
 
 interface SuratJalanData {
   id: number;
@@ -69,6 +76,63 @@ export default function SuratJalan() {
   const [entityCtx, setEntityCtx] = useState<EntityContext | null>(null);
   const [customUser, setCustomUser] = useState<CustomUser | null>(null);
   const [loadingCtx, setLoadingCtx] = useState(true);
+
+  const today = new Date();
+  const firstDayOfMonth = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    1
+  );
+
+  const [range, setRange] = useState<Range[]>([
+    {
+      startDate: firstDayOfMonth,
+      endDate: today,
+      key: "selection",
+    },
+  ]);
+
+  const [showPicker, setShowPicker] = useState(false);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  const [pickerStyle, setPickerStyle] = useState({
+    top: 0,
+    left: 0,
+  });
+
+  // ✅ AUTO CLOSE DATEPICKER SAAT KLIK DI LUAR
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      if (
+        showPicker &&
+        pickerRef.current &&
+        triggerRef.current &&
+        !pickerRef.current.contains(target) &&
+        !triggerRef.current.contains(target)
+      ) {
+        setShowPicker(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showPicker]);
+
+  useEffect(() => {
+    if (showPicker && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPickerStyle({
+        top: rect.bottom + 5,
+        left: rect.left,
+      });
+    }
+  }, [showPicker]);
 
   // === AMBIL USER LOGIN DARI LOCALSTORAGE ===
   useEffect(() => {
@@ -350,6 +414,8 @@ const handleSelectKodeRute = (item: Rute) => {
   // --- Search Filter ---
   useEffect(() => {
     let filteredData = [...data];
+
+    // 🔍 SEARCH
     if (search.trim() !== "") {
       filteredData = filteredData.filter(
         (d) =>
@@ -358,9 +424,24 @@ const handleSelectKodeRute = (item: Rute) => {
           d.driver?.toLowerCase().includes(search.toLowerCase())
       );
     }
+
+    // 📅 DATE RANGE FILTER
+    const start = range[0]?.startDate;
+    const end = range[0]?.endDate;
+
+    if (start && end) {
+      const endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
+
+      filteredData = filteredData.filter((d) => {
+        const tgl = new Date(d.tanggal_berangkat);
+        return tgl >= start && tgl <= endDate;
+      });
+    }
+
     setFiltered(filteredData);
     setCurrentPage(1);
-  }, [search, data]);
+  }, [search, data, range]);
 
   // --- Pagination Logic ---
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -1473,119 +1554,194 @@ const handleSelectKodeRute = (item: Rute) => {
       )}
 
       {/* TOMBOL */}
-      <div className="w-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3">
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={async () => {
-              try {
-                if (!entityCtx?.entity_id) {
-                  alert("Konteks entity belum siap. Coba reload atau login ulang.");
-                  return;
-                }
+      <div className="w-full pr-8 mb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 
-                let outletPrefix = "SJ";
-                if (entityCtx.tipe === "outlet") {
-                  // outlet login → pakai kode outlet sendiri
-                  outletPrefix = entityCtx.kode ? `${entityCtx.kode}-SJ` : "SJ";
-                } else {
-                  // pusat login → cek filter
-                  const targetId = selectedEntityId ?? entityCtx.entity_id;
-                  if (targetId !== entityCtx.entity_id) {
-                    // filter menunjuk outlet → cari kode outlet dari daftar entities
-                    const ent = entities.find((e) => e.id === targetId);
-                    outletPrefix = ent?.kode ? `${ent.kode}-SJ` : "SJ";
-                  } else {
-                    // filter pusat → tanpa kode
-                    outletPrefix = "SJ";
-                  }
-                }
+          {/* LEFT GROUP */}
+          <div className="flex flex-wrap items-center gap-3">
 
-                const result = await insertWithAutoNomor({
-                  table: "surat_jalan",
-                  prefix: outletPrefix,
-                  nomorField: "no_surat_jalan",
-                  data: {},
-                  previewOnly: true,
-                });
-
-                if (!result.success) {
-                  alert("❌ Gagal membuat nomor otomatis: " + result.error);
-                  return;
-                }
-
-                setFormData({
-                  ...defaultFormData,
-                  no_surat_jalan: result.nomor!,
-                });
-
-                setShowForm(true);
-              } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : String(err);
-                alert("Terjadi kesalahan saat membuat nomor Surat Jalan: " + message);
-              }
-            }}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-          >
-            <FiPlus /> Tambah
-          </button>
-
-          <button
-            onClick={handleDeleteSelected}
-            className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-          >
-            <FiTrash2 /> Hapus
-          </button>
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            <FiDownload /> Export Excel
-          </button>
-          <button
-            onClick={handlePrintSelected}
-            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"
-          >
-            <FiPrinter /> Cetak
-          </button>
-        </div>
-
-        {/* -- TAMPILKAN -- */}
-        {entityCtx?.tipe === "pusat" && (
-        <div className="gap-3 flex items-center border p-2 rounded bg-gray-100">
-          <label className="mr-2 font-semibold">Filter Outlet:</label>
-          <select
-            value={selectedEntityId ?? entityCtx.entity_id}
-            onChange={(e) => setSelectedEntityId(e.target.value)}
-            className="border rounded px-2"
-          >
-            {/* default pusat */}
-            {entities.map((ent) => (
-              <option key={ent.id} value={ent.id}>
-                {ent.kode} - {ent.nama}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-        <div className="relative w-[320px]">
-          <input
-            type="text"
-            placeholder="Cari No Surat / Driver / Nopol..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="border rounded px-3 py-2 w-full pr-8"
-          />
-          {search && (
             <button
-              onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 z-10"
+              onClick={async () => {
+                try {
+                  if (!entityCtx?.entity_id) {
+                    alert("Konteks entity belum siap. Coba reload atau login ulang.");
+                    return;
+                  }
+
+                  let outletPrefix = "SJ";
+                  if (entityCtx.tipe === "outlet") {
+                    outletPrefix = entityCtx.kode ? `${entityCtx.kode}-SJ` : "SJ";
+                  } else {
+                    const targetId = selectedEntityId ?? entityCtx.entity_id;
+                    if (targetId !== entityCtx.entity_id) {
+                      const ent = entities.find((e) => e.id === targetId);
+                      outletPrefix = ent?.kode ? `${ent.kode}-SJ` : "SJ";
+                    } else {
+                      outletPrefix = "SJ";
+                    }
+                  }
+
+                  const result = await insertWithAutoNomor({
+                    table: "surat_jalan",
+                    prefix: outletPrefix,
+                    nomorField: "no_surat_jalan",
+                    data: {},
+                    previewOnly: true,
+                  });
+
+                  if (!result.success) {
+                    alert("❌ Gagal membuat nomor otomatis: " + result.error);
+                    return;
+                  }
+
+                  setFormData({
+                    ...defaultFormData,
+                    no_surat_jalan: result.nomor!,
+                  });
+
+                  setShowForm(true);
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : String(err);
+                  alert("Terjadi kesalahan saat membuat nomor Surat Jalan: " + message);
+                }
+              }}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
             >
-              ✕
+              <FiPlus /> Tambah
             </button>
-          )}
+
+            <button
+              onClick={handleDeleteSelected}
+              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+            >
+              <FiTrash2 /> Hapus
+            </button>
+
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              <FiDownload /> Export Excel
+            </button>
+
+            <button
+              onClick={handlePrintSelected}
+              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"
+            >
+              <FiPrinter /> Cetak
+            </button>
+
+            {/* FILTER OUTLET */}
+            {entityCtx?.tipe === "pusat" && (
+              <div className="flex items-center gap-2 border px-3 py-2 rounded bg-gray-100">
+                <label className="font-semibold text-sm">Filter Outlet:</label>
+                <select
+                  value={selectedEntityId ?? entityCtx.entity_id}
+                  onChange={(e) => setSelectedEntityId(e.target.value)}
+                  className="border rounded px-2 py-1 text-sm"
+                >
+                  {entities.map((ent) => (
+                    <option key={ent.id} value={ent.id}>
+                      {ent.kode} - {ent.nama}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+          </div>
+
+          {/* RIGHT GROUP */}
+          <div className="flex flex-wrap items-center gap-4">
+
+            {/* DATE RANGE */}
+            <div ref={triggerRef} className="flex items-center gap-2">
+              <label className="font-semibold text-sm whitespace-nowrap">
+                Date range:
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={
+                  range[0]?.startDate && range[0]?.endDate
+                    ? `${format(range[0].startDate, "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate, "dd-MM-yyyy", { locale: id })}`
+                    : ""
+                }
+                onClick={() => setShowPicker(true)}
+                className="border border-gray-300 rounded px-2 py-1 text-sm w-[220px] cursor-pointer"
+              />
+            </div>
+
+            {/* SEARCH */}
+            <div className="relative w-[300px]">
+              <input
+                type="text"
+                placeholder="Cari No Surat / Driver / Nopol..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="border rounded px-3 py-2 w-full pr-8"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 z-10"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+          </div>
         </div>
       </div>
+
+      {/* DATE PICKER PORTAL (DI LUAR FLEX SUPAYA TIDAK GANGGU LAYOUT) */}
+      {showPicker &&
+        createPortal(
+          <div
+            ref={pickerRef}
+            className="z-50 shadow-lg border bg-white p-2"
+            style={{
+              position: "fixed",
+              top: pickerStyle.top,
+              left: pickerStyle.left,
+            }}
+          >
+            <DateRangePicker
+              className="custom-datepicker"
+              onChange={(ranges) => {
+                const selection = ranges.selection;
+                if (selection?.startDate && selection?.endDate) {
+                  setRange([selection]);
+                }
+              }}
+              moveRangeOnFirstSelection={false}
+              showMonthAndYearPickers
+              staticRanges={[]}
+              inputRanges={[]}
+              months={1}
+              ranges={range}
+              direction="horizontal"
+              locale={id}
+            />
+
+            <div className="flex justify-end mt-2 space-x-2">
+              <button
+                onClick={() => setShowPicker(false)}
+                className="px-3 py-1 bg-green-600 text-white rounded"
+              >
+                Apply
+              </button>
+              <button
+                onClick={() => setShowPicker(false)}
+                className="px-3 py-1 bg-gray-300 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* TABEL */}
       <div className="w-full pr-8">
