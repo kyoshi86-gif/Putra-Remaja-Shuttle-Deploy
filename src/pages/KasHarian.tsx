@@ -1185,125 +1185,154 @@ useEffect(() => {
     }
 
   return (
-    <div className="p-4 bg-white rounded shadow">
-    {/* Range Tanggal box */}
-    <div className="flex fw-full pr-8 flex flex-wrap justify-between items-center mb-4 gap-3 lex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-    <div ref={triggerRef}>
-      <label className="font-semibold">Date range: </label>
-      <input
-        type="text" 
-        readOnly
-        value={
-          range[0]?.startDate && range[0]?.endDate
-            ? `${format(range[0].startDate, "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate, "dd-MM-yyyy", { locale: id })}`
-            : ""
-        }
-        onClick={() => setShowPicker(true)}
-        className="border border-gray-300 rounded px-2 py-1 text-sm leading-normal w-[220px] cursor-pointer"
-      />
+    <div className="p-4 bg-white rounded shadow max-w-[1600px] mx-auto">
+    
+      {/* ================= HEADER ================= */}
+      <div className="mb-4 flex flex-col gap-3">
 
-        {showPicker &&
-        createPortal(
-          <div
-            ref={pickerRef}
-            className="z-50 shadow-lg border bg-white p-2"
-            style={{
-                position: "fixed",
-                top: pickerStyle.top,
-                left: pickerStyle.left,
-            }}
-            >
-            <DateRangePicker
-              className="custom-datepicker"
-              onChange={(ranges) => {
-                const selection = ranges.selection;
-                if (selection?.startDate && selection?.endDate) {
-                  setRange([
-                    {
-                      ...selection,
-                      key: "selection",
-                    },
-                  ]);
+        {/* BARIS 1 */}
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+
+          {/* KIRI : DATE + SEARCH */}
+          <div className="flex flex-wrap items-center gap-3">
+
+            {/* DATE RANGE */}
+            <div ref={triggerRef} className="flex items-center gap-2">
+              <label className="font-semibold whitespace-nowrap">
+                Date range:
+              </label>
+
+              <input
+                type="text"
+                readOnly
+                value={
+                  range[0]?.startDate && range[0]?.endDate
+                    ? `${format(range[0].startDate,"dd-MM-yyyy",{locale:id})} - ${format(range[0].endDate,"dd-MM-yyyy",{locale:id})}`
+                    : ""
                 }
-              }}
-              moveRangeOnFirstSelection={false}
-              showMonthAndYearPickers={true}
-              staticRanges={[]}
-              inputRanges={[]}
-              months={1}
-              ranges={range}
-              direction="horizontal"
-              locale={id}
-              preventSnapRefocus={true}
-              calendarFocus="forwards"
-            />
-            <div className="flex justify-end mt-2 space-x-2">
-                <button onClick={() => setShowPicker(false)} className="px-3 py-1 bg-green-600 text-white rounded">Apply</button>
-                <button onClick={() => setShowPicker(false)} className="px-3 py-1 bg-gray-300 rounded">Cancel</button>
-            </div>
-            </div>,
-            document.body
-          )}
-       </div>
+                onClick={() => setShowPicker(true)}
+                className="border border-gray-300 rounded px-2 py-1 text-sm w-[210px] cursor-pointer"
+              />
 
-          {/* Filter pencarian */}
-          <div className="flex items-center gap-2">
-            <select
-              value={filterBy}
-              onChange={(e) =>
-                setFilterBy(
-                  e.target.value as
-                    | "bukti_transaksi"
-                    | "waktu"
-                    | "keterangan"
-                    | "user_id"
-                    | "updated_at"
-                )
-              }
-              className="border rounded px-2 py-1"
-            >
-              <option value="bukti_transaksi">No Bukti</option>
-              <option value="waktu">Waktu</option>
-              <option value="keterangan">Keterangan</option>
-              <option value="user_id">User Id</option>
-              <option value="updated_at">Tanggal Update</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Kata kunci..."
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="border rounded px-2 py-1"
-            />
-            <button
-              onClick={() => {
-                // already reactive; but keep for explicit action
-                setCurrentPage(1);
-              }}
-              className="bg-blue-600 text-white px-3 py-1 rounded flex items-center gap-2"
-            >
-              Cari
-            </button>
+              {showPicker &&
+                createPortal(
+                  <div
+                    ref={pickerRef}
+                    className="z-50 shadow-lg border bg-white p-2"
+                    style={{
+                      position: "fixed",
+                      top: pickerStyle.top,
+                      left: pickerStyle.left,
+                    }}
+                  >
+                    <DateRangePicker
+                      className="custom-datepicker"
+                      onChange={(ranges) => {
+                        const selection = ranges.selection;
+                        if (selection?.startDate && selection?.endDate) {
+                          setRange([
+                            {
+                              ...selection,
+                              key: "selection",
+                            },
+                          ]);
+                        }
+                      }}
+                      moveRangeOnFirstSelection={false}
+                      showMonthAndYearPickers={true}
+                      staticRanges={[]}
+                      inputRanges={[]}
+                      months={1}
+                      ranges={range}
+                      direction="horizontal"
+                      locale={id}
+                      preventSnapRefocus={true}
+                      calendarFocus="forwards"
+                    />
+
+                    <div className="flex justify-end mt-2 space-x-2">
+                      <button
+                        onClick={() => setShowPicker(false)}
+                        className="px-3 py-1 bg-green-600 text-white rounded"
+                      >
+                        Apply
+                      </button>
+
+                      <button
+                        onClick={() => setShowPicker(false)}
+                        className="px-3 py-1 bg-gray-300 rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>,
+                  document.body
+                )}
+            </div>
+
+            {/* SEARCH */}
+            <div className="flex flex-wrap items-center gap-2">
+
+              <select
+                value={filterBy}
+                onChange={(e)=>
+                  setFilterBy(
+                    e.target.value as
+                      | "bukti_transaksi"
+                      | "waktu"
+                      | "keterangan"
+                      | "user_id"
+                      | "updated_at"
+                  )
+                }
+                className="border rounded px-2 py-1"
+              >
+                <option value="bukti_transaksi">No Bukti</option>
+                <option value="waktu">Waktu</option>
+                <option value="keterangan">Keterangan</option>
+                <option value="user_id">User Id</option>
+                <option value="updated_at">Tanggal Update</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="Kata kunci..."
+                value={q}
+                onChange={(e)=>setQ(e.target.value)}
+                className="border rounded px-2 py-1 w-[160px]"
+              />
+
+              <button
+                onClick={()=>setCurrentPage(1)}
+                className="bg-blue-600 text-white px-3 py-1 rounded"
+              >
+                Cari
+              </button>
+
+            </div>
+
           </div>
 
-          <div className="ml-auto flex gap-2">
+          {/* KANAN : BUTTON */}
+          <div className="flex flex-wrap items-center gap-2 pr-8">
+
             <button
-                onClick={() => openForm("add_debet")}
-                className="flex items-center gap-2 bg-green-600 text-white px-3 py-1 rounded"
-                >
-                <FiPlus /> Kas Masuk
+              onClick={()=>openForm("add_debet")}
+              className="flex items-center gap-2 bg-green-600 text-white px-3 py-1 rounded"
+            >
+              <FiPlus/> Kas Masuk
             </button>
 
             <button
-                onClick={() => openForm("add_kredit")}
-                className="flex items-center gap-2 bg-red-400 text-white px-3 py-1 rounded"
-                >
-                <FiPlus /> Kas Keluar
+              onClick={()=>openForm("add_kredit")}
+              className="flex items-center gap-2 bg-red-400 text-white px-3 py-1 rounded"
+            >
+              <FiPlus/> Kas Keluar
             </button>
 
             <button
               onClick={handleDeleteSelected}
-              className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+              className="bg-red-500 text-white px-3 py-1 rounded"
             >
               Hapus Terpilih
             </button>
@@ -1312,498 +1341,508 @@ useEffect(() => {
               onClick={handleExportExcel}
               className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1 rounded"
             >
-              <FiDownload /> Export Excel
+              <FiDownload/> Export Excel
             </button>
 
             <button
-            onClick={() => {
-              setPendingPrintRange({
-                start: range[0].startDate!,
-                end: range[0].endDate!,
-              });
-              setShowCashOpname(true); // buka popup cash opname
-            }}
-            className="flex items-center gap-2 bg-orange-500 text-white px-3 py-1 rounded"
-          >
-            <FiPrinter /> Cetak
-          </button>
+              onClick={()=>{
+                setPendingPrintRange({
+                  start: range[0].startDate!,
+                  end: range[0].endDate!,
+                });
+                setShowCashOpname(true);
+              }}
+              className="flex items-center gap-2 bg-orange-500 text-white px-3 py-1 rounded"
+            >
+              <FiPrinter/> Cetak
+            </button>
+
           </div>
+
         </div>
-        
+
+        {/* BARIS 2 : FILTER OUTLET */}
         {entityCtx?.tipe === "pusat" && (
-          <div className="gap-3 flex items-center border p-2 rounded bg-gray-100 mb-4 w-fit">
-            <label className="mr-2 font-semibold">Filter Outlet:</label>
+          <div className="flex flex-wrap items-center gap-2 border p-2 rounded bg-gray-100 w-fit">
+
+            <label className="font-semibold">
+              Filter Outlet:
+            </label>
+
             <select
               value={selectedEntity ?? entityCtx.entity_id}
-              onChange={(e) => setSelectedEntity(e.target.value)}
+              onChange={(e)=>setSelectedEntity(e.target.value)}
               className="border rounded px-2 py-1"
             >
-              {entities.map((ent) => (
+              {entities.map((ent)=>(
                 <option key={ent.id} value={ent.id}>
                   {ent.kode} - {ent.nama}
                 </option>
               ))}
             </select>
+
             <button
               onClick={fetchData}
-              className="ml-2 px-3 py-1 bg-blue-500 text-white rounded"
+              className="px-3 py-1 bg-blue-500 text-white rounded"
             >
               Refresh
             </button>
+
           </div>
         )}
 
-      {/* Tabel */}
-      <div className="w-full pr-8">
-        <table className="w-full table-auto border border-gray-300 text-sm">
-          <thead className="bg-gray-400 text-white">
-            <tr>
-              <th className="p-2 border text-center w-[40px]">
-                <input
-                  ref={selectAllRef}
-                  type="checkbox"
-                  checked={
-                    selected.length === paginatedData.length && paginatedData.length > 0
-                  }
-                  onChange={handleSelectAll}
-                />
-              </th>
-              <th className="border p-2 text-center w-[40px]">Aksi</th>
-              <th className="border p-2 text-center w-[80px]">Tanggal</th>
-              <th className="border p-2 text-center w-[70px]">Waktu</th>
-              <th className="border p-2 text-center w-[120px]">No Bukti</th>
-              <th className="border p-2 text-center">Keterangan</th>
-              <th className="border p-2 text-center w-[50px]">Jenis</th>
-              <th className="border p-2 text-center w-[90px]">Debet</th>
-              <th className="border p-2 text-center w-[90px]">Kredit</th>
-              <th className="border p-2 text-center w-[100px]">Saldo</th>
-              <th className="border p-2 text-center w-[30px]">User Id</th>
-              <th className="border p-2 text-center w-[130px]">Updated At</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+              {/* Tabel */}
+              <div className="w-full pr-8">
+          <table className="w-full table-auto border border-gray-300 text-sm">
+            <thead className="bg-gray-400 text-white">
               <tr>
-                <td colSpan={12} className="text-center py-3">
-                  Memuat data...
-                </td>
-              </tr>
-            ) : (
-              <>
-                {/* Baris Saldo Awal */}
-                <tr className="bg-gray-100 text-center border font-semibold">
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border text-center">Saldo Awal</td>
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border">{fmt(saldoAwalHistori)}</td>
-                  <td className="p-2 border"></td>
-                  <td className="p-2 border"></td>
-                </tr>
-
-                {/* Jika tidak ada data */}
-                {paginatedData.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="text-center py-3">
-                      Tidak ada data.
-                    </td>
-                  </tr>
-                ) : (
-                  <>
-                    {/* Baris Transaksi */}
-                    {paginatedData.map((row) => (
-                      <tr key={row.id} className="hover:bg-yellow-300 transition-all duration-150 text-center border">
-                        <td className="p-2 border">
-                          <input
-                            type="checkbox"
-                            checked={selected.includes(String(row.id))}
-                            onChange={() => handleSelect(String(row.id))}
-                          />
-                        </td>
-                        <td className="text-center py-0 px-0">
-                          <div className="flex justify-center gap-[0.5px]">
-                            {(!row.sumber_tabel || row.sumber_tabel === "kas_harian") ? (
-                              <>
-                                <button
-                                  onClick={() => handleEditKas(row)}
-                                  className="text-blue-600 hover:text-blue-800 px-[5px]"
-                                  title="Edit"
-                                >
-                                  <FiEdit size={16} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteKas(row)}
-                                  className="text-red-600 hover:text-red-800 px-[5px]"
-                                  title="Hapus"
-                                >
-                                  <FiTrash2 size={16} />
-                                </button>
-                              </>
-                            ) : (
-                              <span className="text-gray-400 text-xs"></span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="tengah p-2 border">
-                          {row.tanggal ? toWIBDateString(new Date(row.tanggal), "display") : ""}
-                        </td>
-                        <td className="tengah p-2 border">{row.waktu ? toWIBTimeString(row.waktu) : ""}</td>
-                        <td className="tengah p-2 border">{row.bukti_transaksi}</td>
-                        <td className="p-2 border text-left">{row.keterangan}</td>
-                        <td className="p-2 border">{row.jenis_transaksi}</td>
-                        <td className="kanan p-2 border">{row.jenis_transaksi === "debet" ? fmt(row.nominal) : ""}</td>
-                        <td className="kanan p-2 border">{row.jenis_transaksi === "kredit" ? fmt(row.nominal) : ""}</td>
-                        <td className="kanan p-2 border">{fmt(row.saldo_akhir)}</td>
-                        <td className="tengah p-2 border">{row.user_id}</td>
-                        <td className="tengah p-2 border">
-                          {row.updated_at ? getWIBTimestampFromUTC(row.updated_at) : ""}
-                        </td>
-                      </tr>
-                    ))}
-
-                    {/* Baris Saldo Akhir */}
-                    <tr className="bg-gray-100 text-center border font-semibold">
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border text-center">Saldo Akhir</td>
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border">{fmt(dataWithSaldo.at(-1)?.saldo_akhir)}</td>
-                      <td className="p-2 border"></td>
-                      <td className="p-2 border"></td>
-                    </tr>
-                  </>
-                )}
-              </>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-      <div className="flex justify-center items-center mt-4 gap-2">
-        <button
-          disabled={currentPage === 1}
-          onClick={() => setCurrentPage((p) => p - 1)}
-          className="px-3 py-1 border rounded disabled:opacity-50"
-        >
-          ‹ Prev
-        </button>
-        <span>
-          Halaman {currentPage} dari {totalPages || 1}
-        </span>
-      </div>
-      )}
-
-      {/* POPUP FORM */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start pt-24 overflow-y-auto">
-          <div className="bg-white w-full max-w-xl rounded-lg shadow-2xl p-6 relative mb-10">
-            <button
-              className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
-              onClick={() => {
-                setShowForm(false);
-                setFormData(defaultForm);
-                setFormSource("kas_harian"); // reset sumber
-              }}
-            >
-              <FiX size={22} />
-            </button>
-
-            <h2 className="text-2xl font-semibold mb-4 text-center">
-              {formSource === "uang_saku_driver"
-                ? "Form Uang Saku Driver"
-                : formMode === "add_debet"
-                ? "Kas Masuk"
-                : formMode === "add_kredit"
-                ? "Kas Keluar"
-                : "Edit Transaksi"}
-            </h2>
-
-            {formSource === "uang_saku_driver" ? (
-              <PopupUangSakuDriver
-                formData={formUangSaku}
-                setFormData={setFormUangSaku}
-                setShowForm={setShowForm}
-                defaultForm={defaultUangSakuForm}
-                setFormSource={setFormSource}
-                fetchData={fetchData} // ✅ kirim fungsi refresh
-                sjSearch={sjSearch}
-                setSjSearch={setSjSearch}
-                sjList={sjList}
-                showDropdown={showDropdown}
-                setShowDropdown={setShowDropdown}
-                highlightedIndex={highlightedIndex}
-                setHighlightedIndex={setHighlightedIndex}
-                handleSelectSj={handleSelectSj}
-              />
-            ) : (
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  await handleSave();
-                }}
-                className="grid grid-cols-2 gap-4 pb-6"
-              >
-                <div>
-                  <label className="block mb-1 font-semibold">Tanggal</label>
+                <th className="p-2 border text-center w-[40px]">
                   <input
-                    type="date"
-                    name="tanggal"
-                    value={formData.tanggal || ""}
-                    onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
-                    onFocus={(e) => (e.target.showPicker ? e.target.showPicker() : null)}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block mb-1 font-semibold">Waktu</label>
-                  <input
-                    type="time"
-                    name="waktu"
-                    value={formData.waktu || ""}
-                    readOnly
-                    className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block mb-1 font-semibold">No Bukti</label>
-                  <input
-                    type="text"
-                    name="bukti_transaksi"
-                    value={formData.bukti_transaksi || ""}
-                    onChange={(e) => setFormData({ ...formData, bukti_transaksi: e.target.value })}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block mb-1 font-semibold">Keterangan</label>
-                  <input
-                    type="text"
-                    name="keterangan"
-                    value={formData.keterangan || ""}
-                    onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block mb-1 font-semibold">Nominal</label>
-                  <input
-                    type="text"
-                    name="nominal"
-                    value={
-                      formData.nominal !== undefined && formData.nominal !== null
-                        ? String(Number(formData.nominal).toLocaleString("id-ID"))
-                        : ""
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={
+                      selected.length === paginatedData.length && paginatedData.length > 0
                     }
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/[^\d]/g, "");
-                      setFormData({ ...formData, nominal: raw ? Number(raw) : 0 });
-                    }}
-                    className="w-full border rounded px-3 py-2 text-right"
+                    onChange={handleSelectAll}
                   />
-                </div>
-
-                <div className="col-span-2 flex justify-end gap-4 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowForm(false);
-                      setFormData(defaultForm);
-                      setFormSource("kas_harian");
-                    }}
-                    className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500"
-                  >
-                    Batal
-                  </button>
-                  <button
-                  type="submit"
-                  disabled={isSaving}
-                  className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
-                    isSaving ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  Simpan
-                </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showCashOpname && (
-      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-        <div className="bg-white p-6 rounded shadow-lg w-[460px] max-h-[90vh] overflow-auto">
-
-          <h2 className="text-xl font-bold mb-4">Input Cash Opname</h2>
-
-          <table className="w-full mb-4 border">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="p-1 border">Nominal</th>
-                <th className="p-1 border">Qty</th>
-                <th className="p-1 border w-[100px]">Jumlah</th>
+                </th>
+                <th className="border p-2 text-center w-[40px]">Aksi</th>
+                <th className="border p-2 text-center w-[80px]">Tanggal</th>
+                <th className="border p-2 text-center w-[70px]">Waktu</th>
+                <th className="border p-2 text-center w-[120px]">No Bukti</th>
+                <th className="border p-2 text-center">Keterangan</th>
+                <th className="border p-2 text-center w-[50px]">Jenis</th>
+                <th className="border p-2 text-center w-[90px]">Debet</th>
+                <th className="border p-2 text-center w-[90px]">Kredit</th>
+                <th className="border p-2 text-center w-[100px]">Saldo</th>
+                <th className="border p-2 text-center w-[30px]">User Id</th>
+                <th className="border p-2 text-center w-[130px]">Updated At</th>
               </tr>
             </thead>
             <tbody>
-              {cashOpnameRows.map((row, idx) => {
-                const qtyNum = Number(row.qty) || 0;
-                const jumlah = row.nominal * qtyNum;
-
-                return (
-                  <tr key={idx}>
-                    <td className="border p-1 text-right">
-                      {row.nominal.toLocaleString("id-ID")}
-                    </td>
-
-                    <td className="border p-1">
-                      <input
-                        type="number"
-                        className="w-full border p-1 bg-green-100 text-right"
-                        value={row.qty}
-                        placeholder="0"
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCashOpnameRows(prev => {
-                            const copy = [...prev];
-                            copy[idx].qty = val;
-                            return copy;
-                          });
-                        }}
-                      />
-                    </td>
-
-                    <td className="border p-1 text-right">
-                      {jumlah > 0 ? jumlah.toLocaleString("id-ID") : ""}
-                    </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={12} className="text-center py-3">
+                    Memuat data...
+                  </td>
+                </tr>
+              ) : (
+                <>
+                  {/* Baris Saldo Awal */}
+                  <tr className="bg-gray-100 text-center border font-semibold">
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border text-center">Saldo Awal</td>
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border">{fmt(saldoAwalHistori)}</td>
+                    <td className="p-2 border"></td>
+                    <td className="p-2 border"></td>
                   </tr>
-                );
-              })}
+
+                  {/* Jika tidak ada data */}
+                  {paginatedData.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="text-center py-3">
+                        Tidak ada data.
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {/* Baris Transaksi */}
+                      {paginatedData.map((row) => (
+                        <tr key={row.id} className="hover:bg-yellow-300 transition-all duration-150 text-center border">
+                          <td className="p-2 border">
+                            <input
+                              type="checkbox"
+                              checked={selected.includes(String(row.id))}
+                              onChange={() => handleSelect(String(row.id))}
+                            />
+                          </td>
+                          <td className="text-center py-0 px-0">
+                            <div className="flex justify-center gap-[0.5px]">
+                              {(!row.sumber_tabel || row.sumber_tabel === "kas_harian") ? (
+                                <>
+                                  <button
+                                    onClick={() => handleEditKas(row)}
+                                    className="text-blue-600 hover:text-blue-800 px-[5px]"
+                                    title="Edit"
+                                  >
+                                    <FiEdit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteKas(row)}
+                                    className="text-red-600 hover:text-red-800 px-[5px]"
+                                    title="Hapus"
+                                  >
+                                    <FiTrash2 size={16} />
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 text-xs"></span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="tengah p-2 border">
+                            {row.tanggal ? toWIBDateString(new Date(row.tanggal), "display") : ""}
+                          </td>
+                          <td className="tengah p-2 border">{row.waktu ? toWIBTimeString(row.waktu) : ""}</td>
+                          <td className="tengah p-2 border">{row.bukti_transaksi}</td>
+                          <td className="p-2 border text-left">{row.keterangan}</td>
+                          <td className="p-2 border">{row.jenis_transaksi}</td>
+                          <td className="kanan p-2 border">{row.jenis_transaksi === "debet" ? fmt(row.nominal) : ""}</td>
+                          <td className="kanan p-2 border">{row.jenis_transaksi === "kredit" ? fmt(row.nominal) : ""}</td>
+                          <td className="kanan p-2 border">{fmt(row.saldo_akhir)}</td>
+                          <td className="tengah p-2 border">{row.user_id}</td>
+                          <td className="tengah p-2 border">
+                            {row.updated_at ? getWIBTimestampFromUTC(row.updated_at) : ""}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {/* Baris Saldo Akhir */}
+                      <tr className="bg-gray-100 text-center border font-semibold">
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border text-center">Saldo Akhir</td>
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border">{fmt(dataWithSaldo.at(-1)?.saldo_akhir)}</td>
+                        <td className="p-2 border"></td>
+                        <td className="p-2 border"></td>
+                      </tr>
+                    </>
+                  )}
+                </>
+              )}
             </tbody>
           </table>
+        </div>
 
-          <div className="mb-3">
-            <label className="block font-semibold">Brankas:</label>
-            <input
-              type="text"
-              className="border p-1 w-full bg-green-100 text-right"
-              value={brankas}
-              onChange={(e) => {
-                const raw = e.target.value.replace(/[^\d]/g, "");
-                setBrankas(raw === "" ? "" : Number(raw).toLocaleString("id-ID"));
-              }}
-            />
+        {/* Pagination */}
+        {totalPages > 1 && (
+        <div className="flex justify-center items-center mt-4 gap-2">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            ‹ Prev
+          </button>
+          <span>
+            Halaman {currentPage} dari {totalPages || 1}
+          </span>
+        </div>
+        )}
+
+        {/* POPUP FORM */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start pt-24 overflow-y-auto">
+            <div className="bg-white w-full max-w-xl rounded-lg shadow-2xl p-6 relative mb-10">
+              <button
+                className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
+                onClick={() => {
+                  setShowForm(false);
+                  setFormData(defaultForm);
+                  setFormSource("kas_harian"); // reset sumber
+                }}
+              >
+                <FiX size={22} />
+              </button>
+
+              <h2 className="text-2xl font-semibold mb-4 text-center">
+                {formSource === "uang_saku_driver"
+                  ? "Form Uang Saku Driver"
+                  : formMode === "add_debet"
+                  ? "Kas Masuk"
+                  : formMode === "add_kredit"
+                  ? "Kas Keluar"
+                  : "Edit Transaksi"}
+              </h2>
+
+              {formSource === "uang_saku_driver" ? (
+                <PopupUangSakuDriver
+                  formData={formUangSaku}
+                  setFormData={setFormUangSaku}
+                  setShowForm={setShowForm}
+                  defaultForm={defaultUangSakuForm}
+                  setFormSource={setFormSource}
+                  fetchData={fetchData} // ✅ kirim fungsi refresh
+                  sjSearch={sjSearch}
+                  setSjSearch={setSjSearch}
+                  sjList={sjList}
+                  showDropdown={showDropdown}
+                  setShowDropdown={setShowDropdown}
+                  highlightedIndex={highlightedIndex}
+                  setHighlightedIndex={setHighlightedIndex}
+                  handleSelectSj={handleSelectSj}
+                />
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    await handleSave();
+                  }}
+                  className="grid grid-cols-2 gap-4 pb-6"
+                >
+                  <div>
+                    <label className="block mb-1 font-semibold">Tanggal</label>
+                    <input
+                      type="date"
+                      name="tanggal"
+                      value={formData.tanggal || ""}
+                      onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
+                      onFocus={(e) => (e.target.showPicker ? e.target.showPicker() : null)}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-1 font-semibold">Waktu</label>
+                    <input
+                      type="time"
+                      name="waktu"
+                      value={formData.waktu || ""}
+                      readOnly
+                      className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block mb-1 font-semibold">No Bukti</label>
+                    <input
+                      type="text"
+                      name="bukti_transaksi"
+                      value={formData.bukti_transaksi || ""}
+                      onChange={(e) => setFormData({ ...formData, bukti_transaksi: e.target.value })}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block mb-1 font-semibold">Keterangan</label>
+                    <input
+                      type="text"
+                      name="keterangan"
+                      value={formData.keterangan || ""}
+                      onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-1 font-semibold">Nominal</label>
+                    <input
+                      type="text"
+                      name="nominal"
+                      value={
+                        formData.nominal !== undefined && formData.nominal !== null
+                          ? String(Number(formData.nominal).toLocaleString("id-ID"))
+                          : ""
+                      }
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^\d]/g, "");
+                        setFormData({ ...formData, nominal: raw ? Number(raw) : 0 });
+                      }}
+                      className="w-full border rounded px-3 py-2 text-right"
+                    />
+                  </div>
+
+                  <div className="col-span-2 flex justify-end gap-4 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForm(false);
+                        setFormData(defaultForm);
+                        setFormSource("kas_harian");
+                      }}
+                      className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500"
+                    >
+                      Batal
+                    </button>
+                    <button
+                    type="submit"
+                    disabled={isSaving}
+                    className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
+                      isSaving ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    Simpan
+                  </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
+        )}
 
-          <div className="mb-3">
-            <label className="block font-semibold">Diperiksa oleh:</label>
-            <input
-              type="text"
-              className="border p-1 w-full"
-              value={checkerName}
-              onChange={(e) => setCheckerName(e.target.value)}
-              placeholder="Nama pemeriksa"
-            />
-          </div>
+        {showCashOpname && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded shadow-lg w-[460px] max-h-[90vh] overflow-auto">
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              className="px-3 py-1 bg-gray-300"
-              onClick={() => {
-                resetCashOpname();
-                setShowCashOpname(false);
-              }}
-            >
-              Batal
-            </button>
+            <h2 className="text-xl font-bold mb-4">Input Cash Opname</h2>
 
-            <button
-              className="px-3 py-1 bg-blue-600 text-white"
-              onClick={() => {
-                setShowCashOpname(false);
-                handlePrintWithCashOpname();
-              }}
-            >
-              Simpan & Cetak
-            </button>
+            <table className="w-full mb-4 border">
+              <thead>
+                <tr className="bg-gray-200">
+                  <th className="p-1 border">Nominal</th>
+                  <th className="p-1 border">Qty</th>
+                  <th className="p-1 border w-[100px]">Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cashOpnameRows.map((row, idx) => {
+                  const qtyNum = Number(row.qty) || 0;
+                  const jumlah = row.nominal * qtyNum;
+
+                  return (
+                    <tr key={idx}>
+                      <td className="border p-1 text-right">
+                        {row.nominal.toLocaleString("id-ID")}
+                      </td>
+
+                      <td className="border p-1">
+                        <input
+                          type="number"
+                          className="w-full border p-1 bg-green-100 text-right"
+                          value={row.qty}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCashOpnameRows(prev => {
+                              const copy = [...prev];
+                              copy[idx].qty = val;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </td>
+
+                      <td className="border p-1 text-right">
+                        {jumlah > 0 ? jumlah.toLocaleString("id-ID") : ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <div className="mb-3">
+              <label className="block font-semibold">Brankas:</label>
+              <input
+                type="text"
+                className="border p-1 w-full bg-green-100 text-right"
+                value={brankas}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, "");
+                  setBrankas(raw === "" ? "" : Number(raw).toLocaleString("id-ID"));
+                }}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="block font-semibold">Diperiksa oleh:</label>
+              <input
+                type="text"
+                className="border p-1 w-full"
+                value={checkerName}
+                onChange={(e) => setCheckerName(e.target.value)}
+                placeholder="Nama pemeriksa"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                className="px-3 py-1 bg-gray-300"
+                onClick={() => {
+                  resetCashOpname();
+                  setShowCashOpname(false);
+                }}
+              >
+                Batal
+              </button>
+
+              <button
+                className="px-3 py-1 bg-blue-600 text-white"
+                onClick={() => {
+                  setShowCashOpname(false);
+                  handlePrintWithCashOpname();
+                }}
+              >
+                Simpan & Cetak
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+        {createPortal(
+        <style>
+          {`
+          @media print {
+            /* Pakai selector lebih spesifik untuk menimpa Tailwind */
+            td.tengah, th.tengah {
+              text-align: center !important;
+            }
+            td.kanan, th.kanan {
+              text-align: right !important;
+            }
+            td.text-left, th.text-left {
+              text-align: left !important;
+            }
+
+            table {
+              border-collapse: collapse !important;
+              width: 100% !important;
+            }
+
+            table th, table td {
+              font-size: 12px !important;
+              padding: 2px 4px !important;
+              vertical-align: middle !important;
+              border: 1px solid black !important;
+              line-height: 1 !important;
+            }
+
+            /* Header tabel */
+            table thead th {
+              background: white !important;
+              color: black !important;
+              font-weight: bold !important;
+              text-align: center !important;
+            }
+
+            /* Hapus kolom checkbox & aksi saat print */
+            th:nth-child(1),
+            td:nth-child(1),
+            th:has(input[type="checkbox"]),
+            td:has(input[type="checkbox"]),
+            th:contains("Aksi"),
+            td:contains("Aksi"),
+            th:contains("Waktu"),
+            td:contains("Waktu"),
+            th:contains("User Id"),
+            td:contains("User Id"),
+            th:contains("Updated At"),
+            td:contains("Updated At"),
+            th:contains("Jenis"),
+            td:contains("Jenis") {
+              display: none !important;
+            }
+          }
+          `}
+        </style>,
+        document.head
+      )}
       </div>
-    )}
-
-      {createPortal(
-      <style>
-        {`
-        @media print {
-          /* Pakai selector lebih spesifik untuk menimpa Tailwind */
-          td.tengah, th.tengah {
-            text-align: center !important;
-          }
-          td.kanan, th.kanan {
-            text-align: right !important;
-          }
-          td.text-left, th.text-left {
-            text-align: left !important;
-          }
-
-          table {
-            border-collapse: collapse !important;
-            width: 100% !important;
-          }
-
-          table th, table td {
-            font-size: 12px !important;
-            padding: 2px 4px !important;
-            vertical-align: middle !important;
-            border: 1px solid black !important;
-            line-height: 1 !important;
-          }
-
-          /* Header tabel */
-          table thead th {
-            background: white !important;
-            color: black !important;
-            font-weight: bold !important;
-            text-align: center !important;
-          }
-
-          /* Hapus kolom checkbox & aksi saat print */
-          th:nth-child(1),
-          td:nth-child(1),
-          th:has(input[type="checkbox"]),
-          td:has(input[type="checkbox"]),
-          th:contains("Aksi"),
-          td:contains("Aksi"),
-          th:contains("Waktu"),
-          td:contains("Waktu"),
-          th:contains("User Id"),
-          td:contains("User Id"),
-          th:contains("Updated At"),
-          td:contains("Updated At"),
-          th:contains("Jenis"),
-          td:contains("Jenis") {
-            display: none !important;
-          }
-        }
-        `}
-      </style>,
-      document.head
-    )}
     </div>
   );
 }

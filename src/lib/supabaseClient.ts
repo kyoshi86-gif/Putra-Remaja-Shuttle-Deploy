@@ -8,8 +8,8 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 if (
   typeof supabaseUrl !== "string" ||
   typeof supabaseKey !== "string" ||
-  (!supabaseUrl.includes("supabase.co") && !supabaseUrl.includes("localhost"))
-) {
+  !supabaseUrl.includes("supabase.co") && !supabaseUrl.includes("localhost"))
+ {
   throw new Error("❌ Supabase env tidak valid. Cek konfigurasi Vercel dan prefix VITE_");
 }
 

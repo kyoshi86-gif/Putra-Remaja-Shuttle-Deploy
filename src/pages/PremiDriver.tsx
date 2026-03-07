@@ -55,6 +55,12 @@ export const toDate = (v: unknown): Date | "" => {
   return "";
 };
 
+type PremiDriverRow = {
+  no_surat_jalan: string;
+  driver: string | null;
+  crew?: string | null;
+};
+
 export default function PremiDriver() {
   const [data, setData] = useState<PremiData[]>([]);
   const [filtered, setFiltered] = useState<PremiData[]>([]);
@@ -348,17 +354,10 @@ export default function PremiDriver() {
   const selectAllRef = useRef<HTMLInputElement | null>(null);
 
   // ===== DATE RANGE =====
-  const today = new Date();
-  const firstDayOfMonth = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    1
-  );
-
   const [range, setRange] = useState<Range[]>([
     {
-      startDate: firstDayOfMonth,
-      endDate: today,
+      startDate: undefined,
+      endDate: undefined,
       key: "selection",
     },
   ]);
@@ -418,12 +417,6 @@ export default function PremiDriver() {
     }
   };
 
-  // ✅ panggil ulang saat mount dan saat filter outlet berubah
-  useEffect(() => {
-    fetchData();
-    fetchSuratJalanDipakai();
-  }, [selectedEntityId, entityCtx]);
-
   // -- auto refresh --
   useEffect(() => {
     let lastRefresh = 0;
@@ -458,49 +451,113 @@ export default function PremiDriver() {
       query = query.eq("entity_id", entityCtx.entity_id);
     }
 
-    const { data: semuaSJ, error } = await query;
-    if (error) {
-      console.error("❌ Gagal ambil SJ:", error.message);
-      setSuratJalanTersedia([]);
-      setSemuaSJ([]);
-      return;
+    let semuaSJRows: SuratJalanRow[] = [];
+    let pageSJ = 0;
+    const pageSize = 1000;
+
+    while (true) {
+      const { data, error } = await query.range(
+        pageSJ * pageSize,
+        (pageSJ + 1) * pageSize - 1
+      );
+
+      if (error) {
+        console.error("❌ Gagal ambil SJ:", error.message);
+        break;
+      }
+
+      if (!data || data.length === 0) break;
+
+      semuaSJRows = [...semuaSJRows, ...data];
+
+      if (data.length < pageSize) break;
+
+      pageSJ++;
     }
 
-    const { data: sudahDipakai } = await supabase
+    // ambil SJ yang sudah dipakai
+    let usedQuery = supabase
       .from("premi_driver")
       .select("no_surat_jalan, driver");
 
-    const dipakaiSet = new Set(
-      sudahDipakai?.map((row) => `${row.no_surat_jalan}__${row.driver}`) || []
-    );
+    if (entityCtx.tipe === "pusat") {
+      const targetEntity = selectedEntityId ?? entityCtx.entity_id;
+      usedQuery = usedQuery.eq("entity_id", targetEntity);
+    } else {
+      usedQuery = usedQuery.eq("entity_id", entityCtx.entity_id);
+    }
+
+    let semuaDipakai: PremiDriverRow[] = [];
+      let pagePremi = 0;
+
+      while (true) {
+        const { data } = await usedQuery.range(
+          pagePremi * pageSize,
+          (pagePremi + 1) * pageSize - 1
+        );
+
+        if (!data || data.length === 0) break;
+
+        semuaDipakai = [...semuaDipakai, ...data];
+
+        if (data.length < pageSize) break;
+
+        pagePremi++;
+      }
+
+      const sudahDipakai = semuaDipakai;
+   
+    // hitung berapa kali SJ dipakai
+    const usedMap: Record<string, number> = {};
+
+    (sudahDipakai || []).forEach((r) => {
+      const sj = r.no_surat_jalan;
+
+      if (!usedMap[sj]) usedMap[sj] = 0;
+      usedMap[sj]++;
+    });
 
     const hasil: { no_surat_jalan: string; nama: string }[] = [];
 
-    semuaSJ?.forEach((row) => {
+    semuaSJRows?.forEach((row) => {
       const sj = row.no_surat_jalan;
-      const driver = row.driver;
-      const crew = row.crew;
+      const driver = row.driver?.trim() || "";
+      const crew = row.crew?.trim();
 
-      if (driver && !dipakaiSet.has(`${sj}__${driver}`)) {
-        hasil.push({ no_surat_jalan: sj, nama: driver });
+      const usedCount = usedMap[sj] || 0;
+
+      // ===== hanya driver (crew kosong/null) =====
+      if (driver && !crew) {
+        if (usedCount === 0) {
+          hasil.push({ no_surat_jalan: sj, nama: driver });
+        }
+        return;
       }
 
-      if (crew && !dipakaiSet.has(`${sj}__${crew}`)) {
-        hasil.push({ no_surat_jalan: sj, nama: crew });
+      // ===== driver + crew =====
+      if (driver && crew) {
+        if (usedCount === 0) {
+          hasil.push({ no_surat_jalan: sj, nama: driver });
+        } else if (usedCount === 1) {
+          hasil.push({ no_surat_jalan: sj, nama: crew });
+        }
       }
     });
 
-    setSuratJalanTersedia(
-      hasil.sort((a, b) => a.no_surat_jalan.localeCompare(b.no_surat_jalan))
+    const unique = Array.from(
+      new Map(
+        hasil.map((item) => [`${item.no_surat_jalan}__${item.nama}`, item])
+      ).values()
     );
-    setSemuaSJ(semuaSJ ?? []);
+
+    setSuratJalanTersedia(
+      unique.sort((a, b) => a.no_surat_jalan.localeCompare(b.no_surat_jalan))
+    );
+
+    setSemuaSJ(semuaSJRows ?? []);
   };
 
   // ✅ panggil ulang saat mount dan saat filter outlet berubah
-  useEffect(() => {
-    fetchSJ();
-  }, [selectedEntityId, entityCtx]);
-
   useEffect(() => {
     const handleRefresh = () => {
       console.log("🔄 Refresh SJ karena premi_driver dihapus");
@@ -517,25 +574,41 @@ export default function PremiDriver() {
 
     setLoading(true);
 
-    let query = supabase
-      .from("premi_driver")
-      .select("*")
-      .order("id", { ascending: false });
+    let allData: PremiData[] = [];
+    let page = 0;
+    const pageSize = 1000;
 
-    if (entityCtx.tipe === "pusat") {
-      const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-      query = query.eq("entity_id", targetEntity);
-    } else {
-      query = query.eq("entity_id", entityCtx.entity_id);
+    while (true) {
+      let query = supabase
+        .from("premi_driver")
+        .select("*")
+        .order("id", { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (entityCtx.tipe === "pusat") {
+        const targetEntity = selectedEntityId ?? entityCtx.entity_id;
+        query = query.eq("entity_id", targetEntity);
+      } else {
+        query = query.eq("entity_id", entityCtx.entity_id);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("❌ Gagal fetch premi_driver:", error.message);
+        break;
+      }
+
+      if (!data || data.length === 0) break;
+
+      allData = [...allData, ...data];
+
+      if (data.length < pageSize) break;
+
+      page++;
     }
 
-    const { data, error } = await query;
-
-    if (!error && data) {
-      setData(data); 
-      // ❌ JANGAN setFiltered disini lagi
-    }
-
+    setData(allData);
     setLoading(false);
   };
 
@@ -570,7 +643,6 @@ export default function PremiDriver() {
     .select("kartu_etoll")
     .eq("no_surat_jalan", sj.no_surat_jalan)
     .single();
-
 
   const nilaiPerpal =
     (detailSJ?.perpal_1x_rute ? 20000 : 0) +
@@ -776,6 +848,7 @@ export default function PremiDriver() {
     }
 
     setFormData(prepareFormData(result.nomor));
+    await fetchSJ();
     setShowForm(true);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -1725,7 +1798,7 @@ export default function PremiDriver() {
   }
 
   return (
-    <div className="p-4 bg-white rounded shadow">
+    <div className="p-4 bg-white rounded shadow max-w-[1600px] mx-auto">
 
     {/* ================= HEADER ================= */}
     <div className="w-full pr-8 mb-4">
@@ -1793,20 +1866,22 @@ export default function PremiDriver() {
           )}
 
           {/* DATE RANGE */}
-          <div
-            ref={triggerRef}
-            className="flex items-center gap-2 border px-3 h-[42px] rounded cursor-pointer"
-            onClick={() => setShowPicker(true)}
-          >
-            <span className="font-semibold text-sm whitespace-nowrap">
-              Date:
-            </span>
-            <span className="text-sm">
-              {range[0]?.startDate && range[0]?.endDate
-                ? `${format(range[0].startDate, "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate, "dd-MM-yyyy", { locale: id })}`
-                : "-"}
-            </span>
-          </div>
+          <div ref={triggerRef} className="flex items-center gap-2">
+              <label className="font-semibold text-sm whitespace-nowrap">
+                Date:
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={
+                  range[0]?.startDate && range[0]?.endDate
+                    ? `${format(range[0].startDate, "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate, "dd-MM-yyyy", { locale: id })}`
+                    : "Pilih Tanggal"
+                }
+                onClick={() => setShowPicker(true)}
+                className="border border-gray-300 rounded px-2 py-1 text-sm w-[220px] cursor-pointer"
+              />
+            </div>
 
           {/* SEARCH FIELD */}
           <select
@@ -1825,7 +1900,7 @@ export default function PremiDriver() {
           </select>
 
           {/* SEARCH INPUT */}
-          <div className="relative w-[260px]">
+          <div className="relative flex-1 min-w-[180px] max-w-[260px]">
             <input
               type="text"
               placeholder="Cari data..."

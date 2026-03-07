@@ -77,17 +77,11 @@ export default function SuratJalan() {
   const [customUser, setCustomUser] = useState<CustomUser | null>(null);
   const [loadingCtx, setLoadingCtx] = useState(true);
 
-  const today = new Date();
-  const firstDayOfMonth = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    1
-  );
-
+  // ================= DEFAULT DATE RANGE BULAN BERJALAN =================
   const [range, setRange] = useState<Range[]>([
     {
-      startDate: firstDayOfMonth,
-      endDate: today,
+      startDate: undefined,
+      endDate: undefined,
       key: "selection",
     },
   ]);
@@ -1555,7 +1549,7 @@ const handleSelectKodeRute = (item: Rute) => {
 
       {/* TOMBOL */}
       <div className="w-full pr-8 mb-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
 
           {/* LEFT GROUP */}
           <div className="flex flex-wrap items-center gap-3">
@@ -1630,6 +1624,10 @@ const handleSelectKodeRute = (item: Rute) => {
             >
               <FiPrinter /> Cetak
             </button>
+          </div>
+
+          {/* RIGHT GROUP */}
+          <div className="flex flex-wrap items-center gap-3">
 
             {/* FILTER OUTLET */}
             {entityCtx?.tipe === "pusat" && (
@@ -1648,16 +1646,11 @@ const handleSelectKodeRute = (item: Rute) => {
                 </select>
               </div>
             )}
-
-          </div>
-
-          {/* RIGHT GROUP */}
-          <div className="flex flex-wrap items-center gap-4">
-
+            
             {/* DATE RANGE */}
             <div ref={triggerRef} className="flex items-center gap-2">
               <label className="font-semibold text-sm whitespace-nowrap">
-                Date range:
+                Date:
               </label>
               <input
                 type="text"
@@ -1665,7 +1658,7 @@ const handleSelectKodeRute = (item: Rute) => {
                 value={
                   range[0]?.startDate && range[0]?.endDate
                     ? `${format(range[0].startDate, "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate, "dd-MM-yyyy", { locale: id })}`
-                    : ""
+                    : "Pilih Tanggal"
                 }
                 onClick={() => setShowPicker(true)}
                 className="border border-gray-300 rounded px-2 py-1 text-sm w-[220px] cursor-pointer"

@@ -151,17 +151,10 @@ const [currentPage, setCurrentPage] = useState(1);
 const itemsPerPage = 100;
 
 // ================= DEFAULT DATE RANGE BULAN BERJALAN =================
-const today = new Date();
-const firstDayOfMonth = new Date(
-  today.getFullYear(),
-  today.getMonth(),
-  1
-);
-
 const [range, setRange] = useState<Range[]>([
   {
-    startDate: firstDayOfMonth,
-    endDate: today,
+    startDate: undefined,
+    endDate: undefined,
     key: "selection",
   },
 ]);
@@ -213,23 +206,36 @@ useEffect(() => {
       .order("id", { ascending: false });
 
     if (entityCtx.tipe === "pusat") {
-      // ✅ kalau user pusat, pakai filter outlet jika dipilih
       if (selectedEntityId) {
         query = query.eq("entity_id", selectedEntityId);
-      } else {
-        query = query.eq("entity_id", entityCtx.entity_id);
       }
     } else {
-      // ✅ kalau user outlet, pakai entity outlet langsung
       query = query.eq("entity_id", entityCtx.entity_id);
     }
 
-    const { data, error } = await query;
-    if (error) {
-      console.error("❌ Gagal ambil data:", error.message);
-    } else {
-      setData(data as UangSakuData[]);
+    // ✅ pagination loop hemat egress
+    let allData: UangSakuData[] = [];
+    let from = 0;
+    const batchSize = 1000;
+
+    while (true) {
+      const { data: chunk, error } = await query.range(from, from + batchSize - 1);
+
+      if (error) {
+        console.error("❌ Gagal ambil data:", error.message);
+        break;
+      }
+
+      if (!chunk || chunk.length === 0) break;
+
+      allData = [...allData, ...(chunk as UangSakuData[])];
+
+      if (chunk.length < batchSize) break;
+
+      from += batchSize;
     }
+
+    setData(allData);
     setLoading(false);
   };
 
@@ -447,16 +453,21 @@ useEffect(() => {
   // --- EDIT ---
   const handleEdit = (item: UangSakuData) => {
     if (kasHilangMap[item.id]) {
-    alert("❌ Transaksi kas sudah dihapus. Tidak bisa diedit.");
-    return;
-  }
+      alert("❌ Transaksi kas sudah dihapus. Tidak bisa diedit.");
+      return;
+    }
 
-  setFormData({
-    ...item,
-    id_kas_harian: item.id_kas_harian ?? undefined, // ✅ pastikan properti ikut masuk
-  });
-  setShowForm(true);
-};
+    setFormData({
+      ...item,
+      id_kas_harian: item.id_kas_harian ?? undefined,
+    });
+
+    setSjSearch(item.no_surat_jalan || ""); // ✅ sinkronkan dropdown
+    setHighlightedIndex(-1);
+    setShowDropdown(false);
+
+    setShowForm(true);
+  };
 
   // --- DELETE ROW ---
   const handleDelete = async (id: number) => {
@@ -755,37 +766,17 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
     try {
       if (!entityCtx?.entity_id) return;
 
-      let query = supabase
-        .from("surat_jalan")
-        .select("*")
-        .order("no_surat_jalan", { ascending: true });
+      const targetEntity =
+        entityCtx.tipe === "pusat" && selectedEntityId
+          ? selectedEntityId
+          : entityCtx.entity_id;
 
-      if (entityCtx.tipe === "pusat") {
-        const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-        query = query.eq("entity_id", targetEntity); // ✅ filter outlet
-      } else {
-        query = query.eq("entity_id", entityCtx.entity_id);
-      }
+      const { data, error } = await supabase
+        .rpc("get_sj_belum_premi", { entity_filter: targetEntity });
 
-      const { data: semuaSj, error: sjError } = await query;
-      if (sjError) throw sjError;
+      if (error) throw error;
 
-      // Ambil semua no_surat_jalan yang sudah dipakai
-      const { data: dipakai, error: usdError } = await supabase
-        .from("uang_saku_driver")
-        .select("no_surat_jalan, entity_id");
-      if (usdError) throw usdError;
-
-      const dipakaiSet = new Set(
-        dipakai?.filter((d) => d.entity_id === (selectedEntityId ?? entityCtx.entity_id))
-              .map((d) => d.no_surat_jalan)
-      );
-
-      const belumDipakai = semuaSj?.filter(
-        (sj) => !dipakaiSet.has(sj.no_surat_jalan)
-      );
-
-      setSjList(belumDipakai ?? []);
+      setSjList((data ?? []) as SuratJalanRow[]);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("❌ Gagal ambil SJ:", message);
@@ -853,6 +844,9 @@ const handleSelectSj = (sj: SuratJalanRow) => {
   // --- Auto isi NO USD saat klik Tambah (preview saja) ---
   const handleTambah = async (): Promise<void> => {
     try {
+
+      await fetchSjList();
+
       setFormData({ ...defaultFormData });
       setSjSearch("");
       setShowDropdown(false);
@@ -901,8 +895,11 @@ const handleSelectSj = (sj: SuratJalanRow) => {
   };
 
   const handleCloseForm = () => {
-  setFormData(defaultFormData); // reset semua isi form
-  setShowForm(false);            // sembunyikan pop-up
+    setFormData(defaultFormData);
+    setSjSearch("");        // ✅ reset search
+    setShowDropdown(false);
+    setHighlightedIndex(-1);
+    setShowForm(false);
   };
 
   if (loadingCtx) {
@@ -932,311 +929,310 @@ const handleSelectSj = (sj: SuratJalanRow) => {
 
           <form
             onSubmit={async (e: React.FormEvent<HTMLFormElement>) => {
-                e.preventDefault();
-
+              e.preventDefault();
                 const nomorFinal = await handleSubmit();
                   if (!nomorFinal) return;
 
-                  const confirmPrint = window.confirm("Cetak Bukti Uang Saku?");
+                const confirmPrint = window.confirm("Cetak Bukti Uang Saku?");
                   if (confirmPrint) {
                     window.open(
-                      `/cetak-uang-saku?no=${nomorFinal}&autoPrint=true`,
-                      "_blank"
+                    `/cetak-uang-saku?no=${nomorFinal}&autoPrint=true`,
+                    "_blank"
                     );
                   }
 
                   // Baru reset form (setelah cetak)
                   setShowForm(false);
                   setFormData(defaultFormData);
-              }}
-            className="grid grid-cols-2 gap-4 pb-6"
-          >
-          
-          {/* No Saku Driver */}
-          <div className="col-span-2">
-            <label className="block mb-1 font-semibold">No Uang Saku Driver</label>
-            <input
-              type="text"
-              name="no_uang_saku"
-              value={formData.no_uang_saku || ""}
-              readOnly={true} // kalau pas edit bisa ganti no, pakai {formData.id === 0}
-              onChange={(e) =>
-                setFormData({ ...formData, no_uang_saku: e.target.value })
-              }
-              className={`w-full border rounded px-3 py-2 ${true ? "bg-gray-100 cursor-not-allowed" : ""}`}
-            />
-          </div>
-
-          {/* Tanggal Keluar */}
-          <div>
-            <label className="block mb-1 font-semibold">Tanggal Uang Saku</label>
-            <input
-              type="date"
-              name="tanggal"
-              value={formData.tanggal || ""}
-              onChange={handleChange}
-              onFocus={(e) => (e.target.showPicker ? e.target.showPicker() : null)}
-              className="w-full border rounded px-3 py-2"
-            />
-          </div>
-
-          {/* No Surat Jalan (autocomplete) */}
-          <div className="relative">
-            <label className="block mb-1 font-semibold">No Surat Jalan</label>
-            <input
-              type="text"
-              name="no_surat_jalan"
-              value={sjSearch || formData.no_surat_jalan || ""}
-              onChange={(e) => {
-                const value = e.target.value;
-                setSjSearch(value);
-                setShowDropdown(true);
-                setHighlightedIndex(-1);
-                setFormData((prev) => ({ ...prev, no_surat_jalan: value }));
-              }}
-              onFocus={() => setShowDropdown(true)}
-              onBlur={() => {
-                setTimeout(() => setShowDropdown(false), 150);
-              }}
-              onKeyDown={(e) => {
-                const filtered = sjList.filter((sj) =>
-                  sj.no_surat_jalan
-                    ?.toLowerCase()
-                    .includes(sjSearch.toLowerCase())
-                );
-
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setHighlightedIndex((prev) => {
-                    const next = prev < filtered.length - 1 ? prev + 1 : 0;
-                    const el = document.getElementById(`sj-item-${next}`);
-                    if (el) el.scrollIntoView({ block: "nearest" });
-                    return next;
-                  });
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setHighlightedIndex((prev) => {
-                    const next = prev > 0 ? prev - 1 : filtered.length - 1;
-                    const el = document.getElementById(`sj-item-${next}`);
-                    if (el) el.scrollIntoView({ block: "nearest" });
-                    return next;
-                  });
-                } else if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (highlightedIndex >= 0 && highlightedIndex < filtered.length) {
-                    handleSelectSj(filtered[highlightedIndex]);
-                  }
-                } else if (e.key === "Escape") {
-                  setShowDropdown(false);
+            }}
+              className="grid grid-cols-2 gap-4 pb-6"
+            >
+            
+            {/* No Saku Driver */}
+            <div className="col-span-2">
+              <label className="block mb-1 font-semibold">No Uang Saku Driver</label>
+              <input
+                type="text"
+                name="no_uang_saku"
+                value={formData.no_uang_saku || ""}
+                readOnly={true} // kalau pas edit bisa ganti no, pakai {formData.id === 0}
+                onChange={(e) =>
+                  setFormData({ ...formData, no_uang_saku: e.target.value })
                 }
-              }}
-              placeholder="Cari No Surat Jalan..."
-              className="w-full border rounded px-3 py-2"
-              autoComplete="off"
-            />
+                className={`w-full border rounded px-3 py-2 ${true ? "bg-gray-100 cursor-not-allowed" : ""}`}
+              />
+            </div>
 
-            {showDropdown && (
-              <ul
-                id="sj-list"
-                className="absolute z-50 w-full max-h-60 overflow-auto bg-white border rounded mt-1 shadow-lg"
-              >
-                {sjList
-                  .filter((sj) =>
+            {/* Tanggal Keluar */}
+            <div>
+              <label className="block mb-1 font-semibold">Tanggal Uang Saku</label>
+              <input
+                type="date"
+                name="tanggal"
+                value={formData.tanggal || ""}
+                onChange={handleChange}
+                onFocus={(e) => (e.target.showPicker ? e.target.showPicker() : null)}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+
+            {/* No Surat Jalan (autocomplete) */}
+            <div className="relative">
+              <label className="block mb-1 font-semibold">No Surat Jalan</label>
+              <input
+                type="text"
+                name="no_surat_jalan"
+                value={sjSearch || formData.no_surat_jalan || ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSjSearch(value);
+                  setShowDropdown(true);
+                  setHighlightedIndex(-1);
+                  setFormData((prev) => ({ ...prev, no_surat_jalan: value }));
+                }}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowDropdown(false), 150);
+                }}
+                onKeyDown={(e) => {
+                  const filtered = sjList.filter((sj) =>
                     sj.no_surat_jalan
                       ?.toLowerCase()
                       .includes(sjSearch.toLowerCase())
-                  )
-                  .map((sj, idx) => (
-                    <li
-                      key={sj.id ?? `${sj.no_surat_jalan}-${idx}`}
-                      id={`sj-item-${idx}`}
-                      onMouseDown={(ev) => {
-                        ev.preventDefault();
-                        handleSelectSj(sj);
-                      }}
-                      className={`px-3 py-2 cursor-pointer ${
-                        highlightedIndex === idx ? "bg-blue-100" : "hover:bg-gray-200"
-                      }`}
-                    >
-                      {sj.no_surat_jalan}
-                    </li>
-                  ))}
+                  );
 
-                {sjList.filter((sj) =>
-                  sj.no_surat_jalan
-                    ?.toLowerCase()
-                    .includes(sjSearch.toLowerCase())
-                ).length === 0 && (
-                  <li className="px-3 py-2 text-gray-400">Tidak ditemukan</li>
-                )}
-              </ul>
-            )}
-          </div>
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setHighlightedIndex((prev) => {
+                      const next = prev < filtered.length - 1 ? prev + 1 : 0;
+                      const el = document.getElementById(`sj-item-${next}`);
+                      if (el) el.scrollIntoView({ block: "nearest" });
+                      return next;
+                    });
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setHighlightedIndex((prev) => {
+                      const next = prev > 0 ? prev - 1 : filtered.length - 1;
+                      const el = document.getElementById(`sj-item-${next}`);
+                      if (el) el.scrollIntoView({ block: "nearest" });
+                      return next;
+                    });
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (highlightedIndex >= 0 && highlightedIndex < filtered.length) {
+                      handleSelectSj(filtered[highlightedIndex]);
+                    }
+                  } else if (e.key === "Escape") {
+                    setShowDropdown(false);
+                  }
+                }}
+                placeholder="Cari No Surat Jalan..."
+                className="w-full border rounded px-3 py-2"
+                autoComplete="off"
+              />
 
-          {/* Tanggal Berangkat */}
-          <div>
-            <label className="block mb-1 font-semibold">Tanggal Berangkat & Kembali</label>
-            <input
-              type="text"
-              readOnly
-              value={
-                formData.tanggal_berangkat && formData.tanggal_kembali
-                  ? `${new Date(formData.tanggal_berangkat)
-                      .toLocaleDateString("id-ID", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      })
-                      .replaceAll("/", "-")} s/d ${new Date(formData.tanggal_kembali)
-                      .toLocaleDateString("id-ID", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      })
-                      .replaceAll("/", "-")}`
-                  : ""
-              }
-              className="w-full border rounded px-3 py-2 bg-gray-100"
-            />
-          </div>
-
-          {/* Driver / Crew */}
-          <div>
-            <label className="block mb-1 font-semibold">Driver / Crew</label>
-            <input
-              type="text"
-              readOnly
-              name="driver"
-              value={formData.driver || ""}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 bg-gray-100"
-              placeholder="Nama Driver / Crew"
-            />
-          </div>
-
-          {/* No Polisi */}
-          <div>
-            <label className="block mb-1 font-semibold">No Polisi</label>
-            <input
-              type="text"
-              readOnly
-              name="no_polisi"
-              value={formData.no_polisi || ""}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 bg-gray-100"
-            />
-          </div>
-
-          {/* Kode Unit */}
-          <div>
-            <label className="block mb-1 font-semibold">Kode Unit</label>
-            <input
-              type="text"
-              readOnly
-              name="kode_unit"
-              value={formData.kode_unit || ""}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 bg-gray-100"
-            />
-          </div>
-
-          {/* Kode Rute */}
-          <div>
-            <label className="block mb-1 font-semibold">Kode Rute</label>
-            <input
-              type="text"
-              readOnly
-              name="kode_rute"
-              value={formData.kode_rute || ""}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 bg-gray-100"
-            />
-          </div>
-
-          {/* Uang Input */}
-          <div>
-            <label className="block mb-1 font-semibold">BBM</label>
-            <input
-              type="text"
-              name="bbm"
-              value={formatRupiah(formData.bbm)}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 text-left"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-1 font-semibold">Uang Makan</label>
-            <input
-              type="text"
-              name="uang_makan"
-              value={formatRupiah(formData.uang_makan) || ""}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 text-left"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-1 font-semibold">Parkir</label>
-            <input
-              type="text"
-              name="parkir"
-              value={formatRupiah(formData.parkir)}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 text-left"
-            />
-          </div>
-
-          <div className="col-span-2 my-2 font-bold text-center">
-            <label className="block mb-1 font-semibold">Jumlah</label>
-            <input
-              type="text"
-              name="jumlah"
-              value={formatRupiah(formData.jumlah)}
-              readOnly
-              className="w-full border rounded px-3 py-2 bg-green-400 text-center font-bold text-xl"
-            />
-          </div>
-
-          {/* Kartu Etoll */}
-          <div className="col-span-2">
-            <label className="block mb-1 font-semibold">Kartu Etoll</label>
-            <input
-              type="text"
-              name="kartu_etoll"
-              value={formData.kartu_etoll || ""}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2"
-            />
-          </div>
-
-          {/* Submit */}
-          <div className="col-span-2 flex justify-end gap-4 mt-4">
-                <button
-                  type="button"
-                  onClick={handleCloseForm}
-                  className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500"
+              {showDropdown && (
+                <ul
+                  id="sj-list"
+                  className="absolute z-50 w-full max-h-60 overflow-auto bg-white border rounded mt-1 shadow-lg"
                 >
-                  Batal
-                </button>
-                <button
+                  {sjList
+                    .filter((sj) =>
+                      sj.no_surat_jalan
+                        ?.toLowerCase()
+                        .includes(sjSearch.toLowerCase())
+                    )
+                    .map((sj, idx) => (
+                      <li
+                        key={sj.id ?? `${sj.no_surat_jalan}-${idx}`}
+                        id={`sj-item-${idx}`}
+                        onMouseDown={(ev) => {
+                          ev.preventDefault();
+                          handleSelectSj(sj);
+                        }}
+                        className={`px-3 py-2 cursor-pointer ${
+                          highlightedIndex === idx ? "bg-blue-100" : "hover:bg-gray-200"
+                        }`}
+                      >
+                        {sj.no_surat_jalan}
+                      </li>
+                    ))}
+
+                  {sjList.filter((sj) =>
+                    sj.no_surat_jalan
+                      ?.toLowerCase()
+                      .includes(sjSearch.toLowerCase())
+                  ).length === 0 && (
+                    <li className="px-3 py-2 text-gray-400">Tidak ditemukan</li>
+                  )}
+                </ul>
+              )}
+            </div>
+
+            {/* Tanggal Berangkat */}
+            <div>
+              <label className="block mb-1 font-semibold">Tanggal Berangkat & Kembali</label>
+              <input
+                type="text"
+                readOnly
+                value={
+                  formData.tanggal_berangkat && formData.tanggal_kembali
+                    ? `${new Date(formData.tanggal_berangkat)
+                        .toLocaleDateString("id-ID", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })
+                        .replaceAll("/", "-")} s/d ${new Date(formData.tanggal_kembali)
+                        .toLocaleDateString("id-ID", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })
+                        .replaceAll("/", "-")}`
+                    : ""
+                }
+                className="w-full border rounded px-3 py-2 bg-gray-100"
+              />
+            </div>
+
+            {/* Driver / Crew */}
+            <div>
+              <label className="block mb-1 font-semibold">Driver / Crew</label>
+              <input
+                type="text"
+                readOnly
+                name="driver"
+                value={formData.driver || ""}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2 bg-gray-100"
+                placeholder="Nama Driver / Crew"
+              />
+            </div>
+
+            {/* No Polisi */}
+            <div>
+              <label className="block mb-1 font-semibold">No Polisi</label>
+              <input
+                type="text"
+                readOnly
+                name="no_polisi"
+                value={formData.no_polisi || ""}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2 bg-gray-100"
+              />
+            </div>
+
+            {/* Kode Unit */}
+            <div>
+              <label className="block mb-1 font-semibold">Kode Unit</label>
+              <input
+                type="text"
+                readOnly
+                name="kode_unit"
+                value={formData.kode_unit || ""}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2 bg-gray-100"
+              />
+            </div>
+
+            {/* Kode Rute */}
+            <div>
+              <label className="block mb-1 font-semibold">Kode Rute</label>
+              <input
+                type="text"
+                readOnly
+                name="kode_rute"
+                value={formData.kode_rute || ""}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2 bg-gray-100"
+              />
+            </div>
+
+            {/* Uang Input */}
+            <div>
+              <label className="block mb-1 font-semibold">BBM</label>
+              <input
+                type="text"
+                name="bbm"
+                value={formatRupiah(formData.bbm)}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2 text-left"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 font-semibold">Uang Makan</label>
+              <input
+                type="text"
+                name="uang_makan"
+                value={formatRupiah(formData.uang_makan) || ""}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2 text-left"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 font-semibold">Parkir</label>
+              <input
+                type="text"
+                name="parkir"
+                value={formatRupiah(formData.parkir)}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2 text-left"
+              />
+            </div>
+
+            <div className="col-span-2 my-2 font-bold text-center">
+              <label className="block mb-1 font-semibold">Jumlah</label>
+              <input
+                type="text"
+                name="jumlah"
+                value={formatRupiah(formData.jumlah)}
+                readOnly
+                className="w-full border rounded px-3 py-2 bg-green-400 text-center font-bold text-xl"
+              />
+            </div>
+
+            {/* Kartu Etoll */}
+            <div className="col-span-2">
+              <label className="block mb-1 font-semibold">Kartu Etoll</label>
+              <input
+                type="text"
+                name="kartu_etoll"
+                value={formData.kartu_etoll || ""}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+
+            {/* Submit */}
+            <div className="col-span-2 flex justify-end gap-4 mt-4">
+              <button
+                type="button"
+                onClick={handleCloseForm}
+                className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500"
+              >
+                Batal
+              </button>
+              <button
                 type="submit"
                 disabled={isSubmitting}
                 className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ${
-                  isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                isSubmitting ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
                 Simpan
               </button>
-              </div>
-        </form>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
-  )}
+    )}
 
       {/* BUTTONS */}
       <div className="w-full pr-8 mb-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
 
           {/* LEFT GROUP */}
           <div className="flex flex-wrap items-center gap-3">
@@ -1268,6 +1264,10 @@ const handleSelectSj = (sj: SuratJalanRow) => {
             >
               <FiPrinter /> Cetak
             </button>
+          </div>
+
+          {/* RIGHT GROUP */}
+          <div className="flex flex-wrap items-center gap-3">
 
             {/* FILTER OUTLET */}
             {entityCtx?.tipe === "pusat" && (
@@ -1294,11 +1294,6 @@ const handleSelectSj = (sj: SuratJalanRow) => {
               </div>
             )}
 
-          </div>
-
-          {/* RIGHT GROUP */}
-          <div className="flex flex-wrap items-center gap-4">
-
             {/* DATE RANGE */}
             <div ref={triggerRef} className="flex items-center gap-2">
               <label className="font-semibold text-sm whitespace-nowrap">
@@ -1310,7 +1305,7 @@ const handleSelectSj = (sj: SuratJalanRow) => {
                 value={
                   range[0]?.startDate && range[0]?.endDate
                     ? `${format(range[0].startDate, "dd-MM-yyyy", { locale: id })} - ${format(range[0].endDate, "dd-MM-yyyy", { locale: id })}`
-                    : ""
+                    : "Pilih Tanggal"
                 }
                 onClick={() => setShowPicker(true)}
                 className="border border-gray-300 rounded px-2 py-1 text-sm w-[220px] cursor-pointer"
@@ -1318,13 +1313,13 @@ const handleSelectSj = (sj: SuratJalanRow) => {
             </div>
 
             {/* SEARCH */}
-            <div className="relative w-[320px]">
+            <div className="relative w-[300px]">
               <input
                 type="text"
                 placeholder="Cari Tanggal / No SJ / Driver / Nopol..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="border rounded px-3 py-2 w-full pr-8"
+                className="w-full border rounded px-3 h-[42px] pr-8 text-sm"
               />
               {search && (
                 <button
