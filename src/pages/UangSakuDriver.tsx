@@ -772,7 +772,7 @@ const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
           : entityCtx.entity_id;
 
       const { data, error } = await supabase
-        .rpc("get_sj_belum_premi", { entity_filter: targetEntity });
+        .rpc("get_sj_belum_saku", { entity_filter: targetEntity });
 
       if (error) throw error;
 
