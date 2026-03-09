@@ -10,9 +10,6 @@ interface SuratJalan {
   entity_id: string;
 }
 
-type PremiRow = {
-  no_surat_jalan: string;
-};
 
 export default function Dashboard() {
 
@@ -113,40 +110,10 @@ export default function Dashboard() {
       // BELUM PREMI
       // =============================
 
-      const { data: sakuRows } = await supabase
-        .from("uang_saku_driver")
-        .select("no_surat_jalan, driver, kode_rute, tanggal_berangkat, entity_id")
-        .eq("entity_id", entityId);
+      const { data: belumPremi } = await supabase
+        .rpc("get_sj_belum_premi", { entity_filter: entityId });
 
-      let premiRows: PremiRow[] = [];
-      let page = 0;
-      const pageSize = 1000;
-
-      while (true) {
-        const { data } = await supabase
-          .from("premi_driver")
-          .select("no_surat_jalan")
-          .eq("entity_id", entityId)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (!data || data.length === 0) break;
-
-        premiRows = [...premiRows, ...data];
-
-        if (data.length < pageSize) break;
-
-        page++;
-      }
-
-      const premiSet = new Set(
-        (premiRows ?? []).map((p) => p.no_surat_jalan.trim())
-      );
-
-      const hasil = (sakuRows ?? []).filter(
-        (row) => !premiSet.has(row.no_surat_jalan.trim())
-      );
-
-      setSjBelumPremi(hasil);
+      setSjBelumPremi(belumPremi ?? []);
 
     }
     catch(err){
@@ -220,7 +187,7 @@ export default function Dashboard() {
 
   return(
 
-  <div className="p-6 space-y-6">
+  <div className="p-4 space-y-6 pr-12">
 
     {/* CARD */}
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -247,19 +214,22 @@ export default function Dashboard() {
 
     {/* FILTER */}
     {entityCtx?.tipe==="pusat" &&
-
-      <select
-        value={selectedEntityId ?? ""}
-        onChange={(e)=>setSelectedEntityId(e.target.value)}
-        className="border p-2 rounded"
-      >
-        {entities.map(e=>(
-          <option key={e.id} value={e.id}>
-            {e.nama}
-          </option>
-        ))}
-      </select>
-
+      <div className="flex items-center gap-2 border px-3 py-2 rounded bg-gray-100">
+        <label className="font-semibold text-sm whitespace-nowrap">
+          Outlet:
+        </label>
+        <select
+          value={selectedEntityId ?? ""}
+          onChange={(e)=>setSelectedEntityId(e.target.value)}
+          className="border p-2 rounded"
+        >
+          {entities.map(e=>(
+            <option key={e.id} value={e.id}>
+              {e.nama}
+            </option>
+          ))}
+        </select>
+      </div>
     }
 
     {/* TABLE */}
