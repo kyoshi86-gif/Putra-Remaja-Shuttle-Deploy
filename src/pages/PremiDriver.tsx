@@ -143,8 +143,41 @@ export default function PremiDriver() {
 
   const [driverDropdownOptions, setDriverDropdownOptions] = useState<string[]>([]); // ✅ untuk dropdown nama driver/crew
 
+  interface JenisPotongan {
+    id: string;
+    nama: string;
+    kategori: string;
+  }
+
+  const [jenisPotonganList, setJenisPotonganList] = useState<JenisPotongan[]>([]);
+
+  async function loadJenisPotongan() {
+    if (!entityCtx?.entity_id) return;
+
+    const { data, error } = await supabase
+      .from("jenis_potongan")
+      .select("*")
+      .eq("entity_id", entityCtx.entity_id)
+      .order("nama");
+
+    if (error) {
+      console.error("Error jenis potongan:", error);
+      return;
+    }
+
+    setJenisPotonganList(data || []);
+  }
+
+  useEffect(() => {
+    if (entityCtx) {
+      loadJenisPotongan();
+    }
+  }, [entityCtx]);
+
   interface PotonganItem {
-    keterangan: string;
+    jenis_id: string;
+    nama: string;
+    kategori: string;
     nominal: number | null;
   }
 
@@ -193,11 +226,6 @@ export default function PremiDriver() {
   }
 
   const [semuaSJ, setSemuaSJ] = useState<SuratJalanRow[]>([]);
-
-  interface PotonganItem {
-    keterangan: string;
-    nominal: number | null;
-  }
 
   const [potonganList, setPotonganList] = useState<PotonganItem[]>([]);
 
@@ -968,6 +996,12 @@ export default function PremiDriver() {
       cleanedData.id_kas_harian = null;
     }
 
+    const totalJaminan = potonganList
+      .filter((p) => p.kategori === "jaminan")
+      .reduce((sum, p) => sum + (p.nominal || 0), 0);
+
+    cleanedData.potongan_jaminan = totalJaminan;
+
     // === Hitung jumlah akhir ===
     const totalPotongan = potonganList.reduce(
       (sum, item) => sum + (item.nominal || 0),
@@ -1164,7 +1198,7 @@ export default function PremiDriver() {
         transaksi.push({
           tanggal: formData.tanggal,
           waktu: waktuNow,
-          keterangan: `Potongan ${item.keterangan} ${keteranganBase}`,
+          keterangan: `Potongan ${item.nama} ${keteranganBase}`,
           nominal: item.nominal,
           jenis_transaksi: "debet",
           sumber_tabel: "potongan",
@@ -2053,7 +2087,7 @@ export default function PremiDriver() {
                           let bbm = 0;
                           let makan = 0;
                           let parkir = 0;
-                          const potonganList: { keterangan: string; nominal: number }[] = [];
+                          const potonganList: PotonganItem[] = [];
 
                           for (const kas of kasRows ?? []) {
                             const ket = kas.keterangan || "";
@@ -2085,8 +2119,14 @@ export default function PremiDriver() {
                                 raw.split(row.no_surat_jalan)[0]?.trim() ||
                                 raw;
 
+                              const jenis = jenisPotonganList.find(j =>
+                                potonganOnly.toLowerCase().includes(j.nama.toLowerCase())
+                              );
+
                               potonganList.push({
-                                keterangan: potonganOnly,
+                                jenis_id: jenis?.id || "",
+                                nama: jenis?.nama || potonganOnly,
+                                kategori: jenis?.kategori || "lain",
                                 nominal,
                               });
                             }
@@ -2429,18 +2469,30 @@ export default function PremiDriver() {
                   <label className="block font-semibold mb-1">Potongan</label>
                   {potonganList.map((item, index) => (
                     <div key={index} className="flex gap-2 items-center mb-1">
-                      <input
-                        ref={index === potonganList.length - 1 ? lastPotonganRef : null}
-                        type="text"
-                        placeholder="Keterangan"
-                        value={item.keterangan}
+                      <select
+                        value={item.jenis_id}
                         onChange={(e) => {
+                          const selected = jenisPotonganList.find(j => j.id === e.target.value);
+
                           const updated = [...potonganList];
-                          updated[index].keterangan = e.target.value;
+                          updated[index] = {
+                            ...updated[index],
+                            jenis_id: selected?.id || "",
+                            nama: selected?.nama || "",
+                            kategori: selected?.kategori || "",
+                          };
+
                           setPotonganList(updated);
                         }}
                         className="border px-2 py-1 text-sm w-1/2"
-                      />
+                      >
+                        <option value="">Pilih Jenis</option>
+                        {jenisPotonganList.map((j) => (
+                          <option key={j.id} value={j.id}>
+                            {j.nama}
+                          </option>
+                        ))}
+                      </select>
                       <input
                         type="text"
                         placeholder="Nominal"
@@ -2473,7 +2525,12 @@ export default function PremiDriver() {
                   <button
                     type="button"
                     onClick={() =>
-                      setPotonganList((prev) => [...prev, { keterangan: "", nominal: 0 }])
+                      setPotonganList((prev) => [...prev, {
+                        jenis_id: "",
+                        nama: "",
+                        kategori: "",
+                        nominal: 0
+                      }])
                     }
                     className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-700"
                   >

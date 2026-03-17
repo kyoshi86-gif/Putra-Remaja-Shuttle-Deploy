@@ -69,6 +69,12 @@
         "path": "/kas-kasir",
         "component": "Kaskasir" 
       },
+      { 
+        "label": "Jaminan Driver", 
+        "access": "Laporan -> Jaminan Driver",
+        "path": "/jaminan-driver",
+        "component": "JaminanDriver" 
+      },
       {
         "label": "Log Transaksi",
         "access": "Laporan -> Log Transaksi",
@@ -122,6 +128,12 @@
         "access": "Konfigurasi -> Entity",
         "path": "/entity",
         "component": "Entity"
+      },
+      { 
+        "label": "Jenis Potongan", 
+        "access": "Konfigurasi -> Jenis Potongan",
+        "path": "/jenis-potongan",
+        "component": "JenisPotongan"
       }
     ]
   }
