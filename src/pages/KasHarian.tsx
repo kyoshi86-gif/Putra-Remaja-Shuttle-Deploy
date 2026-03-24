@@ -43,6 +43,13 @@ interface EntityRow {
   tipe: string;
 }
 
+interface JenisPotongan {
+  id: string;
+  nama: string;
+  kategori: string;
+  entity_id: string;
+}
+
 // --- helper untuk export excel ---
 export const toDate = (v: unknown): Date | "" => {
   if (!v) return ""; // ⛔ null, undefined, empty string
@@ -77,6 +84,8 @@ export default function KasHarian() {
 
   const [entities, setEntities] = useState<EntityRow[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
+
+  const [drivers, setDrivers] = useState<string[]>([]);
 
   // === AMBIL USER LOGIN DARI LOCALSTORAGE ===
   useEffect(() => {
@@ -181,6 +190,9 @@ function injectSaldoKeData(
     if (!entityCtx?.entity_id) return;
 
     fetchData();
+    loadDrivers();
+    loadJenisPotongan();
+
     if (entityCtx.tipe === "pusat") {
       fetchEntities(); // ✅ ambil daftar entity kalau user pusat
     }
@@ -285,6 +297,49 @@ function injectSaldoKeData(
     processData();
   }, [data, range, q, filterBy, customUser?.entity_id]);
 
+  //==function loaddrivers ==//
+  async function loadDrivers() {
+    if (!entityCtx?.entity_id) return;
+
+    const { data, error } = await supabase
+      .from("premi_driver")
+      .select("driver")
+      .eq("entity_id", entityCtx.entity_id)
+      .not("driver", "is", null)
+      .order("driver", { ascending: true });
+
+    if (error) {
+      console.error("Error load driver:", error);
+      return;
+    }
+
+    const unique = Array.from(
+      new Set((data || []).map((d) => d.driver?.trim()))
+    ).filter(Boolean);
+
+    setDrivers(unique);
+  }
+
+
+  const [jenisPotonganList, setJenisPotonganList] = useState<JenisPotongan[]>([]);
+  
+    async function loadJenisPotongan() {
+      if (!entityCtx?.entity_id) return;
+  
+      const { data, error } = await supabase
+        .from("jenis_potongan")
+        .select("id, nama, kategori")
+        .eq("kategori", "jaminan") // 🔥 penting
+        .eq("entity_id", entityCtx.entity_id)
+        .order("nama");
+  
+      if (error) {
+        console.error("Error jenis potongan:", error);
+        return;
+      }
+  
+      setJenisPotonganList((data || []) as JenisPotongan[]);
+    }
 
 // Filter + inject saldo (FINAL & BENAR)
 useEffect(() => {
@@ -360,6 +415,8 @@ useEffect(() => {
     user_id: null,
     sumber_id: null,
     sumber_tabel: null,
+    driver: "",
+    kategori: "",
   };
   const [formData, setFormData] = useState<Partial<KasRow>>(defaultForm);
 
@@ -868,6 +925,8 @@ useEffect(() => {
         sumber_id: number | null;
         updated_at: string;
         entity_id?: string | null; // ✅ tambahkan
+        driver?: string | null;
+        kategori?: string | null;
       }
 
       // 5️⃣ Susun payload
@@ -885,6 +944,8 @@ useEffect(() => {
         sumber_id: formData.sumber_id ? Number(formData.sumber_id) : null,
         updated_at: new Date().toISOString(),
         entity_id: targetEntity ?? null,
+        driver: formData.driver || null,
+        kategori: formData.kategori || null,
       };
 
       // 6️⃣ Tentukan prefix
@@ -903,37 +964,33 @@ useEffect(() => {
       let buktiNomor = payload.bukti_transaksi;
 
       if (!buktiNomor && formMode !== "edit") {
-        // Auto nomor
-        const result = await insertWithAutoNomor({
-          table: "kas_harian",
-          prefix: outletPrefix,
-          data: { ...payload, entity_id: targetEntity ?? null },
-          nomorField: "bukti_transaksi",
-          tanggal: normalizeDate(formData.tanggal), // ✅ normalisasi tanggal
-        });
-        if (!result.success) throw new Error(result.error);
+      // AUTO NOMOR (SUDAH INSERT)
+      const result = await insertWithAutoNomor({
+        table: "kas_harian",
+        prefix: outletPrefix,
+        data: payload as unknown as Record<string, unknown>,
+        nomorField: "bukti_transaksi",
+        tanggal: normalizeDate(formData.tanggal),
+      });
 
-        // setelah auto nomor → insert payload
-        payload.bukti_transaksi = result.nomor ?? "";
+      if (!result.success) throw new Error(result.error);
+
+      alert(`✅ Data berhasil disimpan\nNo Bukti: ${result.nomor}`);
+
+    } else {
+      // MANUAL NOMOR
+      if (buktiNomor && formMode !== "edit") {
+        buktiNomor = `${outletPrefix}${buktiNomor}`;
+        payload.bukti_transaksi = buktiNomor;
+
         const { error: insertError } = await supabase
           .from("kas_harian")
           .insert(payload);
+
         if (insertError) throw insertError;
 
-        alert(`✅ Data berhasil disimpan\nNo Bukti: ${result.nomor}`);
-      } else {
-        // Manual input atau edit
-        if (buktiNomor && formMode !== "edit") {
-          buktiNomor = `${outletPrefix}${buktiNomor}`;
-          payload.bukti_transaksi = buktiNomor;
-
-          const { error: insertError } = await supabase
-            .from("kas_harian")
-            .insert(payload);
-          if (insertError) throw insertError;
-
-          alert(`✅ Data berhasil disimpan\nNo Bukti: ${buktiNomor}`);
-        }
+        alert(`✅ Data berhasil disimpan\nNo Bukti: ${buktiNomor}`);
+      }
 
         if (formMode === "edit" && formData.id) {
           // pastikan entity_id selalu terisi
@@ -1615,6 +1672,44 @@ useEffect(() => {
                       className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
                     />
                   </div>
+
+                  {/* ===== JENIS & DRIVER (2 KOLOM) ===== */} 
+                <div>
+                  <label className="block mb-1 font-semibold">Khusus jaminan Driver</label>
+                  <select
+                    value={formData.kategori || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, kategori: e.target.value })
+                    }
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option value="">Pilih Jenis</option>
+                    {jenisPotonganList.map((j) => (
+                      <option key={j.id} value={j.nama}>
+                        {j.nama}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block mb-1 font-semibold">Driver</label>
+                  <select
+                    value={formData.driver || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, driver: e.target.value })
+                    }
+                    className="w-full border rounded px-3 py-2"
+                    disabled={formData.kategori !== "Jaminan Driver"}
+                  >
+                    <option value="">Pilih Driver</option>
+                    {drivers.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                   <div className="col-span-2">
                     <label className="block mb-1 font-semibold">No Bukti</label>

@@ -21,4 +21,6 @@ export interface KasRow {
   no_surat_jalan?: string | null;
   jumlah?: number | null;
   [key: string]: unknown;
+  driver?: string | null;
+  kategori?: string | null;
 }

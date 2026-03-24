@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { FiDownload } from "react-icons/fi";
+import { exportTableToExcel } from "../utils/exportTableToExcel";
+import { toDate } from "./SuratJalan";
 import { getEntityContext, type EntityContext } from "../lib/entityContext";
 
 interface JaminanRow {
@@ -11,6 +14,8 @@ interface JaminanRow {
   no_polisi: string;
   kode_rute: string;
   jaminan: number;
+
+  [key: string]: unknown; // 🔥 WAJIB TAMBAH INI
 }
 
 export default function LaporanDriver() {
@@ -23,7 +28,8 @@ export default function LaporanDriver() {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   const [data, setData] = useState<JaminanRow[]>([]);
-  const [total, setTotal] = useState(0);
+
+  const [filtered, setFiltered] = useState<JaminanRow[]>([]);
 
   useEffect(() => {
     loadEntity();
@@ -42,6 +48,28 @@ export default function LaporanDriver() {
     setDriverSearch(driver);
     setShowDropdown(false);
   }
+
+  useEffect(() => {
+    setFiltered(data);
+  }, [data]);
+
+  const totalFiltered = filtered.reduce((sum, r) => sum + r.jaminan, 0);
+
+  const handleExportExcel = () => {
+    exportTableToExcel(filtered, {
+      filename: "JaminanDriver.xlsx",
+      sheetName: "Jaminan Driver",
+      columns: [
+        { label: "Tanggal", key: "tanggal", type: "date", format: toDate },
+        { label: "No Premi Driver", key: "no_premi_driver" },
+        { label: "Tanggal Berangkat", key: "tanggal_berangkat", type: "date", format: toDate },
+        { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: toDate },
+        { label: "No Polisi", key: "no_polisi" },
+        { label: "Kode Rute", key: "kode_rute" },
+        { label: "Jaminan", key: "jaminan", type: "currency" },
+      ],
+    });
+  };
 
   async function loadEntity() {
 
@@ -109,16 +137,11 @@ export default function LaporanDriver() {
       return;
     }
 
-    if (!premi || premi.length === 0) {
-      setData([]);
-      setTotal(0);
-      return;
-    }
-
-    const rows = premi.map((p, i) => ({
-      no: i + 1,
+    // 🔵 DATA DARI PREMI DRIVER
+    const premiRows = (premi || []).map((p) => ({
+      no: 0,
       no_premi_driver: p.no_premi_driver,
-      tanggal: p.tanggal, // ✅ tambah ini
+      tanggal: p.tanggal,
       no_polisi: p.no_polisi,
       kode_rute: p.kode_rute,
       tanggal_berangkat: p.tanggal_berangkat,
@@ -126,10 +149,37 @@ export default function LaporanDriver() {
       jaminan: Number(p.potongan_jaminan || 0),
     }));
 
-    setData(rows);
+    // 🔴 DATA DARI KAS HARIAN (jaminan driver)
+    const { data: kas } = await supabase
+      .from("kas_harian")
+      .select("tanggal, nominal, bukti_transaksi, jenis_transaksi, driver, keterangan, kategori")
+      .eq("driver", selectedDriver)
+      .eq("entity_id", entityId)
+      .eq("kategori", "Jaminan Driver"); // 🔥 harus sama dengan nama di DB
 
-    const t = rows.reduce((sum, r) => sum + r.jaminan, 0);
-    setTotal(t);
+    const kasRows = (kas || []).map((k) => ({
+      no: 0,
+      no_premi_driver: k.bukti_transaksi || "Kas Jaminan",
+      tanggal: k.tanggal,
+      no_polisi: "-",
+      kode_rute: k.keterangan || "Kas Jaminan",
+      tanggal_berangkat: "",
+      tanggal_kembali: "",
+      jaminan:
+        k.jenis_transaksi === "debet"
+          ? Number(k.nominal)
+          : -Number(k.nominal),
+    }));
+
+    // 🔥 GABUNG + URUTKAN
+    const combined = [...premiRows, ...kasRows]
+      .sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || ""))
+      .map((row, i) => ({
+        ...row,
+        no: i + 1,
+      }));
+
+    setData(combined);
   }
 
   const filteredDrivers = drivers.filter((d) =>
@@ -139,7 +189,7 @@ export default function LaporanDriver() {
   const formatTanggal = (tgl: string | null | undefined): string => {
     if (!tgl) return "";
 
-    const [year, month, day] = tgl.split("-");
+    const [year, month, day] = (tgl || "").split("-");
 
     return `${day}-${month}-${year}`;
   };
@@ -224,6 +274,15 @@ export default function LaporanDriver() {
         )}
 
         </div>
+
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            <FiDownload /> Export Excel
+          </button>
+        </div>
       </div>
 
       <div className="w-full pr-8">
@@ -231,17 +290,17 @@ export default function LaporanDriver() {
           <thead className="bg-gray-100">
             <tr>
               <th className="border px-2 py-1">No</th>
-              <th className="border px-2 py-1">Tanggal Premi</th>
-              <th className="border px-2 py-1">No Premi Driver</th>
+              <th className="border px-2 py-1">Tanggal</th>
+              <th className="border px-2 py-1">No Bukti Transaksi</th>
               <th className="border px-2 py-1">Tgl Brkt & Kembali</th>
               <th className="border px-2 py-1">Nopol</th>
-              <th className="border px-2 py-1">Kode Rute</th>
+              <th className="border px-2 py-1">Keterangan</th>
               <th className="border px-2 py-1 text-right">Jaminan</th>
             </tr>
           </thead>
 
           <tbody>
-            {data.map((row) => (
+            {filtered.map((row) => (
               <tr key={row.no}>
                 <td className="border px-2 py-1 text-center">{row.no}</td>
                 <td className="border px-2 py-1 text-center">
@@ -266,7 +325,7 @@ export default function LaporanDriver() {
                 TOTAL
               </td>
               <td className="border font-bold px-2 py-1 text-right">
-                {total.toLocaleString()}
+                {totalFiltered.toLocaleString()}
               </td>
             </tr>
           </tfoot>
