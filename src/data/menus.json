@@ -56,6 +56,24 @@
         "access": "Kasir -> Kas Harian",
         "path": "/kas-harian",
         "component": "KasHarian" 
+      },
+      {
+        "label": "kas_harian.edit",
+        "access": "kas_harian.edit",
+        "path": "/kas-harian/edit",
+        "component": "KasHarianEdit"
+      },
+      {
+        "label": "kas_harian.delete",
+        "access": "kas_harian.delete",
+        "path": "/kas-harian/delete",
+        "component": "KasHarianDelete"
+      },
+      {
+        "label": "kas_harian.tombol_delete",
+        "access": "kas_harian.bulk_delete",
+        "path": "/kas-harian/tomboldelete",
+        "component": "KasHarianTombolDelete"
       }
     ]
   },
@@ -80,6 +98,18 @@
         "access": "Laporan -> Log Transaksi",
         "path": "/log-transaksi",
         "component": "DashboardLog"
+      }
+    ]
+  },
+  {
+    "key": "Accounting",
+    "label": "Accounting",
+    "sub": [
+      {
+        "label": "Jurnal", 
+        "access": "Accounting -> Jurnal",
+        "path": "/jurnal",
+        "component": "Jurnal"
       }
     ]
   },

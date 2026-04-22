@@ -17,6 +17,8 @@ import type { Range } from "react-date-range";
 import PopupUangSakuDriver from "../components/forms/PopupUangSakuDriver";
 import { getCustomUserId } from "../lib/authUser";
 import { getEntityContext, type EntityContext } from "../lib/entityContext";
+import { hasAccess } from "../lib/hasAccess";
+
 
 // === Fix TS: deklarasi properti custom untuk Window ===
 declare global {
@@ -86,6 +88,29 @@ export default function KasHarian() {
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
 
   const [drivers, setDrivers] = useState<string[]>([]);
+
+  // ==================== AKSES ==================
+  const [canEditKas, setCanEditKas] = useState(false);
+  const [canDeleteKas, setCanDeleteKas] = useState(false);
+  const [canBulkDeleteKas, setCanBulkDeleteKas] = useState(false);
+
+  useEffect(() => {
+    if (!customUser) return; // 🔥 WAJIB nunggu user siap
+
+    const loadAccess = async () => {
+      const edit = await hasAccess("kas_harian.edit");
+      const del = await hasAccess("kas_harian.delete");
+      const bulk = await hasAccess("kas_harian.bulk_delete");
+
+      console.log("ACCESS DEBUG:", { edit, del, bulk }); // 🔍 debug
+
+      setCanEditKas(edit);
+      setCanDeleteKas(del);
+      setCanBulkDeleteKas(bulk);
+    };
+
+    loadAccess();
+  }, [customUser]);
 
   // === AMBIL USER LOGIN DARI LOCALSTORAGE ===
   useEffect(() => {
@@ -513,6 +538,10 @@ useEffect(() => {
 
   // Delete selected
   const handleDeleteSelected = async () => {
+    if (!canBulkDeleteKas) {
+      alert("❌ Anda tidak punya akses hapus data terpilih");
+      return;
+    }
     try {
       if (selected.length === 0) {
         alert("Pilih data terlebih dahulu!");
@@ -1020,6 +1049,10 @@ useEffect(() => {
   
   // --- Handler: Edit Kas yang berasal dari uang_saku_driver ---
   const handleEditKas = async (kasRow: KasRow) => {
+    if (!canEditKas) {
+      alert("❌ Anda tidak punya akses edit");
+      return;
+    }
     // ⛔ Blokir edit untuk transaksi dari premi_driver
     //if (kasRow.sumber_tabel === "premi_driver") {
       //alert("Silahkan edit di halaman premi driver.");
@@ -1068,6 +1101,11 @@ useEffect(() => {
 
   // Handler TERBARU untuk hapus transaksi kas_harian biasa
   const handleDeleteKas = async (row: KasRow) => {
+    if (!canDeleteKas) {
+      alert("❌ Anda tidak punya akses hapus");
+      return;
+    }
+    
     if (!confirm("Yakin ingin hapus transaksi ini?")) return;
 
     if (row.sumber_tabel && row.sumber_tabel !== "kas_harian") {
@@ -1387,12 +1425,14 @@ useEffect(() => {
               <FiPlus/> Kas Keluar
             </button>
 
-            <button
-              onClick={handleDeleteSelected}
-              className="bg-red-500 text-white px-3 py-1 rounded"
-            >
-              Hapus Terpilih
-            </button>
+            {canBulkDeleteKas && (
+              <button
+                onClick={handleDeleteSelected}
+                className="bg-red-500 text-white px-3 py-1 rounded"
+              >
+                Hapus Terpilih
+              </button>
+            )}
 
             <button
               onClick={handleExportExcel}
@@ -1415,7 +1455,6 @@ useEffect(() => {
             </button>
 
           </div>
-
         </div>
 
         {/* BARIS 2 : FILTER OUTLET */}
@@ -1448,8 +1487,8 @@ useEffect(() => {
           </div>
         )}
 
-              {/* Tabel */}
-              <div className="w-full pr-8">
+        {/* Tabel */}
+        <div className="w-full pr-8">
           <table className="w-full table-auto border border-gray-300 text-sm">
             <thead className="bg-gray-400 text-white">
               <tr>
@@ -1457,6 +1496,7 @@ useEffect(() => {
                   <input
                     ref={selectAllRef}
                     type="checkbox"
+                    disabled={!canBulkDeleteKas}
                     checked={
                       selected.length === paginatedData.length && paginatedData.length > 0
                     }
@@ -1516,6 +1556,7 @@ useEffect(() => {
                           <td className="p-2 border">
                             <input
                               type="checkbox"
+                              disabled={!canBulkDeleteKas}
                               checked={selected.includes(String(row.id))}
                               onChange={() => handleSelect(String(row.id))}
                             />
@@ -1524,24 +1565,27 @@ useEffect(() => {
                             <div className="flex justify-center gap-[0.5px]">
                               {(!row.sumber_tabel || row.sumber_tabel === "kas_harian") ? (
                                 <>
-                                  <button
-                                    onClick={() => handleEditKas(row)}
-                                    className="text-blue-600 hover:text-blue-800 px-[5px]"
-                                    title="Edit"
-                                  >
-                                    <FiEdit size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteKas(row)}
-                                    className="text-red-600 hover:text-red-800 px-[5px]"
-                                    title="Hapus"
-                                  >
-                                    <FiTrash2 size={16} />
-                                  </button>
+                                  {canEditKas && (
+                                    <button
+                                      onClick={() => handleEditKas(row)}
+                                      className="text-blue-600 hover:text-blue-800 px-[5px]"
+                                      title="Edit"
+                                    >
+                                      <FiEdit size={16} />
+                                    </button>
+                                  )}
+
+                                  {canDeleteKas && (
+                                    <button
+                                      onClick={() => handleDeleteKas(row)}
+                                      className="text-red-600 hover:text-red-800 px-[5px]"
+                                      title="Hapus"
+                                    >
+                                      <FiTrash2 size={16} />
+                                    </button>
+                                  )}
                                 </>
-                              ) : (
-                                <span className="text-gray-400 text-xs"></span>
-                              )}
+                              ) : null}
                             </div>
                           </td>
                           <td className="tengah p-2 border">
