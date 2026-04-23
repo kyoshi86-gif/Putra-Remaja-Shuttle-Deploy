@@ -102,8 +102,6 @@ export default function KasHarian() {
       const del = await hasAccess("kas_harian.delete");
       const bulk = await hasAccess("kas_harian.bulk_delete");
 
-      console.log("ACCESS DEBUG:", { edit, del, bulk }); // 🔍 debug
-
       setCanEditKas(edit);
       setCanDeleteKas(del);
       setCanBulkDeleteKas(bulk);
@@ -495,6 +493,7 @@ useEffect(() => {
     { nominal: 5000, qty: "" },
     { nominal: 2000, qty: "" },
     { nominal: 1000, qty: "" },
+    { nominal: 500, qty: "" },
   ]);
 
 
@@ -508,6 +507,7 @@ useEffect(() => {
       { nominal: 5000, qty: "" },
       { nominal: 2000, qty: "" },
       { nominal: 1000, qty: "" },
+      { nominal: 500, qty: "" },
     ]);
     
     setBrankas("");

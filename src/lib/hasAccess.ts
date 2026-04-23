@@ -40,8 +40,6 @@ export async function hasAccess(fitur: string): Promise<boolean> {
     // 🔁 simpan ke cache
     cachedAccess = accessList;
 
-    console.log("🔐 ACCESS LOADED:", accessList);
-
     return accessList.includes(fitur);
   } catch (err) {
     console.error("❌ hasAccess crash:", err);
