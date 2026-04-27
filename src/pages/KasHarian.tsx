@@ -623,7 +623,13 @@ useEffect(() => {
         { keterangan: "Saldo Awal", saldo_akhir: saldoAwalHistori }
       ],
       appendRows: [
-        { keterangan: "Saldo Akhir", saldo_akhir: dataWithSaldo.at(-1)?.saldo_akhir }
+        {
+          keterangan: "Saldo Akhir",
+          saldo_akhir:
+            dataWithSaldo.length > 0
+              ? dataWithSaldo.at(-1)?.saldo_akhir
+              : saldoAwalHistori
+        }
       ]
     });
   };
@@ -796,7 +802,7 @@ useEffect(() => {
     const rawSaldoAkhir =
       dataWithSaldo.length > 0
         ? dataWithSaldo[dataWithSaldo.length - 1].saldo_akhir
-        : 0;
+        : saldoAwalHistori;
 
     const saldoAkhir = rawSaldoAkhir ?? 0;
 
@@ -1616,7 +1622,13 @@ useEffect(() => {
                         <td className="p-2 border"></td>
                         <td className="p-2 border"></td>
                         <td className="p-2 border"></td>
-                        <td className="p-2 border">{fmt(dataWithSaldo.at(-1)?.saldo_akhir)}</td>
+                        <td className="p-2 border">
+                          {fmt(
+                            dataWithSaldo.length > 0
+                              ? dataWithSaldo.at(-1)?.saldo_akhir
+                              : saldoAwalHistori
+                          )}
+                        </td>
                         <td className="p-2 border"></td>
                         <td className="p-2 border"></td>
                       </tr>
