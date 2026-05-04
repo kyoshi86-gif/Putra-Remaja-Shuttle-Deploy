@@ -99,26 +99,42 @@ export default function LaporanDriver() {
   }
 
   async function loadDrivers() {
-
     if (!entityId) return;
 
-    const { data, error } = await supabase
-      .from("premi_driver")
-      .select("driver")
-      .eq("entity_id", entityId)
-      .not("driver", "is", null)
-      .order("driver", { ascending: true });
+    // 🔵 ambil dari master driver (INI YANG PENTING)
+    const { data: masterDriver, error: err1 } = await supabase
+      .from("driver") // ⬅️ pastikan nama tabel sesuai (driver.tsx)
+      .select("nama") // ⬅️ sesuaikan field (misal: nama / driver)
+      .eq("entity_id", entityId);
 
-    if (error) {
-      console.error("Error load driver:", error);
-      return;
+    if (err1) {
+      console.error("Error master driver:", err1);
     }
 
-    if (!data) return;
+    // 🔵 ambil juga dari premi_driver (biar tetap lengkap)
+    const { data: premiDriver, error: err2 } = await supabase
+      .from("premi_driver")
+      .select("driver")
+      .eq("entity_id", entityId);
 
+    if (err2) {
+      console.error("Error premi driver:", err2);
+    }
+
+    // 🔥 gabungkan dua sumber
+    const combined = [
+      ...(masterDriver || []).map((d) => d.nama),
+      ...(premiDriver || []).map((d) => d.driver),
+    ];
+
+    // 🔥 bersihkan + unique + trim + lowercase normalize
     const uniqueDrivers = Array.from(
-      new Set(data.map((d) => d.driver?.trim()))
-    ).filter(Boolean);
+      new Set(
+        combined
+          .map((d) => d?.trim())
+          .filter(Boolean)
+      )
+    ).sort();
 
     setDrivers(uniqueDrivers);
   }
@@ -183,7 +199,7 @@ export default function LaporanDriver() {
   }
 
   const filteredDrivers = drivers.filter((d) =>
-    d.toLowerCase().includes(driverSearch.toLowerCase())
+    d.toLowerCase().includes(driverSearch.trim().toLowerCase())
   );
 
   const formatTanggal = (tgl: string | null | undefined): string => {
