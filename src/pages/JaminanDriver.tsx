@@ -99,42 +99,31 @@ export default function LaporanDriver() {
   }
 
   async function loadDrivers() {
-    if (!entityId) return;
 
-    // 🔵 ambil dari master driver (INI YANG PENTING)
-    const { data: masterDriver, error: err1 } = await supabase
-      .from("driver") // ⬅️ pastikan nama tabel sesuai (driver.tsx)
-      .select("nama") // ⬅️ sesuaikan field (misal: nama / driver)
-      .eq("entity_id", entityId);
+    const { data, error } = await supabase
+      .from("driver")
+      .select("nama")
+      .not("nama", "is", null)
+      .order("nama", { ascending: true });
 
-    if (err1) {
-      console.error("Error master driver:", err1);
+    if (error) {
+      console.error("Error load driver:", error);
+      return;
     }
 
-    // 🔵 ambil juga dari premi_driver (biar tetap lengkap)
-    const { data: premiDriver, error: err2 } = await supabase
-      .from("premi_driver")
-      .select("driver")
-      .eq("entity_id", entityId);
-
-    if (err2) {
-      console.error("Error premi driver:", err2);
+    if (!data) {
+      setDrivers([]);
+      return;
     }
 
-    // 🔥 gabungkan dua sumber
-    const combined = [
-      ...(masterDriver || []).map((d) => d.nama),
-      ...(premiDriver || []).map((d) => d.driver),
-    ];
-
-    // 🔥 bersihkan + unique + trim + lowercase normalize
+    // 🔥 unique + trim + hapus kosong
     const uniqueDrivers = Array.from(
       new Set(
-        combined
-          .map((d) => d?.trim())
+        data
+          .map((d) => d.nama?.trim())
           .filter(Boolean)
       )
-    ).sort();
+    );
 
     setDrivers(uniqueDrivers);
   }
@@ -143,7 +132,7 @@ export default function LaporanDriver() {
     const { data: premi, error } = await supabase
       .from("premi_driver")
       .select("id, no_premi_driver, no_polisi, kode_rute, potongan_jaminan, tanggal, tanggal_berangkat, tanggal_kembali")
-      .eq("driver", selectedDriver)
+      .ilike("driver", selectedDriver.trim())
       .eq("entity_id", entityId)
       .gt("potongan_jaminan", 0) // 🔥 FILTER DI SINI
       .order("tanggal", { ascending: true });
@@ -169,7 +158,7 @@ export default function LaporanDriver() {
     const { data: kas } = await supabase
       .from("kas_harian")
       .select("tanggal, nominal, bukti_transaksi, jenis_transaksi, driver, keterangan, kategori")
-      .eq("driver", selectedDriver)
+      .ilike("driver", selectedDriver.trim())
       .eq("entity_id", entityId)
       .eq("kategori", "Jaminan Driver"); // 🔥 harus sama dengan nama di DB
 
