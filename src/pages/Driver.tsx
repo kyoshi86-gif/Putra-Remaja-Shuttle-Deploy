@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload } from "react-icons/fi";
+import { FiEdit, FiTrash2, FiPlus, FiX, FiDownload, FiDollarSign } from "react-icons/fi";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
@@ -20,6 +20,18 @@ interface DriverData {
   premi_driver: number;
 }
 
+interface RuteItem {
+  nama_rute: string;
+}
+
+interface PremiRow {
+  id?: number;
+  driver?: string;
+  nama_rute: string;
+  premi: number;
+  created_at?: string;
+}
+
 export default function Driver() {
   const [data, setData] = useState<DriverData[]>([]);
   const [filtered, setFiltered] = useState<DriverData[]>([]);
@@ -29,6 +41,14 @@ export default function Driver() {
   const [simFilter, setSimFilter] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [showPremiForm, setShowPremiForm] = useState(false);
+
+  const [selectedDriver, setSelectedDriver] = useState("");
+
+  const [ruteList, setRuteList] = useState<RuteItem[]>([]);
+
+  const [premiRows, setPremiRows] = useState<PremiRow[]>([]);
 
   const emptyDriver: DriverData = {
     id: 0,
@@ -181,6 +201,128 @@ export default function Driver() {
     });
   };
 
+  async function loadRute() {
+
+    const { data, error } = await supabase
+      .from("rute")
+      .select("nama_rute")
+      .eq("status", "AKTIF");
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const uniqueRute = Array.from(
+      new Set(
+        (data || [])
+          .map((r) => r.nama_rute?.trim())
+          .filter(Boolean)
+      )
+    )
+    .sort()
+    .map((nama_rute) => ({ nama_rute }));
+
+    setRuteList(uniqueRute);
+  }
+
+  async function handlePremi(driver: DriverData) {
+    setSelectedDriver(driver.nama);
+    const { data, error } = await supabase
+      .from("driver_premi_rute")
+      .select("*")
+      .eq("driver", driver.nama)
+      .order("nama_rute");
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    if ((data || []).length === 0) {
+      setPremiRows([
+        {
+          nama_rute: "",
+          premi: 0,
+        },
+      ]);
+    } else {
+      setPremiRows(data || []);
+    }
+    await loadRute();
+    setShowPremiForm(true);
+  }
+
+  function addPremiRow() {
+    setPremiRows([
+      ...premiRows,
+      {
+        nama_rute: "",
+        premi: 0,
+      },
+    ]);
+  }
+
+  function removePremiRow(index: number) {
+
+    const copy = [...premiRows];
+
+    copy.splice(index, 1);
+
+    if (copy.length === 0) {
+
+      copy.push({
+        nama_rute: "",
+        premi: 0,
+      });
+
+    }
+
+    setPremiRows(copy);
+
+  }
+
+  async function savePremi() {
+
+    const { error: delErr } = await supabase
+      .from("driver_premi_rute")
+      .delete()
+      .eq("driver", selectedDriver);
+
+    if (delErr) {
+      alert(delErr.message);
+      return;
+    }
+
+    const rows = premiRows
+      .filter((r) => r.nama_rute)
+      .map((r) => ({
+        driver: selectedDriver,
+        nama_rute: r.nama_rute,
+        premi: Number(r.premi || 0),
+      }));
+
+    if (rows.length > 0) {
+
+      const { error } = await supabase
+        .from("driver_premi_rute")
+        .insert(rows);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+    }
+
+    alert("Premi berhasil disimpan");
+
+    // hanya tutup popup premi
+    setShowPremiForm(false);
+
+    // form driver tetap terbuka
+    setShowForm(true);
+  }
+
   const handleAdd = () => {
     setFormData({ ...emptyDriver });
     setShowForm(true);
@@ -208,10 +350,6 @@ export default function Driver() {
     }
     if (!d.status_training) {
       alert("Status Training wajib dipilih!");
-      return;
-    }
-    if (!d.premi_driver || Number(d.premi_driver) <= 0) {
-      alert("Premi Driver wajib diisi dan lebih dari 0!");
       return;
     }
 
@@ -281,6 +419,146 @@ export default function Driver() {
 
   return (
     <div className="p-4 bg-white rounded shadow">
+      {showPremiForm && (
+
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-80">
+
+        <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
+
+          <h2 className="text-xl font-bold mb-4">
+            Premi Driver : {selectedDriver}
+          </h2>
+
+          <div className="space-y-3">
+
+            {premiRows.map((row, idx) => (
+
+              <div
+                key={idx}
+                className="grid grid-cols-2 gap-3"
+              >
+                <div
+                  key={idx}
+                  className="grid grid-cols-[1fr_1fr_40px] gap-3 items-end"
+                >
+                  <div>
+
+                    <label className="block text-sm font-semibold mb-1">
+                      Nama Rute
+                    </label>
+
+                    <select
+                      value={row.nama_rute}
+                      onChange={(e) => {
+
+                        const copy = [...premiRows];
+
+                        copy[idx].nama_rute = e.target.value;
+
+                        setPremiRows(copy);
+
+                      }}
+                      className="border rounded px-3 py-2 w-full"
+                    >
+
+                      <option value="">
+                        Pilih Rute
+                      </option>
+
+                      {ruteList.map((r) => (
+
+                        <option
+                          key={r.nama_rute}
+                          value={r.nama_rute}
+                        >
+                          {r.nama_rute}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+
+                    <label className="block text-sm font-semibold mb-1">
+                      Premi (Rp)
+                    </label>
+
+                    <input
+                      type="text"
+                      value={
+                        Number(row.premi || 0).toLocaleString("id-ID")
+                      }
+                      onChange={(e) => {
+
+                        const angka =
+                          e.target.value.replace(/\D/g, "");
+
+                        const copy = [...premiRows];
+
+                        copy[idx].premi =
+                          Number(angka || 0);
+
+                        setPremiRows(copy);
+
+                      }}
+                      className="border rounded px-3 py-2 w-full"
+                    />
+
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => removePremiRow(idx)}
+                      className="
+                        w-10
+                        h-10
+                        bg-red-500
+                        hover:bg-red-600
+                        text-white
+                        rounded
+                        flex
+                        items-center
+                        justify-center
+                      "
+                      title="Hapus Rute"
+                    >
+                      <FiX size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2 mt-5">
+
+            <button
+              onClick={addPremiRow}
+              className="bg-green-600 text-white px-4 py-2 rounded"
+            >
+              Tambah Rute
+            </button>
+
+            <button
+              onClick={savePremi}
+              className="bg-blue-600 text-white px-4 py-2 rounded"
+            >
+              Simpan
+            </button>
+
+            <button
+              onClick={() => setShowPremiForm(false)}
+              className="bg-gray-500 text-white px-4 py-2 rounded"
+            >
+              Tutup
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      )}
       {/* Form Pop-up */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm">
@@ -426,18 +704,41 @@ export default function Driver() {
                 </select>
               </div>
 
-              {/* Premi Driver - EDITABLE */}
               <div>
-                <label className="block text-sm font-semibold mb-1">Premi Driver (Rp)</label>
-                <input
-                  name="premi_driver"
-                  value={formatRupiah(formData.premi_driver ?? 0)}
-                  onChange={handleChange}
-                  // optional: allow mobile numeric keyboard (still text because we show "Rp ...")
-                  inputMode="numeric"
-                  className="border border-gray-300 rounded px-3 py-2 w-full"
-                />
-                <small className="text-xs text-gray-500">Ketik angka saja — format akan otomatis ditampilkan.</small>
+                <label className="block text-sm font-semibold mb-1">
+                  Premi Driver Per Rute
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handlePremi({
+                      ...formData,
+                      nama: formData.nama,
+                    })
+                  }
+                  disabled={!formData.nama}
+                  className="
+                    w-full
+                    bg-green-600
+                    hover:bg-green-700
+                    disabled:bg-gray-300
+                    text-white
+                    py-2
+                    rounded
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                  "
+                >
+                  <FiDollarSign size={18} />
+                  Kelola Premi Per Rute
+                </button>
+
+                <small className="text-xs text-gray-500">
+                  Klik untuk mengatur premi berdasarkan rute.
+                </small>
               </div>
 
               {/* Keluar Kerja */}
@@ -646,6 +947,14 @@ export default function Driver() {
                         title="Edit"
                       >
                         <FiEdit size={16} />
+                      </button>
+
+                      <button
+                        onClick={() => handlePremi(item)}
+                        className="text-green-600 hover:text-green-800 px-[5px]"
+                        title="Premi Per Rute"
+                      >
+                        <FiDollarSign size={16} />
                       </button>
 
                       <button

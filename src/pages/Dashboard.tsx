@@ -3,11 +3,12 @@ import { supabase } from "../lib/supabaseClient";
 import { getEntityContext, type EntityContext } from "../lib/entityContext";
 
 interface SuratJalan {
-  no_surat_jalan: string;
-  tanggal_berangkat?: string | null;
-  driver: string;
-  kode_rute: string;
-  entity_id: string;
+  no_surat_jalan:string;
+  tanggal_berangkat?:string|null;
+  driver:string;
+  kode_rute:string;
+
+  premi:number;
 }
 
 
@@ -17,6 +18,12 @@ export default function Dashboard() {
 
   const [sjBelumSaku, setSjBelumSaku] = useState<SuratJalan[]>([]);
   const [sjBelumPremi, setSjBelumPremi] = useState<SuratJalan[]>([]);
+
+  const totalPremiBelumDiambil =
+    sjBelumPremi.reduce(
+      (sum,row)=>sum + Number(row.premi || 0),
+      0
+    );
 
   const [totalSuratJalan, setTotalSuratJalan] = useState(0);
 
@@ -139,7 +146,15 @@ export default function Dashboard() {
   // TABLE
   // =============================
 
-  const Table = ({title,data}:{title:string,data:SuratJalan[]})=>(
+  const Table = ({
+    title,
+    data,
+    showPremi = false
+  }:{
+    title:string;
+    data:SuratJalan[];
+    showPremi?:boolean;
+  })=>(
     <div className="bg-white p-4 rounded shadow">
       <h2 className="font-semibold mb-3">{title}</h2>
 
@@ -150,6 +165,9 @@ export default function Dashboard() {
             <th className="border p-2">Tanggal</th>
             <th className="border p-2">Driver</th>
             <th className="border p-2">Rute</th>
+            {showPremi && (
+              <th className="border p-2">Premi</th>
+            )}
           </tr>
         </thead>
 
@@ -157,7 +175,10 @@ export default function Dashboard() {
 
         {data.length === 0 &&
           <tr>
-            <td colSpan={4} className="text-center p-3">
+            <td
+              colSpan={showPremi ? 5 : 4}
+              className="text-center p-3"
+            >
               Tidak ada data
             </td>
           </tr>
@@ -174,10 +195,32 @@ export default function Dashboard() {
             </td>
             <td className="border p-2">{row.driver}</td>
             <td className="border p-2">{row.kode_rute}</td>
+            {showPremi && (
+              <td className="border p-2 text-right">
+                {Number(row.premi || 0).toLocaleString("id-ID")}
+              </td>
+            )}
           </tr>
         ))}
 
         </tbody>
+
+        {showPremi && (
+          <tfoot>
+            <tr className="bg-yellow-100 font-bold">
+              <td
+                colSpan={4}
+                className="border p-2 text-right"
+              >
+                TOTAL PREMI BELUM DIAMBIL
+              </td>
+
+              <td className="border p-2 text-right">
+                {totalPremiBelumDiambil.toLocaleString("id-ID")}
+              </td>
+            </tr>
+          </tfoot>
+          )}
       </table>
     </div>
   );
@@ -239,15 +282,16 @@ export default function Dashboard() {
       <Table
         title="💸 Surat Jalan Belum Uang Saku"
         data={sjBelumSaku}
+        showPremi={false}
       />
 
       <Table
         title="🏆 Surat Jalan Belum Premi Driver"
         data={sjBelumPremi}
+        showPremi={true}
       />
 
     </div>
-
   </div>
 
   );
