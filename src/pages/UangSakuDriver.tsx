@@ -193,6 +193,7 @@ useEffect(() => {
 
   // --- FETCH DATA ---
   const fetchData = async () => {
+    
     setLoading(true);
 
     if (!entityCtx?.entity_id) {
@@ -247,13 +248,28 @@ useEffect(() => {
   // --- CEGAH EDIT TERHAPUS ---
   const cekKasStatus = async (data: UangSakuData[]) => {
     const ids = data.map((row) => row.id);
-    const { data: kasList } = await supabase
-      .from("kas_harian")
-      .select("sumber_id, sumber_tabel")
-      .eq("sumber_tabel", "uang_saku_driver")
-      .in("sumber_id", ids);
+    const existingIds = new Set<number>();
+    const chunkSize = 200;
 
-    const existingIds = new Set(kasList?.map((k) => k.sumber_id));
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+
+      const { data: kasList, error } = await supabase
+        .from("kas_harian")
+        .select("sumber_id")
+        .eq("sumber_tabel", "uang_saku_driver")
+        .in("sumber_id", chunk);
+
+      if (error) {
+        console.error("❌ Error cek kas:", error);
+        continue;
+      }
+
+      kasList?.forEach((item) => {
+        existingIds.add(Number(item.sumber_id));
+      });
+    }
+
     const map: Record<number, boolean> = {};
 
     for (const row of data) {
@@ -1460,13 +1476,11 @@ const handleSelectSj = (sj: SuratJalanRow) => {
                     <div className="flex justify-center gap-[0.5px]">
                     <button
                       onClick={() => {
-                        console.log("Edit klik:", item.id, "Kas hilang:", kasHilangMap[item.id]);
                         if (isKasHilang) {
                           alert("❌ Transaksi kas sudah dihapus. Data ini tidak bisa diedit.");
                           return;
                         }
                         handleEdit(item);
-                        console.log("kasHilangMap", kasHilangMap);
                       }}
                       className="text-blue-600 hover:text-blue-800 px-[5px]"
                       title="Edit"
