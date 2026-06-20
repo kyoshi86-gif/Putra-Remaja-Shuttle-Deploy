@@ -93,6 +93,12 @@
         "path": "/jaminan-driver",
         "component": "JaminanDriver" 
       },
+      { 
+        "label": "Driver Ledger", 
+        "access": "Laporan -> Driver Ledger",
+        "path": "/driver-ledger",
+        "component": "DriverLedger" 
+      },
       {
         "label": "Log Transaksi",
         "access": "Laporan -> Log Transaksi",
@@ -110,6 +116,12 @@
         "access": "Accounting -> Jurnal",
         "path": "/jurnal",
         "component": "Jurnal"
+      },
+      {
+        "label": "Account Mapping",
+        "access": "Accounting -> Akun Mapping",
+        "path": "/Akun-mapping",
+        "component": "AccountMapping"
       }
     ]
   },

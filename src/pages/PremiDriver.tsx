@@ -1000,7 +1000,12 @@ export default function PremiDriver() {
       .filter((p) => p.kategori === "jaminan")
       .reduce((sum, p) => sum + (p.nominal || 0), 0);
 
+    const totalPiutang = potonganList
+      .filter((p) => p.kategori === "kasbon")
+      .reduce((sum, p) => sum + (p.nominal || 0), 0);
+
     cleanedData.potongan_jaminan = totalJaminan;
+    cleanedData.potongan_piutang = totalPiutang;
 
     // === Hitung jumlah akhir ===
     const totalPotongan = potonganList.reduce(

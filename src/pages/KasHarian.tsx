@@ -352,7 +352,7 @@ function injectSaldoKeData(
       const { data, error } = await supabase
         .from("jenis_potongan")
         .select("id, nama, kategori")
-        .eq("kategori", "jaminan") // 🔥 penting
+        .in("kategori", ["jaminan", "kasbon"]) // 🔥 penting
         .eq("entity_id", entityCtx.entity_id)
         .order("nama");
   
@@ -1731,7 +1731,7 @@ useEffect(() => {
 
                   {/* ===== JENIS & DRIVER (2 KOLOM) ===== */} 
                 <div>
-                  <label className="block mb-1 font-semibold">Khusus jaminan Driver</label>
+                  <label className="block mb-1 font-semibold">Khusus Jaminan & Piutang Driver</label>
                   <select
                     value={formData.kategori || ""}
                     onChange={(e) =>
@@ -1756,7 +1756,7 @@ useEffect(() => {
                       setFormData({ ...formData, driver: e.target.value })
                     }
                     className="w-full border rounded px-3 py-2"
-                    disabled={formData.kategori !== "Jaminan Driver"}
+                    disabled={!formData.kategori}
                   >
                     <option value="">Pilih Driver</option>
                     {drivers.map((d) => (
