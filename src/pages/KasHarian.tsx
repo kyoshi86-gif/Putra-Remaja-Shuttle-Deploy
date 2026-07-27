@@ -18,7 +18,7 @@ import PopupUangSakuDriver from "../components/forms/PopupUangSakuDriver";
 import { getCustomUserId } from "../lib/authUser";
 import { getEntityContext, type EntityContext } from "../lib/entityContext";
 import { hasAccess } from "../lib/hasAccess";
-
+import { useCoa } from "./accounting/coa/hooks/useCoa";
 
 // === Fix TS: deklarasi properti custom untuk Window ===
 declare global {
@@ -67,6 +67,7 @@ const normalizeDate = (d: string | Date) => {
 
 export default function KasHarian() {
   // Data
+  const { postingAccounts, loading: loadingAccounts } = useCoa();
   const [data, setData] = useState<KasRow[]>([]);
   const [, setFiltered] = useState<KasRow[]>([]);
   const [dataWithSaldo, setDataWithSaldo] = useState<KasRow[]>([]);
@@ -440,6 +441,7 @@ useEffect(() => {
     sumber_tabel: null,
     driver: "",
     kategori: "",
+    account_lawan_id: "",
   };
   const [formData, setFormData] = useState<Partial<KasRow>>(defaultForm);
 
@@ -615,8 +617,22 @@ useEffect(() => {
 
     console.log("🔍 Normalized row:", normalized);
 
+    // ============================
+    // Nama file berdasarkan Date Range
+    // ============================
+    const start = range[0]?.startDate ?? new Date();
+    const end = range[0]?.endDate ?? new Date();
+
+    const startDay = format(start, "dd");
+    const endDay = format(end, "dd");
+    const month = format(end, "MMMM", { locale: id });
+    const year = format(end, "yy");
+
+    const exportFilename =
+      `KasHarian ${startDay}-${endDay} ${month} ${year}.xlsx`;
+
     exportTableToExcel(dataWithSaldo, {
-      filename: "KasHarian.xlsx",
+      filename: exportFilename,
       sheetName: "Kas Harian",
       columns,
       prependRows: [
@@ -914,13 +930,16 @@ useEffect(() => {
         return;
       }
 
-      // 1️⃣ Tentukan entity target
+      if (!formData.account_lawan_id) {
+        alert("Akun Lawan wajib dipilih.");
+        return;
+      }
+
       const targetEntity =
         entityCtx?.tipe === "pusat" && selectedEntity
           ? selectedEntity
           : entityCtx?.entity_id;
 
-      // 2️⃣ Ambil saldo awal
       const { data: saldoRows, error: saldoError } = await supabase
         .from("v_kas_saldo_fisik_harian")
         .select("tanggal, saldo_akhir, entity_id")
@@ -930,17 +949,18 @@ useEffect(() => {
         .limit(1);
 
       if (saldoError) throw saldoError;
-      const saldoAwal = saldoRows?.[0]?.saldo_akhir ?? 0;
 
-      // 3️⃣ Hitung saldo akhir
+      const saldoAwal = saldoRows?.[0]?.saldo_akhir ?? 0;
       const nominal = Number(formData.nominal) || 0;
+
       const isDebet =
         formMode === "add_debet" ||
         (formMode === "edit" && formData.jenis_transaksi === "debet");
 
-      const saldoAkhir = isDebet ? saldoAwal + nominal : saldoAwal - nominal;
+      const saldoAkhir = isDebet
+        ? saldoAwal + nominal
+        : saldoAwal - nominal;
 
-      // 4️⃣ Cegah saldo minus
       if (saldoAkhir < 0) {
         alert("❌ Transaksi tidak bisa disimpan karena saldo akan menjadi minus!");
         return;
@@ -959,12 +979,12 @@ useEffect(() => {
         sumber_tabel: string | null;
         sumber_id: number | null;
         updated_at: string;
-        entity_id?: string | null; // ✅ tambahkan
+        entity_id?: string | null;
+        account_lawan_id: string | null;
         driver?: string | null;
         kategori?: string | null;
       }
 
-      // 5️⃣ Susun payload
       const payload: KasHarianPayload = {
         tanggal: normalizeDate(formData.tanggal),
         waktu: formData.waktu ?? "00:00:00",
@@ -979,66 +999,78 @@ useEffect(() => {
         sumber_id: formData.sumber_id ? Number(formData.sumber_id) : null,
         updated_at: new Date().toISOString(),
         entity_id: targetEntity ?? null,
+        account_lawan_id: String(formData.account_lawan_id),
         driver: formData.driver || null,
         kategori: formData.kategori || null,
       };
 
-      // 6️⃣ Tentukan prefix
       let outletPrefix = isDebet ? "BM-" : "BK-";
+
       if (entityCtx?.tipe === "outlet") {
         outletPrefix = `${entityCtx.kode}-${outletPrefix}`;
       } else {
         const targetId = selectedEntity ?? entityCtx?.entity_id;
+
         if (targetId !== entityCtx?.entity_id) {
-          const ent = entities.find((e) => e.id === targetId);
-          outletPrefix = ent?.kode ? `${ent.kode}-${isDebet ? "BM-" : "BK-"}` : outletPrefix;
+          const entity = entities.find((item) => item.id === targetId);
+
+          outletPrefix = entity?.kode
+            ? `${entity.kode}-${isDebet ? "BM-" : "BK-"}`
+            : outletPrefix;
         }
       }
 
-      // 7️⃣ Insert atau Update
       let buktiNomor = payload.bukti_transaksi;
 
+      // Nomor bukti otomatis.
       if (!buktiNomor && formMode !== "edit") {
-      // AUTO NOMOR (SUDAH INSERT)
-      const result = await insertWithAutoNomor({
-        table: "kas_harian",
-        prefix: outletPrefix,
-        data: payload as unknown as Record<string, unknown>,
-        nomorField: "bukti_transaksi",
-        tanggal: normalizeDate(formData.tanggal),
-      });
+        const result = await insertWithAutoNomor({
+          table: "kas_harian",
+          prefix: outletPrefix,
+          data: payload as unknown as Record<string, unknown>,
+          nomorField: "bukti_transaksi",
+          tanggal: normalizeDate(formData.tanggal),
+        });
 
-      if (!result.success) throw new Error(result.error);
+        if (!result.success) {
+          throw new Error(result.error);
+        }
 
-      alert(`✅ Data berhasil disimpan\nNo Bukti: ${result.nomor}`);
+        // Trigger Supabase telah membuat jurnal secara otomatis.
+        alert(`✅ Data dan jurnal berhasil disimpan\nNo Bukti: ${result.nomor}`);
+      } else {
+        // Nomor bukti manual.
+        if (buktiNomor && formMode !== "edit") {
+          buktiNomor = `${outletPrefix}${buktiNomor}`;
+          payload.bukti_transaksi = buktiNomor;
 
-    } else {
-      // MANUAL NOMOR
-      if (buktiNomor && formMode !== "edit") {
-        buktiNomor = `${outletPrefix}${buktiNomor}`;
-        payload.bukti_transaksi = buktiNomor;
+          const { error: insertError } = await supabase
+            .from("kas_harian")
+            .insert(payload);
 
-        const { error: insertError } = await supabase
-          .from("kas_harian")
-          .insert(payload);
+          if (insertError) {
+            throw insertError;
+          }
 
-        if (insertError) throw insertError;
+          // Trigger Supabase telah membuat jurnal secara otomatis.
+          alert(`✅ Data dan jurnal berhasil disimpan\nNo Bukti: ${buktiNomor}`);
+        }
 
-        alert(`✅ Data berhasil disimpan\nNo Bukti: ${buktiNomor}`);
-      }
-
+        // Update Kas sekaligus memperbarui jurnal dari trigger.
         if (formMode === "edit" && formData.id) {
-          // pastikan entity_id selalu terisi
           payload.entity_id = targetEntity;
 
-          const { error } = await supabase
+          const { error: updateError } = await supabase
             .from("kas_harian")
             .update(payload)
             .eq("id", formData.id)
-            .eq("entity_id", targetEntity); // ✅ filter entity juga
+            .eq("entity_id", targetEntity);
 
-          if (error) throw error;
-          alert("✅ Transaksi berhasil diupdate.");
+          if (updateError) {
+            throw updateError;
+          }
+
+          alert("✅ Transaksi dan jurnal berhasil diupdate.");
         }
       }
 
@@ -1128,80 +1160,6 @@ useEffect(() => {
     fetchData();
   };
 
-  // --- Handler: Single Delete Kas dan sumbernya jika dari uang_saku_driver ---
-  //const handleDeleteKas = async (kasRow: KasRow) => {
-    //if (!confirm("Yakin ingin hapus transaksi ini?")) return;
-
-    // 🔥 Jika sumber premi_driver, hapus semua baris kas_harian dengan bukti_transaksi yang sama
-    //if (kasRow.sumber_tabel === "premi_driver" && kasRow.bukti_transaksi) {
-      // 1️⃣ Ambil semua baris kas_harian dengan bukti_transaksi yang sama
-      //const { data: relatedKas, error: fetchError } = await supabase
-        //.from("kas_harian")
-        //.select("id")
-        //.eq("bukti_transaksi", kasRow.bukti_transaksi)
-        //.in("sumber_tabel", ["premi_driver", "perpal", "potongan", "realisasi_saku_header", "realisasi_saku_sisa", "realisasi_saku_item"]);
-
-      //if (fetchError) {
-        //alert("❌ Gagal ambil transaksi terkait: " + fetchError.message);
-        //return;
-      //}
-
-      //const kasIds = relatedKas?.map((row) => row.id) ?? [];
-
-      // 2️⃣ Hapus semua baris kas_harian terkait
-      //if (kasIds.length > 0) {
-        //const { error: deleteKasError } = await supabase
-          //.from("kas_harian")
-          //.delete()
-          //.in("id", kasIds);
-
-        //if (deleteKasError) {
-          //alert("❌ Gagal hapus kas_harian: " + deleteKasError.message);
-          //return;
-        //}
-      //}
-
-      // 3️⃣ Hapus baris premi_driver yang sesuai
-      //const { error: deletePremiError } = await supabase
-        //.from("premi_driver")
-        //.delete()
-        //.eq("no_premi_driver", kasRow.bukti_transaksi);
-
-      //if (deletePremiError) {
-        //alert("❌ Gagal hapus Premi Driver: " + deletePremiError.message);
-        //return;
-      //}
-
-      //window.dispatchEvent(new Event("refresh-premi-driver"));
-      //await fetchData(); // refresh kas_harian
-      //return;
-    //}
-
-    // 🔥 Jika sumber uang_saku_driver, hapus baris terkait
-    //if (kasRow.sumber_tabel === "uang_saku_driver" && kasRow.sumber_id) {
-      //const { error: deleteSakuError } = await supabase
-        //.from("uang_saku_driver")
-        //.delete()
-        //.eq("id", kasRow.sumber_id);
-
-      //if (deleteSakuError) {
-        //alert("❌ Gagal hapus Uang Saku Driver: " + deleteSakuError.message);
-        //return;
-      //}
-    //}
-
-    // ✅ Hapus baris kas_harian biasa
-    //const { error: deleteKasError } = await supabase
-     // .from("kas_harian")
-     // .delete()
-     // .eq("id", kasRow.id);
-
-    //if (deleteKasError) {
-     // alert("❌ Gagal hapus Kas Harian: " + deleteKasError.message);
-    //} else {
-     // await fetchData(); // refresh kas_harian
-   // }
- // };
 
   // ESC untuk semua popup (form utama & cash opname)
   useEffect(() => {
@@ -1787,6 +1745,40 @@ useEffect(() => {
                       onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                       className="w-full border rounded px-3 py-2"
                     />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block mb-1 font-semibold">
+                      Akun Lawan
+                    </label>
+
+                    <select
+                      value={String(formData.account_lawan_id ?? "")}
+                      onChange={(event) =>
+                        setFormData({
+                          ...formData,
+                          account_lawan_id: event.target.value,
+                        })
+                      }
+                      disabled={loadingAccounts}
+                      required
+                      className="w-full border rounded px-3 py-2"
+                    >
+                      <option value="">
+                        {loadingAccounts ? "Memuat akun..." : "Pilih akun lawan"}
+                      </option>
+
+                      {postingAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.code} - {account.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      Kas Masuk: Kas didebit, akun ini dikredit.
+                      Kas Keluar: akun ini didebit, Kas dikredit.
+                    </p>
                   </div>
 
                   <div>
