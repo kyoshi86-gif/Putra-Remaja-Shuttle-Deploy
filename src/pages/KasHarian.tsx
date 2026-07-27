@@ -615,8 +615,22 @@ useEffect(() => {
 
     console.log("🔍 Normalized row:", normalized);
 
+    // ============================
+    // Nama file berdasarkan Date Range
+    // ============================
+    const start = range[0]?.startDate ?? new Date();
+    const end = range[0]?.endDate ?? new Date();
+
+    const startDay = format(start, "dd");
+    const endDay = format(end, "dd");
+    const month = format(end, "MMMM", { locale: id });
+    const year = format(end, "yy");
+
+    const exportFilename =
+      `KasHarian ${startDay}-${endDay} ${month} ${year}.xlsx`;
+
     exportTableToExcel(dataWithSaldo, {
-      filename: "KasHarian.xlsx",
+      filename: exportFilename,
       sheetName: "Kas Harian",
       columns,
       prependRows: [
