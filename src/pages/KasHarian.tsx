@@ -325,22 +325,25 @@ function injectSaldoKeData(
     if (!entityCtx?.entity_id) return;
 
     const { data, error } = await supabase
-      .from("premi_driver")
-      .select("driver")
-      .eq("entity_id", entityCtx.entity_id)
-      .not("driver", "is", null)
-      .order("driver", { ascending: true });
+      .from("driver")
+      .select("nama")
+      .eq("status", "AKTIF")
+      .order("nama", { ascending: true });
 
     if (error) {
       console.error("Error load driver:", error);
       return;
     }
 
-    const unique = Array.from(
-      new Set((data || []).map((d) => d.driver?.trim()))
-    ).filter(Boolean);
+    const uniqueDrivers = Array.from(
+      new Set(
+        (data || [])
+          .map((d) => (d.nama || "").trim())
+          .filter(Boolean)
+      )
+    );
 
-    setDrivers(unique);
+    setDrivers(uniqueDrivers);
   }
 
 
