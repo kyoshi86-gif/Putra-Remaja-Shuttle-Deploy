@@ -359,7 +359,7 @@ const handleSelectKodeRute = (item: Rute) => {
     let query = supabase
       .from("surat_jalan")
       .select("*")
-      .order("tanggal_berangkat", { ascending: false });
+      .order("created_at", { ascending: false });
 
     // FILTER ENTITY
     if (entityCtx.tipe === "pusat") {
@@ -426,6 +426,23 @@ const handleSelectKodeRute = (item: Rute) => {
   useEffect(() => {
     let filteredData = [...data];
 
+    const sortTerbaru = (rows: SuratJalanData[]) =>
+      rows.sort((a, b) => {
+        // tanggal berangkat terbaru
+        const tgl =
+          new Date(b.tanggal_berangkat).getTime() -
+          new Date(a.tanggal_berangkat).getTime();
+
+        if (tgl !== 0) return tgl;
+
+        // jika tanggal sama, nomor SJ terbesar di atas
+        return b.no_surat_jalan.localeCompare(
+          a.no_surat_jalan,
+          undefined,
+          { numeric: true }
+        );
+      });
+
     // =========================
     // SEARCH DULU
     // =========================
@@ -440,7 +457,7 @@ const handleSelectKodeRute = (item: Rute) => {
 
       // Kalau sedang search,
       // jangan filter tanggal sama sekali.
-      setFiltered(filteredData);
+      setFiltered(sortTerbaru(filteredData));
       setCurrentPage(1);
       return;
     }
