@@ -28,7 +28,7 @@ export default function LaporanDriver() {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   const [data, setData] = useState<JaminanRow[]>([]);
-  const [jenisLedger, setJenisLedger] = useState<"Jaminan" | "Piutang">("Jaminan");
+  const [jenisLedger, setJenisLedger] = useState<"Jaminan" | "Piutang" | "Klaim Laka">("Jaminan");
 
   const [filtered, setFiltered] = useState<JaminanRow[]>([]);
 
@@ -74,12 +74,16 @@ export default function LaporanDriver() {
       filename:
         jenisLedger === "Jaminan"
           ? "DriverLedger_Jaminan.xlsx"
-          : "DriverLedger_Piutang.xlsx",
+          : jenisLedger === "Piutang"
+          ? "DriverLedger_Piutang.xlsx"
+          : "DriverLedger_KlaimLaka.xlsx",
 
       sheetName:
         jenisLedger === "Jaminan"
           ? "Jaminan Driver"
-          : "Piutang Driver",
+          : jenisLedger === "Piutang"
+          ? "Piutang Driver"
+          : "Klaim Laka Driver",
       columns: [
         { label: "Tanggal", key: "tanggal", type: "date", format: toDate },
         { label: "No Bukti Transaksi", key: "no_premi_driver" },
@@ -87,9 +91,12 @@ export default function LaporanDriver() {
         { label: "Tanggal Kembali", key: "tanggal_kembali", type: "date", format: toDate },
         { label: "No Polisi", key: "no_polisi" },
         { label: "Kode Rute", key: "kode_rute" },
-        { label: jenisLedger === "Jaminan"
+        { label:
+            jenisLedger === "Jaminan"
               ? "Jaminan"
-              : "Saldo Piutang",
+              : jenisLedger === "Piutang"
+              ? "Saldo Piutang"
+              : "Klaim Laka",
           key: "jaminan",
           type: "currency",
         },
@@ -155,6 +162,35 @@ export default function LaporanDriver() {
 
     return;
   }
+
+    // ==========================
+    // K L A I M   L A K A
+    // ==========================
+    if (jenisLedger === "Klaim Laka") {
+
+      const { data, error } = await supabase
+        .from("premi_driver")
+        .select("driver")
+        .eq("entity_id", entityId)
+        .gt("potongan_klaim_laka", 0);
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      const uniqueDrivers = Array.from(
+        new Set(
+          (data || [])
+            .map((d) => (d.driver || "").trim())
+            .filter(Boolean)
+        )
+      ).sort();
+
+      setDrivers(uniqueDrivers);
+
+      return;
+    }
 
     // ==========================
     // P I U T A N G
@@ -313,6 +349,47 @@ export default function LaporanDriver() {
   }
 
   // ===================================
+  // K L A I M   L A K A
+  // ===================================
+  if (jenisLedger === "Klaim Laka") {
+
+    const { data: premi, error } = await supabase
+      .from("premi_driver")
+      .select(`
+        no_premi_driver,
+        no_polisi,
+        kode_rute,
+        potongan_klaim_laka,
+        tanggal,
+        tanggal_berangkat,
+        tanggal_kembali
+      `)
+      .eq("driver", selectedDriver)
+      .eq("entity_id", entityId)
+      .gt("potongan_klaim_laka", 0)
+      .order("tanggal");
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const rows = (premi || []).map((p, i) => ({
+      no: i + 1,
+      no_premi_driver: p.no_premi_driver,
+      tanggal: p.tanggal,
+      tanggal_berangkat: p.tanggal_berangkat,
+      tanggal_kembali: p.tanggal_kembali,
+      no_polisi: p.no_polisi,
+      kode_rute: p.kode_rute,
+      jaminan: Number(p.potongan_klaim_laka || 0),
+    }));
+
+    setData(rows);
+    return;
+  }
+
+  // ===================================
   // P I U T A N G
   // ===================================
 
@@ -416,7 +493,10 @@ export default function LaporanDriver() {
           value={jenisLedger}
           onChange={(e) =>
             setJenisLedger(
-              e.target.value as "Jaminan" | "Piutang"
+              e.target.value as
+                | "Jaminan"
+                | "Piutang"
+                | "Klaim Laka"
             )
           }
           className="w-full border rounded px-3 py-2"
@@ -427,6 +507,10 @@ export default function LaporanDriver() {
 
           <option value="Piutang">
             Piutang
+          </option>
+
+          <option value="Klaim Laka">
+            Klaim Laka
           </option>
         </select>
       </div>
@@ -530,8 +614,11 @@ export default function LaporanDriver() {
               <th className="border px-2 py-1">Nopol</th>
               <th className="border px-2 py-1">Keterangan</th>
               <th className="border px-2 py-1 text-right">{jenisLedger === "Jaminan"
-                ? "Jaminan"
-                : "Saldo Piutang"}</th>
+                  ? "Jaminan"
+                  : jenisLedger === "Piutang"
+                  ? "Saldo Piutang"
+                  : "Klaim Laka"}
+              </th>
             </tr>
           </thead>
 

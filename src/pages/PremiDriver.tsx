@@ -1004,8 +1004,13 @@ export default function PremiDriver() {
       .filter((p) => p.kategori === "kasbon")
       .reduce((sum, p) => sum + (p.nominal || 0), 0);
 
+    const totalKlaimLaka = potonganList
+      .filter((p) => p.kategori === "klaim_laka")
+      .reduce((sum, p) => sum + (p.nominal || 0), 0);
+
     cleanedData.potongan_jaminan = totalJaminan;
     cleanedData.potongan_piutang = totalPiutang;
+    cleanedData.potongan_klaim_laka = totalKlaimLaka;
 
     // === Hitung jumlah akhir ===
     const totalPotongan = potonganList.reduce(
