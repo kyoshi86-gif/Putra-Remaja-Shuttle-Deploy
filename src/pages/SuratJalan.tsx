@@ -32,6 +32,7 @@ interface SuratJalanData {
   snack_kembali: number | null | undefined;
   keterangan: string;
   user_id?: string;
+  created_at?: string;
   updated_at?: string;
   perpal_1x_tanggal?: string | null;
   perpal_1x_rute?: string | null;
@@ -428,18 +429,33 @@ const handleSelectKodeRute = (item: Rute) => {
 
     const sortTerbaru = (rows: SuratJalanData[]) =>
       rows.sort((a, b) => {
-        // tanggal berangkat terbaru
-        const tgl =
-          new Date(b.tanggal_berangkat).getTime() -
-          new Date(a.tanggal_berangkat).getTime();
 
-        if (tgl !== 0) return tgl;
+        // ==========================================
+        // UTAMAKAN CREATED_AT
+        // SJ TERAKHIR DIBUAT = PALING ATAS
+        // ==========================================
+        const createdA = a.created_at
+          ? new Date(a.created_at).getTime()
+          : 0;
 
-        // jika tanggal sama, nomor SJ terbesar di atas
+        const createdB = b.created_at
+          ? new Date(b.created_at).getTime()
+          : 0;
+
+        if (createdB !== createdA) {
+          return createdB - createdA;
+        }
+
+        // ==========================================
+        // FALLBACK JIKA CREATED_AT SAMA / TIDAK ADA
+        // ==========================================
         return b.no_surat_jalan.localeCompare(
           a.no_surat_jalan,
           undefined,
-          { numeric: true }
+          {
+            numeric: true,
+            sensitivity: "base",
+          }
         );
       });
 
@@ -477,9 +493,14 @@ const handleSelectKodeRute = (item: Rute) => {
           const tgl = new Date(d.tanggal_berangkat);
           return tgl >= start && tgl <= endDate;
         });
+
+        filteredData = sortTerbaru(filteredData);
       }
     } else {
-      // Default = bulan berjalan
+      // =========================
+      // DEFAULT = BULAN BERJALAN
+      // TERMASUK TANGGAL BERANGKAT MASA DEPAN
+      // =========================
       const now = new Date();
 
       const awalBulan = new Date(
@@ -488,10 +509,24 @@ const handleSelectKodeRute = (item: Rute) => {
         1
       );
 
+      const akhirBulan = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0
+      );
+
+      akhirBulan.setHours(23, 59, 59, 999);
+
       filteredData = filteredData.filter((d) => {
+        if (!d.tanggal_berangkat) return false;
+
         const tgl = new Date(d.tanggal_berangkat);
-        return tgl >= awalBulan && tgl <= now;
+
+        return tgl >= awalBulan && tgl <= akhirBulan;
       });
+
+      // Tetap urut berdasarkan SJ yang TERAKHIR DIBUAT
+      filteredData = sortTerbaru(filteredData);
     }
 
     setFiltered(filteredData);
