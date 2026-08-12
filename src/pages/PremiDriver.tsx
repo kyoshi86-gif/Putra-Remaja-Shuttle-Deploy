@@ -55,12 +55,6 @@ export const toDate = (v: unknown): Date | "" => {
   return "";
 };
 
-type PremiDriverRow = {
-  no_surat_jalan: string;
-  driver: string | null;
-  crew?: string | null;
-};
-
 export default function PremiDriver() {
   const [data, setData] = useState<PremiData[]>([]);
   const [filtered, setFiltered] = useState<PremiData[]>([]);
@@ -467,122 +461,201 @@ export default function PremiDriver() {
   const fetchSJ = async () => {
     if (!entityCtx?.entity_id) return;
 
-    let query = supabase
-      .from("uang_saku_driver")
-      .select("no_surat_jalan, driver, crew, tanggal_berangkat, tanggal_kembali, no_polisi, kode_unit, kode_rute, entity_id")
-      .order("tanggal", { ascending: false });
+    const targetEntity =
+      entityCtx.tipe === "pusat"
+        ? selectedEntityId ?? entityCtx.entity_id
+        : entityCtx.entity_id;
 
-    if (entityCtx.tipe === "pusat") {
-      const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-      query = query.eq("entity_id", targetEntity);
-    } else {
-      query = query.eq("entity_id", entityCtx.entity_id);
-    }
+    // =========================================================
+    // 1. AMBIL SURAT JALAN
+    //    SUMBER UTAMA ADALAH surat_jalan
+    // =========================================================
+    let sjQuery = supabase
+      .from("surat_jalan")
+      .select(`
+        no_surat_jalan,
+        driver,
+        crew,
+        tanggal_berangkat,
+        tanggal_kembali,
+        no_polisi,
+        kode_unit,
+        kode_rute,
+        entity_id
+      `)
+      .eq("entity_id", targetEntity)
+      .order("tanggal_berangkat", { ascending: false });
 
-    let semuaSJRows: SuratJalanRow[] = [];
-    let pageSJ = 0;
-    const pageSize = 1000;
+    const { data: suratJalanData, error: sjError } =
+      await sjQuery;
 
-    while (true) {
-      const { data, error } = await query.range(
-        pageSJ * pageSize,
-        (pageSJ + 1) * pageSize - 1
+    if (sjError) {
+      console.error(
+        "❌ Gagal ambil Surat Jalan:",
+        sjError.message
       );
-
-      if (error) {
-        console.error("❌ Gagal ambil SJ:", error.message);
-        break;
-      }
-
-      if (!data || data.length === 0) break;
-
-      semuaSJRows = [...semuaSJRows, ...data];
-
-      if (data.length < pageSize) break;
-
-      pageSJ++;
+      return;
     }
 
-    // ambil SJ yang sudah dipakai
-    let usedQuery = supabase
-      .from("premi_driver")
-      .select("no_surat_jalan, driver");
-
-    if (entityCtx.tipe === "pusat") {
-      const targetEntity = selectedEntityId ?? entityCtx.entity_id;
-      usedQuery = usedQuery.eq("entity_id", targetEntity);
-    } else {
-      usedQuery = usedQuery.eq("entity_id", entityCtx.entity_id);
+    if (!suratJalanData || suratJalanData.length === 0) {
+      setSuratJalanTersedia([]);
+      setSemuaSJ([]);
+      return;
     }
 
-    let semuaDipakai: PremiDriverRow[] = [];
-      let pagePremi = 0;
+    // =========================================================
+    // 2. AMBIL SURAT JALAN YANG SUDAH ADA UANG SAKU
+    // =========================================================
+    const { data: uangSakuData, error: uangSakuError } =
+      await supabase
+        .from("uang_saku_driver")
+        .select("no_surat_jalan, driver, crew, entity_id")
+        .eq("entity_id", targetEntity);
 
-      while (true) {
-        const { data } = await usedQuery.range(
-          pagePremi * pageSize,
-          (pagePremi + 1) * pageSize - 1
-        );
+    if (uangSakuError) {
+      console.error(
+        "❌ Gagal ambil Uang Saku:",
+        uangSakuError.message
+      );
+      return;
+    }
 
-        if (!data || data.length === 0) break;
+    // =========================================================
+    // 3. AMBIL SEMUA PREMI YANG SUDAH ADA
+    // =========================================================
+    const { data: premiData, error: premiError } =
+      await supabase
+        .from("premi_driver")
+        .select("no_surat_jalan, driver, crew, entity_id")
+        .eq("entity_id", targetEntity);
 
-        semuaDipakai = [...semuaDipakai, ...data];
+    if (premiError) {
+      console.error(
+        "❌ Gagal ambil Premi Driver:",
+        premiError.message
+      );
+      return;
+    }
 
-        if (data.length < pageSize) break;
+    // =========================================================
+    // 4. BUAT SET NO SJ YANG SUDAH PUNYA UANG SAKU
+    // =========================================================
+    const uangSakuSet = new Set(
+      (uangSakuData || [])
+        .map((row) => row.no_surat_jalan?.trim())
+        .filter(Boolean)
+    );
 
-        pagePremi++;
-      }
-
-      const sudahDipakai = semuaDipakai;
-   
-    // hitung berapa kali SJ dipakai
+    // =========================================================
+    // 5. HITUNG PREMI YANG SUDAH DIPAKAI
+    //
+    //    Tetap mempertahankan aturan lama:
+    //
+    //    Driver saja       = 1 premi
+    //    Driver + Crew     = maksimal 2 premi
+    // =========================================================
     const usedMap: Record<string, number> = {};
 
-    (sudahDipakai || []).forEach((r) => {
-      const sj = r.no_surat_jalan;
+    (premiData || []).forEach((row) => {
+      const sj = row.no_surat_jalan?.trim();
 
-      if (!usedMap[sj]) usedMap[sj] = 0;
-      usedMap[sj]++;
+      if (!sj) return;
+
+      usedMap[sj] = (usedMap[sj] || 0) + 1;
     });
 
-    const hasil: { no_surat_jalan: string; nama: string }[] = [];
+    // =========================================================
+    // 6. BENTUK LIST DROPDOWN
+    // =========================================================
+    const hasil: {
+      no_surat_jalan: string;
+      nama: string;
+    }[] = [];
 
-    semuaSJRows?.forEach((row) => {
-      const sj = row.no_surat_jalan;
+    suratJalanData.forEach((row) => {
+      const sj = row.no_surat_jalan?.trim();
+
+      if (!sj) return;
+
+      // Harus sudah ada Uang Saku
+      if (!uangSakuSet.has(sj)) return;
+
       const driver = row.driver?.trim() || "";
-      const crew = row.crew?.trim();
+      const crew = row.crew?.trim() || "";
 
       const usedCount = usedMap[sj] || 0;
 
-      // ===== hanya driver (crew kosong/null) =====
+      // =====================================================
+      // DRIVER SAJA
+      // =====================================================
       if (driver && !crew) {
+
         if (usedCount === 0) {
-          hasil.push({ no_surat_jalan: sj, nama: driver });
+          hasil.push({
+            no_surat_jalan: sj,
+            nama: driver,
+          });
         }
+
         return;
       }
 
-      // ===== driver + crew =====
+      // =====================================================
+      // DRIVER + CREW
+      // =====================================================
       if (driver && crew) {
+
+        // Belum ada premi sama sekali
         if (usedCount === 0) {
-          hasil.push({ no_surat_jalan: sj, nama: driver });
-        } else if (usedCount === 1) {
-          hasil.push({ no_surat_jalan: sj, nama: crew });
+          hasil.push({
+            no_surat_jalan: sj,
+            nama: driver,
+          });
+        }
+
+        // Driver sudah menerima premi,
+        // crew masih bisa menerima premi kedua
+        else if (usedCount === 1) {
+          hasil.push({
+            no_surat_jalan: sj,
+            nama: crew,
+          });
         }
       }
     });
 
+    // =========================================================
+    // 7. HILANGKAN DUPLIKAT
+    // =========================================================
     const unique = Array.from(
       new Map(
-        hasil.map((item) => [`${item.no_surat_jalan}__${item.nama}`, item])
+        hasil.map((item) => [
+          `${item.no_surat_jalan}__${item.nama}`,
+          item,
+        ])
       ).values()
     );
 
-    setSuratJalanTersedia(
-      unique.sort((a, b) => a.no_surat_jalan.localeCompare(b.no_surat_jalan))
+    // =========================================================
+    // 8. URUTKAN NOMOR SJ TERBARU
+    // =========================================================
+    unique.sort((a, b) =>
+      b.no_surat_jalan.localeCompare(
+        a.no_surat_jalan,
+        undefined,
+        {
+          numeric: true,
+          sensitivity: "base",
+        }
+      )
     );
 
-    setSemuaSJ(semuaSJRows ?? []);
+    setSuratJalanTersedia(unique);
+
+    // =========================================================
+    // 9. SIMPAN DATA SURAT JALAN UNTUK KEPERLUAN LAIN
+    // =========================================================
+    setSemuaSJ(suratJalanData);
   };
 
   // ✅ panggil ulang saat mount dan saat filter outlet berubah
