@@ -51,6 +51,7 @@ export default function CetakPremiDriver() {
     crew: string;
     totalPremi: number;
     totalPerpal: number;
+    totalBonus: number;
     potonganList: { keterangan: string; nominal: number }[];
     perpalList: { row: KasHarianRow; nominal: number; index: number }[];
     subTotalA: number;
@@ -129,6 +130,7 @@ export default function CetakPremiDriver() {
       // hitung total premi, perpal, potongan
       let totalPremi = 0;
       let totalPerpal = 0;
+      let totalBonus = 0;
 
       let potonganList: { keterangan: string; nominal: number }[] = [];
       let perpalList: { row: KasHarianRow; nominal: number; index: number }[] = [];
@@ -136,6 +138,7 @@ export default function CetakPremiDriver() {
       kasData?.forEach((row) => {
         const ket = row.keterangan || "";
         if (ket.startsWith("Premi Driver")) totalPremi += row.nominal;
+        if (ket.startsWith("Bonus Driver")) totalBonus += row.nominal;
         if (row.sumber_tabel === "perpal") {
           perpalList.push({
             row,
@@ -155,7 +158,7 @@ export default function CetakPremiDriver() {
         }
       });
 
-      const subTotalA = totalPremi + totalPerpal;
+      const subTotalA = totalPremi + totalBonus + totalPerpal;
       const subTotalB = potonganList.reduce((sum, p) => sum + (p.nominal || 0), 0);
       const takeHomePay = subTotalA - subTotalB;
 
@@ -163,6 +166,7 @@ export default function CetakPremiDriver() {
         ...pdData,
         totalPremi,
         totalPerpal,
+        totalBonus,
         potonganList,
         subTotalA,
         subTotalB,
@@ -407,9 +411,18 @@ export default function CetakPremiDriver() {
             </td>
             <td className="border px-2"></td>
           </tr>
+          <tr>
+            <td className="border px-2 text-center">2</td>
+            <td className="border px-2 text-left">Bonus Driver</td>
+            <td className="border px-2 text-right">
+                <span className="float-left">Rp.</span>
+                {formatRp(data.totalBonus)}
+            </td>
+            <td className="border px-2"></td>
+          </tr>
           {data.perpalList?.map((p, i) => (
             <tr key={i}>
-              <td className="border px-2 text-center">{i + 2}</td>
+              <td className="border px-2 text-center">{i + 3}</td>
               <td className="border px-2 text-left">
                 {getPerpalKeterangan(suratJalan)}
               </td>

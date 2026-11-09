@@ -27,6 +27,7 @@ interface PremiData {
   kode_unit: string;
   kode_rute: string;
   premi: number | null;
+  bonus: number | null;
   perpal: number | null;
   potongan: number | null;
   jumlah: number | null;
@@ -126,6 +127,7 @@ export default function PremiDriver() {
     kode_unit: "",
     kode_rute: "",
     premi: 0,
+    bonus: 0,
     perpal: 0,
     potongan: 0,
     jumlah: 0,
@@ -1057,7 +1059,7 @@ export default function PremiDriver() {
       Object.entries(formData).filter(([key]) => key !== "perpalAktif")
     ) as Partial<Record<keyof PremiData, string | number | null>>;
 
-    const numericFields: (keyof PremiData)[] = ["premi", "perpal", "biaya_etoll"];
+    const numericFields: (keyof PremiData)[] = ["premi", "bonus", "perpal", "biaya_etoll"];
 
     for (const key of numericFields) {
       const raw = formData[key];
@@ -1101,9 +1103,10 @@ export default function PremiDriver() {
     );
 
     const premi = Number(cleanedData.premi ?? 0);
+    const bonus = Number(cleanedData.bonus ?? 0);
     const perpal = Number(cleanedData.perpal ?? 0);
 
-    cleanedData.jumlah = premi + perpal - totalPotongan;
+    cleanedData.jumlah = premi + bonus + perpal - totalPotongan;
     cleanedData.potongan = totalPotongan;
 
     cleanedData.user_id = getCustomUserId();
@@ -1249,6 +1252,24 @@ export default function PremiDriver() {
     }
 
     
+
+    if (cleanedData.bonus) {
+      transaksi.push({
+        tanggal: formData.tanggal,
+        waktu: waktuNow,
+        keterangan: `Bonus Driver ${keteranganBase}`,
+        nominal: Number(cleanedData.bonus ?? 0),
+        jenis_transaksi: "kredit",
+        sumber_tabel: "premi_driver",
+        sumber_id: finalId,
+        bukti_transaksi: finalNomor,
+        urutan: urutan++,
+        user_id: currentUserId,
+        updated_at: new Date().toISOString(),
+        entity_id: targetEntity,
+      });
+    }
+
       // build perpal keterangan lengkap sesuai format: Perpal [driver] [nopol] [tanggal] [ROUTE] (jam...) [no_surat_jalan]
      if (cleanedData.perpal) {
       const perpalKet = generateKeterangan(
@@ -1795,7 +1816,7 @@ export default function PremiDriver() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    const numFields = ["premi", "perpal", "potongan"];
+    const numFields = ["premi", "bonus", "perpal", "potongan"];
     if (numFields.includes(name)) {
       const val = value.replace(/[^\d]/g, "");
       setFormData((prev) => ({
@@ -1871,9 +1892,9 @@ export default function PremiDriver() {
     );
     setFormData((prev) => ({
       ...prev,
-      jumlah: (prev.premi || 0) + (prev.perpal || 0) - totalPotongan,
+      jumlah: (prev.premi || 0) + (prev.bonus || 0) + (prev.perpal || 0) - totalPotongan,
     }));
-  }, [formData.premi, formData.perpal, potonganList]);
+  }, [formData.premi, formData.bonus, formData.perpal, potonganList]);
 
   // -- CLOSE FORM ---
   const handleCloseForm = () => {
@@ -2005,7 +2026,7 @@ export default function PremiDriver() {
                     : "Pilih Tanggal"
                 }
                 onClick={() => setShowPicker(true)}
-                className="border border-gray-300 rounded px-2 py-1 text-sm w-[220px] cursor-pointer"
+                className="border border-gray-300 rounded px-2 py-1 text-sm w-[190px] cursor-pointer"
               />
             </div>
 
@@ -2115,6 +2136,7 @@ export default function PremiDriver() {
               <th className="p-2 border text-center w-[120px]">Kode Unit</th>
               <th className="p-2 border text-center w-[220px]">Kode Rute</th>
               <th className="p-2 border text-center w-[150px]">Premi</th>
+              <th className="p-2 border text-center w-[150px]">Bonus</th>
               <th className="p-2 border text-center w-[150px]">Perpal</th>
               <th className="p-2 border text-center w-[150px]">Potongan</th>
               <th className="p-2 border text-center w-[150px]">Jumlah</th>
@@ -2264,6 +2286,7 @@ export default function PremiDriver() {
                   <td className="p-2 border text-center">{row.kode_unit}</td>
                   <td className="p-2 border text-center">{row.kode_rute}</td>
                   <td className="p-2 border text-right">{formatRupiah(row.premi)}</td>
+                  <td className="p-2 border text-right">{formatRupiah(row.bonus)}</td>
                   <td className="p-2 border text-right">{formatRupiah(row.perpal)}</td>
                   <td className="p-2 border text-right">{formatRupiah(row.potongan)}</td>
                   <td className="p-2 border text-right">{formatRupiah(row.jumlah)}</td>
@@ -2542,6 +2565,15 @@ export default function PremiDriver() {
                   <input
                     name="premi"
                     value={formatRupiah(formData.premi ?? 0)}
+                    onChange={handleChange}
+                    className="w-full border rounded px-3 py-2 text-left"
+                  />
+                </div>
+                <div>
+                  <label>Bonus</label>
+                  <input
+                    name="bonus"
+                    value={formatRupiah(formData.bonus ?? 0)}
                     onChange={handleChange}
                     className="w-full border rounded px-3 py-2 text-left"
                   />
