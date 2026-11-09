@@ -985,6 +985,7 @@ export default function PremiDriver() {
         { label: "Kode Unit", key: "kode_unit" },
         { label: "Kode Rute", key: "kode_rute" },
         { label: "Premi", key: "premi", type: "currency" },
+        { label: "Bonus", key: "bonus", type: "currency" },
         { label: "Perpal", key: "perpal", type: "currency" },
         { label: "Potongan", key: "potongan", type: "currency" },
         { label: "Jumlah", key: "jumlah", type: "currency" },
