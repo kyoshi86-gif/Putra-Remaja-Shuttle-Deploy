@@ -311,7 +311,7 @@ export default function Layout() {
             backgroundColor: isPrintRoute ? "white" : "#fff",
             borderRadius: "5px",
             borderTop: isPrintRoute ? "none" : "10px solid #B7BABF",
-            width: "100%",
+            width: "auto",
             maxWidth: "100%",
             overflowX: "auto",
             overflowY: "auto",

@@ -10,6 +10,8 @@ import {
   FaCogs,
   FaCashRegister,
   FaBook,
+  FaShoppingCart,
+  FaWrench,
 } from "react-icons/fa";
 import { createPortal } from "react-dom";
 
@@ -42,7 +44,9 @@ const ICONS: Record<string, React.ComponentType<{ style?: React.CSSProperties }>
   FaChartBar,
   FaCogs,
   FaCashRegister,
-  FaBook
+  FaBook,
+  FaShoppingCart,
+  FaWrench,
 };
 
 const getIcon = (name?: string): React.ComponentType<{ style?: React.CSSProperties }> => {

@@ -16,12 +16,19 @@ interface MenuItem {
   parent: string | null;
 }
 
+interface PermissionItem {
+  code: string;
+  name: string;
+  module: string;
+}
+
 export default function EditRole() {
   const [searchParams] = useSearchParams();
   const roleId = searchParams.get("id");
   const [roleName, setRoleName] = useState("");
   const [access, setAccess] = useState<string[]>([]);
   const [menuStructure, setMenuStructure] = useState<Record<string, MenuItem[]>>({});
+  const [permissions, setPermissions] = useState<PermissionItem[]>([]);
   const [activeTab, setActiveTab] = useState("");
   const navigate = useNavigate();
 
@@ -56,6 +63,16 @@ export default function EditRole() {
     };
 
     loadMenus();
+
+    // 🔹 Ambil daftar permission granular (modular, dari tabel permissions)
+    supabase
+      .from("permissions")
+      .select("code, name, module")
+      .order("module")
+      .order("name")
+      .then(({ data }) => {
+        if (data) setPermissions(data as PermissionItem[]);
+      });
   }, []);
 
   // 🔹 Ambil data role
@@ -192,6 +209,36 @@ setTimeout(() => {
           </>
         )}
       </div>
+
+      {/* 🔹 Permission Granular (modular — dari tabel permissions) */}
+      {permissions.length > 0 && (
+        <div className="border p-4 rounded bg-gray-50 mt-4">
+          <div className="font-semibold mb-2">Permission Aksi (per-modul)</div>
+          {(() => {
+            const byModule = permissions.reduce<Record<string, PermissionItem[]>>((acc, p) => {
+              (acc[p.module] = acc[p.module] || []).push(p);
+              return acc;
+            }, {});
+            return Object.entries(byModule).map(([module, items]) => (
+              <div key={module} className="mb-3">
+                <div className="text-xs font-bold text-gray-500 uppercase mb-1">{module}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                  {items.map((p) => (
+                    <label key={p.code} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={access.includes(p.code)}
+                        onChange={() => toggleAccess(p.code)}
+                      />
+                      <span>{p.name} <span className="text-gray-400 text-xs">({p.code})</span></span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
+      )}
 
       {/* Tombol Aksi */}
       <div className="mt-6 flex gap-4">

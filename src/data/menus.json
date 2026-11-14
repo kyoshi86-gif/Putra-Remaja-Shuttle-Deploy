@@ -104,6 +104,12 @@
         "access": "Laporan -> Log Transaksi",
         "path": "/log-transaksi",
         "component": "DashboardLog"
+      },
+      {
+        "label": "Biaya Per Unit",
+        "access": "Laporan -> Biaya Per Unit",
+        "path": "/biaya-per-unit",
+        "component": "operasional/maintenance/LaporanBiayaPerUnitPage"
       }
     ]
   },
@@ -122,6 +128,150 @@
         "access": "Accounting -> Akun Mapping",
         "path": "/Akun-mapping",
         "component": "AccountMapping"
+      },
+      {
+        "label": "Chart of Accounts",
+        "access": "Accounting -> Chart of Accounts",
+        "path": "/coa",
+        "component": "accounting/coa/CoaPage"
+      },
+      {
+        "label": "Buku Besar",
+        "access": "Accounting -> Buku Besar",
+        "path": "/buku-besar",
+        "component": "accounting/general-ledger/GeneralLedgerPage"
+      },
+      {
+        "label": "Trial Balance",
+        "access": "Accounting -> Trial Balance",
+        "path": "/trial-balance",
+        "component": "accounting/trial-balance/TrialBalancePage"
+      },
+      {
+        "label": "Neraca",
+        "access": "Accounting -> Neraca",
+        "path": "/neraca",
+        "component": "accounting/balance-sheet/BalanceSheetPage"
+      },
+      {
+        "label": "Laba Rugi",
+        "access": "Accounting -> Laba Rugi",
+        "path": "/laba-rugi",
+        "component": "accounting/income-statement/IncomeStatementPage"
+      }
+    ]
+  },
+  {
+    "key": "Procurement",
+    "label": "Procurement",
+    "sub": [
+      {
+        "label": "Suppliers",
+        "access": "Procurement -> Suppliers",
+        "path": "/suppliers",
+        "component": "procurement/suppliers/SupplierPage"
+      },
+      {
+        "label": "Units",
+        "access": "Procurement -> Units",
+        "path": "/units",
+        "component": "procurement/units/UnitPage"
+      },
+      {
+        "label": "Stores",
+        "access": "Procurement -> Stores",
+        "path": "/stores",
+        "component": "procurement/stores/StorePage"
+      },
+      {
+        "label": "Item Categories",
+        "access": "Procurement -> Item Categories",
+        "path": "/item-categories",
+        "component": "procurement/item-categories/ItemCategoryPage"
+      },
+      {
+        "label": "Item Subcategories",
+        "access": "Procurement -> Item Subcategories",
+        "path": "/item-subcategories",
+        "component": "procurement/item-subcategories/ItemSubcategoryPage"
+      },
+      {
+        "label": "Items",
+        "access": "Procurement -> Items",
+        "path": "/items",
+        "component": "procurement/items/ItemPage"
+      },
+      {
+        "label": "Settlement Methods",
+        "access": "Procurement -> Settlement Methods",
+        "path": "/purchase-settlement-methods",
+        "component": "procurement/purchase-settlement-methods/PurchaseSettlementMethodPage"
+      },
+      {
+        "label": "Purchase Orders",
+        "access": "Procurement -> Purchase Orders",
+        "path": "/purchase-orders",
+        "component": "procurement/purchase-orders/PurchaseOrderPage"
+      },
+      {
+        "label": "Receiving",
+        "access": "Procurement -> Receiving",
+        "path": "/receiving",
+        "component": "procurement/receiving/ReceivingPage"
+      },
+      {
+        "label": "Supplier Invoice",
+        "access": "Procurement -> Supplier Invoice",
+        "path": "/supplier-invoices",
+        "component": "procurement/account-payable/SupplierInvoicePage"
+      },
+      {
+        "label": "Pembayaran",
+        "access": "Procurement -> Pembayaran",
+        "path": "/payments",
+        "component": "procurement/account-payable/PaymentPage"
+      },
+      {
+        "label": "Inventory Requests",
+        "access": "Procurement -> Inventory Requests",
+        "path": "/inventory-requests",
+        "component": "procurement/inventory/InventoryRequestPage"
+      },
+      {
+        "label": "Opening Balance",
+        "access": "Procurement -> Opening Balance",
+        "path": "/opening-balances",
+        "component": "procurement/inventory/OpeningBalancePage"
+      },
+      {
+        "label": "Storekeeper Dashboard",
+        "access": "Procurement -> Storekeeper Dashboard",
+        "path": "/storekeeper",
+        "component": "procurement/storekeeper/StorekeeperPage"
+      },
+      {
+        "label": "Stock Mutation",
+        "access": "Procurement -> Stock Mutation",
+        "path": "/stock-mutation",
+        "component": "procurement/storekeeper/stock-mutation/StockMutationPage"
+      },
+      {
+        "label": "Adjustment Report",
+        "access": "Procurement -> Adjustment Report",
+        "path": "/adjustment-report",
+        "component": "procurement/storekeeper/adjustment-report/AdjustmentReportPage"
+      },
+      {
+        "label": "Opname Report",
+        "access": "Procurement -> Opname Report",
+        "path": "/opname-report",
+        "component": "procurement/storekeeper/opname-report/OpnameReportPage"
+      },
+      {
+        "label": "Transfer",
+        "access": "Procurement -> Transfer",
+        "path": "/transfer",
+        "component": "procurement/storekeeper/transfer/TransferPage"
       }
     ]
   },
@@ -176,6 +326,30 @@
         "access": "Konfigurasi -> Jenis Potongan",
         "path": "/jenis-potongan",
         "component": "JenisPotongan"
+      }
+    ]
+  },
+  {
+    "key": "Operasional",
+    "label": "Operasional",
+    "sub": [
+      {
+        "label": "Inspeksi Unit",
+        "access": "Operasional -> Inspeksi Unit",
+        "path": "/inspeksi-unit",
+        "component": "operasional/inspeksi/InspeksiUnitPage"
+      },
+      {
+        "label": "Maintenance (SPK)",
+        "access": "Operasional -> Maintenance (SPK)",
+        "path": "/maintenance",
+        "component": "operasional/maintenance/MaintenancePage"
+      },
+      {
+        "label": "Jadwal Maintenance",
+        "access": "Operasional -> Jadwal Maintenance",
+        "path": "/jadwal-maintenance",
+        "component": "operasional/maintenance/JadwalMaintenancePage"
       }
     ]
   }
