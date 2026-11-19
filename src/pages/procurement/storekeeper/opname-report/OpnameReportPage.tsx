@@ -25,6 +25,8 @@ import { useOpnameList } from "./hooks/useOpnameList";
 
 import Pagination from "@/components/common/Pagination";
 
+import { useAccess } from "@/lib/useAccess";
+
 export default function OpnameReportPage() {
   const {
     loading,
@@ -39,6 +41,11 @@ export default function OpnameReportPage() {
 
     fetchAllFilteredDocuments,
   } = useOpnameList();
+
+  const can = useAccess([
+    "storekeeper.export",
+    "storekeeper.print",
+  ] as const);
 
   const [detail, setDetail] = useState<OpnameDocument | null>(null);
 
@@ -281,6 +288,7 @@ export default function OpnameReportPage() {
         <OpnameFilter filter={filter} stores={stores} onChange={setFilter} />
 
         <div className="flex flex-wrap items-center gap-2 pr-8">
+          {can["storekeeper.export"] && (
           <button
             type="button"
             onClick={handleExport}
@@ -288,7 +296,9 @@ export default function OpnameReportPage() {
           >
             Export Excel
           </button>
+          )}
 
+          {can["storekeeper.print"] && (
           <button
             type="button"
             onClick={handlePrint}
@@ -296,6 +306,7 @@ export default function OpnameReportPage() {
           >
             Print
           </button>
+          )}
         </div>
       </div>
 

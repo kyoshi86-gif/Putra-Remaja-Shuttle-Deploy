@@ -47,6 +47,8 @@ export function useStores(entityId?: string | null) {
       .from(TABLE_NAME)
       .insert({
         entity_id: entityId ?? payload.entity_id ?? null,
+        kode: payload.code.trim().toUpperCase(),
+        nama: payload.name.trim(),
         code: payload.code.trim().toUpperCase(),
         name: payload.name.trim(),
         store_type: payload.store_type,
@@ -76,6 +78,8 @@ export function useStores(entityId?: string | null) {
       .from(TABLE_NAME)
       .update({
         entity_id: entityId ?? payload.entity_id ?? null,
+        kode: payload.code.trim().toUpperCase(),
+        nama: payload.name.trim(),
         code: payload.code.trim().toUpperCase(),
         name: payload.name.trim(),
         store_type: payload.store_type,

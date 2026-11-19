@@ -520,75 +520,53 @@ export function useItems(
 
       /*
        * ======================================================
-       * ARTICLE PREFIX
+       * URUTAN KATEGORI & SUBCATEGORI
+       *
+       * Nomor urut dihitung dari POSISI data di daftar
+       * (urutan tampil / urutan dibuat), 1-based index.
+       *
+       * categoryRank    = posisi kategori di daftar kategori
+       * subcategoryRank = posisi subkategori di dalam kategori tsb
+       *
+       * Contoh:
+       *
+       * Kategori Makanan (1)
+       * Subkategori Snack (1)
+       * => prefix 11
+       *
+       * Subkategori BAKERY (2) di kategori Makanan
+       * => prefix 12
+       *
+       * Kategori 2 + subkategori 1
+       * => prefix 21
        * ======================================================
        */
 
-      const categoryPrefix = Number(category.article_prefix);
+      const categoryIndex = categories.findIndex(
+        (item) => item.id === categoryId,
+      );
 
-      const subcategoryPrefix = Number(subcategory.article_prefix);
-
-      /*
-      * ======================================================
-      * VALIDASI CATEGORY ARTICLE PREFIX
-      *
-      * Category prefix berasal dari database.
-      *
-      * Tidak dibatasi hanya 1–9 karena jumlah kategori
-      * dapat lebih dari 9.
-      *
-      * Contoh:
-      *
-      * 1
-      * 2
-      * ...
-      * 9
-      * 10
-      * 11
-      * dan seterusnya.
-      * ======================================================
-      */
-
-      if (
-        !Number.isSafeInteger(categoryPrefix) ||
-        categoryPrefix < 1
-      ) {
-        throw new Error(
-          `Kategori "${category.name}" belum memiliki article prefix yang valid.`,
-        );
+      if (categoryIndex < 0) {
+        throw new Error("Data kategori tidak ditemukan.");
       }
 
-      /*
-      * ======================================================
-      * VALIDASI SUBCATEGORY ARTICLE PREFIX
-      *
-      * Tetap 1 digit karena format kode artikel saat ini:
-      *
-      * [CATEGORY PREFIX][SUBCATEGORY PREFIX][5 DIGIT SEQUENCE]
-      *
-      * Contoh:
-      *
-      * Category 10
-      * Subcategory 2
-      * Sequence 00001
-      *
-      * Hasil:
-      *
-      * 10200001
-      * ======================================================
-      */
+      const categoryRank = categoryIndex + 1;
 
-      if (
-        !Number.isSafeInteger(subcategoryPrefix) ||
-        subcategoryPrefix < 1 ||
-        subcategoryPrefix > 9
-      ) {
-        throw new Error(
-          `Subkategori "${subcategory.name}" belum memiliki article prefix yang valid.`,
-        );
+      const subcategoriesOfThisCategory = subcategories.filter(
+        (item) => item.category_id === categoryId,
+      );
+
+      const subcategoryIndex = subcategoriesOfThisCategory.findIndex(
+        (item) => item.id === subcategoryId,
+      );
+
+      if (subcategoryIndex < 0) {
+        throw new Error("Data subkategori tidak ditemukan.");
       }
 
-      const prefix = `${categoryPrefix}${subcategoryPrefix}`;
+      const subcategoryRank = subcategoryIndex + 1;
+
+      const prefix = `${categoryRank}${subcategoryRank}`;
 
       /*
        * ======================================================
@@ -743,6 +721,9 @@ export function useItems(
       const { error: createError } = await supabase.from(TABLE_NAME).insert({
         entity_id: currentUser.entity_id,
 
+        kode: generatedCode,
+        nama: formattedName,
+
         code: generatedCode,
 
         name: formattedName,
@@ -845,6 +826,9 @@ export function useItems(
         .from(TABLE_NAME)
         .update({
           entity_id: payload.entity_id || null,
+
+          kode: payload.code.trim().toUpperCase(),
+          nama: formattedName,
 
           code: payload.code.trim().toUpperCase(),
 

@@ -49,6 +49,8 @@ export function useSuppliers() {
 
     const { error: createError } = await supabase.from(TABLE_NAME).insert({
       entity_id: entityId,
+      kode: payload.code.trim().toUpperCase(),
+      nama: payload.name.trim(),
       code: payload.code.trim().toUpperCase(),
       name: payload.name.trim(),
 
@@ -81,6 +83,8 @@ export function useSuppliers() {
       .from(TABLE_NAME)
       .update({
         entity_id: entityId,
+        kode: payload.code.trim().toUpperCase(),
+        nama: payload.name.trim(),
         code: payload.code.trim().toUpperCase(),
         name: payload.name.trim(),
 

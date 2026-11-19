@@ -25,6 +25,8 @@ import { useAdjustmentList } from "./hooks/useAdjustmentList";
 
 import Pagination from "@/components/common/Pagination";
 
+import { useAccess } from "@/lib/useAccess";
+
 export default function AdjustmentReportPage() {
   const {
     loading,
@@ -39,6 +41,11 @@ export default function AdjustmentReportPage() {
 
     fetchAllFilteredDocuments,
   } = useAdjustmentList();
+
+  const can = useAccess([
+    "storekeeper.export",
+    "storekeeper.print",
+  ] as const);
 
   const [detail, setDetail] = useState<AdjustmentDocument | null>(null);
 
@@ -288,6 +295,7 @@ export default function AdjustmentReportPage() {
         />
 
         <div className="flex flex-wrap items-center gap-2 pr-8">
+          {can["storekeeper.export"] && (
           <button
             type="button"
             onClick={handleExport}
@@ -295,7 +303,9 @@ export default function AdjustmentReportPage() {
           >
             Export Excel
           </button>
+          )}
 
+          {can["storekeeper.print"] && (
           <button
             type="button"
             onClick={handlePrint}
@@ -303,6 +313,7 @@ export default function AdjustmentReportPage() {
           >
             Print
           </button>
+          )}
         </div>
       </div>
 

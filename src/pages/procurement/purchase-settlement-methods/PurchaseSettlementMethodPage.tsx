@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { usePurchaseSettlementMethods } from "./hooks/usePurchaseSettlementMethods";
 import type {
   PurchaseSettlementMethod,
   PurchaseSettlementMethodFormData,
   SettlementType,
 } from "./types";
+import { useAccess } from "@/lib/useAccess";
 
 interface PurchaseSettlementMethodPageProps {
   entityId?: string | null;
@@ -41,6 +44,13 @@ export function PurchaseSettlementMethodPage({
     updateMethod,
     deleteMethod,
   } = usePurchaseSettlementMethods(entityId);
+
+  const can = useAccess([
+    "settlement_method.create",
+    "settlement_method.edit",
+    "settlement_method.delete",
+    "settlement_method.export",
+  ] as const);
 
   const [formData, setFormData] =
     useState<PurchaseSettlementMethodFormData>(initialForm);
@@ -142,6 +152,7 @@ export function PurchaseSettlementMethodPage({
   };
 
   const handleDelete = async (method: PurchaseSettlementMethod) => {
+    if (!can["settlement_method.delete"]) return;
     if (method.is_system) {
       window.alert("Metode sistem tidak boleh dihapus.");
       return;
@@ -154,6 +165,47 @@ export function PurchaseSettlementMethodPage({
     if (!confirmed) return;
 
     await deleteMethod(method);
+  };
+
+  const exportExcel = () => {
+    if (methods.length === 0) {
+      window.alert("Tidak ada data metode yang dapat diexport.");
+      return;
+    }
+
+    const rows = methods.map((method, index) => ({
+      No: index + 1,
+      Kode: method.code,
+      Metode: method.name,
+      Jenis: settlementTypeLabels[method.settlement_type],
+      "Akun COA": method.account
+        ? `${method.account.code} - ${method.account.name}`
+        : "-",
+      Nominal: method.requires_amount ? "Wajib" : "Tidak wajib",
+      Status: method.is_active ? "Aktif" : "Tidak Aktif",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 30 },
+      { wch: 18 },
+      { wch: 34 },
+      { wch: 14 },
+      { wch: 14 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Settlement");
+
+    const file = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    saveAs(
+      new Blob([file], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `Settlement-Pembelian-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   };
 
   return (
@@ -176,6 +228,17 @@ export function PurchaseSettlementMethodPage({
             placeholder="Cari metode atau akun..."
           />
         </div>
+
+        {can["settlement_method.export"] && (
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={methods.length === 0}
+            className="whitespace-nowrap rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export Excel
+          </button>
+        )}
       </div>
 
       {error && (
@@ -190,6 +253,7 @@ export function PurchaseSettlementMethodPage({
         </div>
       )}
 
+      {(can["settlement_method.create"] || can["settlement_method.edit"]) && (
       <form
         onSubmit={handleSubmit}
         className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
@@ -332,6 +396,7 @@ export function PurchaseSettlementMethodPage({
           </button>
         </div>
       </form>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
@@ -412,15 +477,17 @@ export function PurchaseSettlementMethodPage({
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(method)}
-                        className="mr-3 text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
+                      {can["settlement_method.edit"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(method)}
+                          className="mr-3 text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      )}
 
-                      {!method.is_system && (
+                      {!method.is_system && can["settlement_method.delete"] && (
                         <button
                           type="button"
                           onClick={() => handleDelete(method)}

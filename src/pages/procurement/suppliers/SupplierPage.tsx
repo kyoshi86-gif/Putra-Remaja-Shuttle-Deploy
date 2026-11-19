@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { useSuppliers } from "./hooks/useSuppliers";
 import type { Supplier, SupplierFormData } from "./types";
+import { useAccess } from "@/lib/useAccess";
 import { getCustomUser } from "@/lib/authUser";
 
 const initialForm: SupplierFormData = {
@@ -27,6 +30,13 @@ export function SupplierPage() {
     updateSupplier,
     deleteSupplier,
   } = useSuppliers();
+
+  const can = useAccess([
+    "suppliers.create",
+    "suppliers.edit",
+    "suppliers.delete",
+    "suppliers.export",
+  ] as const);
 
   const [formData, setFormData] = useState<SupplierFormData>(initialForm);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -114,6 +124,7 @@ export function SupplierPage() {
   };
 
   const handleDelete = async (supplier: Supplier) => {
+    if (!can["suppliers.delete"]) return;
     const confirmed = window.confirm(
       `Hapus supplier ${supplier.code} - ${supplier.name}?`,
     );
@@ -121,6 +132,43 @@ export function SupplierPage() {
     if (!confirmed) return;
 
     await deleteSupplier(supplier.id);
+  };
+
+  const exportExcel = () => {
+    if (suppliers.length === 0) {
+      window.alert("Tidak ada data supplier yang dapat diexport.");
+      return;
+    }
+
+    const rows = suppliers.map((supplier, index) => ({
+      No: index + 1,
+      Kode: supplier.code,
+      "Nama Supplier": supplier.name,
+      Kontak: supplier.contact_person || "-",
+      Termin: `${supplier.default_payment_term_days} hari`,
+      Status: supplier.is_active ? "Aktif" : "Tidak Aktif",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 16 },
+      { wch: 30 },
+      { wch: 22 },
+      { wch: 14 },
+      { wch: 14 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Supplier");
+
+    const file = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    saveAs(
+      new Blob([file], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `Supplier-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   };
 
   return (
@@ -144,6 +192,17 @@ export function SupplierPage() {
             placeholder="Cari kode, supplier, kontak..."
           />
         </div>
+
+        {can["suppliers.export"] && (
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={suppliers.length === 0}
+            className="whitespace-nowrap rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export Excel
+          </button>
+        )}
       </div>
 
       {error && (
@@ -152,6 +211,7 @@ export function SupplierPage() {
         </div>
       )}
 
+      {(can["suppliers.create"] || can["suppliers.edit"]) && (
       <form
         onSubmit={handleSubmit}
         className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
@@ -305,6 +365,7 @@ export function SupplierPage() {
           </button>
         </div>
       </form>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
@@ -380,20 +441,24 @@ export function SupplierPage() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(supplier)}
-                        className="mr-3 text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(supplier)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Hapus
-                      </button>
+                      {can["suppliers.edit"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(supplier)}
+                          className="mr-3 text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {can["suppliers.delete"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(supplier)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Hapus
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

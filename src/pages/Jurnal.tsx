@@ -14,6 +14,8 @@ import type { Range } from "react-date-range";
 import { toWIBDateString, getWIBTimestampFromUTC, toWIBTimeString } from "../utils/time";
 import { FiDownload, FiPrinter } from "react-icons/fi";
 import { exportTableToExcel, type ColumnConfig } from "../utils/exportTableToExcel";
+import MoneyInput from "../components/common/MoneyInput";
+import AccountSearchSelect from "../components/common/AccountSearchSelect";
 
 // ================= TYPES =================
 type Journal = {
@@ -90,61 +92,27 @@ export default function Jurnal() {
 
   type RowType = {
     account_id: string;
-    search: string;
-    selectedLabel: string; // 🔥 TAMBAHAN
     desc: string;
     debit: number;
     credit: number;
-    open: boolean;
-    highlightIndex: number;
   };
 
   const defaultRows: RowType[] = [
     {
       account_id: "",
-      search: "",
-      selectedLabel: "", // 🔥
       desc: "",
       debit: 0,
       credit: 0,
-      open: false,
-      highlightIndex: 0,
     },
     {
       account_id: "",
-      search: "",
-      selectedLabel: "", // 🔥
       desc: "",
       debit: 0,
       credit: 0,
-      open: false,
-      highlightIndex: 0,
     },
   ];
 
   const [rows, setRows] = useState<RowType[]>(defaultRows);
-
-  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      const target = e.target as Node;
-
-      setRows((prev) =>
-        prev.map((r, i) => {
-          const el = rowRefs.current[i];
-          if (el && !el.contains(target)) {
-            return { ...r, open: false };
-          }
-          return r;
-        })
-      );
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () =>
-      document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const loadAccounts = async () => {
     const { data } = await supabase.from("accounts").select("*");
@@ -182,6 +150,21 @@ export default function Jurnal() {
       query = query.eq("entity_id", selectedEntity);
     }
 
+    // Terapkan rentang tanggal DI SQL, bukan hanya client-side.
+    // Ini penting karena outlet besar (mis. PUSAT) bisa punya puluhan ribu
+    // jurnal; mengambil semuanya memicu "statement timeout" -> error 500
+    // -> tabel tampil kosong. Dengan filter di server, hanya row dalam
+    // rentang yang diambil.
+    if (range[0]?.startDate && range[0]?.endDate) {
+      const s = toDateKey(range[0].startDate);
+      const e = toDateKey(range[0].endDate);
+      if (s) query = query.gte("tanggal", s);
+      if (e) query = query.lte("tanggal", e);
+    }
+
+    // Batas aman supaya query tidak pernah ekstrem.
+    query = query.limit(3000);
+
     const { data, error } = await query;
 
     if (error) {
@@ -214,7 +197,8 @@ export default function Jurnal() {
 
   useEffect(() => {
     if (selectedEntity) loadData();
-  }, [selectedEntity]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEntity, range]);
 
   // ================= FILTER =================
   useEffect(() => {
@@ -317,29 +301,20 @@ export default function Jurnal() {
   function updateRow(
     i: number,
     field: keyof RowType,
-    val: string | number | boolean
+    val: string | number
   ) {
     const newRows = [...rows];
 
     if (field === "debit") {
-      newRows[i].debit = Number(val);
+      newRows[i].debit = Number(val) || 0;
       newRows[i].credit = 0;
     } else if (field === "credit") {
-      newRows[i].credit = Number(val);
+      newRows[i].credit = Number(val) || 0;
       newRows[i].debit = 0;
     } else {
       (newRows[i][field] as RowType[keyof RowType]) = val;
     }
 
-    setRows(newRows);
-  }
-
-  function selectAccount(i: number, acc: Account) {
-    const newRows = [...rows];
-    newRows[i].account_id = acc.id;
-    newRows[i].selectedLabel = `${acc.code} - ${acc.name}`; // 🔥 simpan label
-    newRows[i].search = ""; // 🔥 kosongkan search biar dropdown bebas lagi
-    newRows[i].open = false;
     setRows(newRows);
   }
 
@@ -353,6 +328,14 @@ export default function Jurnal() {
 
   function formatNumber(n: number) {
     return n.toLocaleString("id-ID");
+  }
+
+  /** Ubah Date -> "YYYY-MM-DD" (lokal) untuk filter SQL. */
+  function toDateKey(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
   }
 
   // ================== SAVE JURNAL =================
@@ -388,7 +371,7 @@ export default function Jurnal() {
       }
     }
 
-    if (totalDebit() !== totalCredit()) {
+    if (Math.abs(totalDebit() - totalCredit()) > 0.01) {
       alert("❌ Debit dan Kredit harus sama (balance)");
       return;
     }
@@ -460,6 +443,17 @@ export default function Jurnal() {
       setEditId(null); // 🔥 reset mode edit
       setShowForm(false);
       resetForm();
+      // Arahkan rentang tanggal ke tanggal jurnal yang baru disimpan agar
+      // hasil simpan langsung terlihat (kalau tidak, filter "hari ini"
+      // bisa menyembunyikannya).
+      const newRange: Range[] = [
+        {
+          startDate: new Date(tanggal),
+          endDate: new Date(tanggal),
+          key: "selection",
+        },
+      ];
+      setRange(newRange);
       loadData();
 
     } catch (err: unknown) {
@@ -906,8 +900,8 @@ export default function Jurnal() {
       </div>
 
       {showForm && (
-      <div className="fixed inset-0 bg-black/40 flex justify-center items-start pt-20 z-50">
-        <div className="bg-white w-[800px] rounded-lg shadow-lg p-6">
+      <div className="fixed inset-0 bg-black/40 flex justify-center items-start pt-20 z-50 overflow-y-auto">
+        <div className="bg-white w-[800px] max-h-[85vh] overflow-y-auto rounded-lg shadow-lg p-6">
 
           <h2 className="text-lg font-semibold mb-4 text-center">
             Input Jurnal
@@ -932,20 +926,9 @@ export default function Jurnal() {
           {/* ROWS */}
           <div className="space-y-2">
             {rows.map((row, i) => {
-              const keyword = (row.search || "").toLowerCase();
-              const filtered =
-                keyword === ""
-                  ? accounts // 🔥 kalau kosong tampilkan semua
-                  : accounts.filter((a: Account) =>
-                      `${a.code} ${a.name}`.toLowerCase().includes(keyword)
-                    );
-
-              const highlightIndex = row.highlightIndex ?? 0;
-
               return (
                 <div
                   key={i}
-                  ref={(el) => (rowRefs.current[i] = el)}
                   className="flex items-center gap-2 border rounded px-2 py-2"
                 >
                   {/* DELETE */}
@@ -970,128 +953,24 @@ export default function Jurnal() {
                   />
 
                   {/* AKUN */}
-                  <div className="relative w-full">
-                    <input
-                      className="border px-2 py-1 rounded w-full"
-                      placeholder="-- PILIH AKUN --"
-                      value={row.open ? row.search : row.selectedLabel}
-                      onFocus={() => {
-                        updateRow(i, "open", true);
-                        updateRow(i, "search", ""); // 🔥 reset biar list muncul semua
-                      }}
-                      onClick={() => {
-                        updateRow(i, "open", true);
-                        updateRow(i, "search", ""); // 🔥
-                      }}
-                      onChange={(e) => {
-                        updateRow(i, "search", e.target.value);
-                        updateRow(i, "open", true);
-                        updateRow(i, "highlightIndex", 0);
-                      }}
-                      onKeyDown={(e) => {
-                        let idx = highlightIndex;
-
-                        if (e.key === "ArrowDown") {
-                          e.preventDefault();
-                          idx = (idx + 1) % filtered.length;
-                          updateRow(i, "highlightIndex", idx);
-                        }
-
-                        if (e.key === "ArrowUp") {
-                          e.preventDefault();
-                          idx = (idx - 1 + filtered.length) % filtered.length;
-                          updateRow(i, "highlightIndex", idx);
-                        }
-
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          if (filtered[idx]) {
-                            selectAccount(i, filtered[idx]);
-                          }
-                        }
-
-                        if (e.key === "Escape") {
-                          updateRow(i, "open", false);
-                        }
-                      }}
-                    />
-
-                    {/* DROPDOWN */}
-                    {row.open && (
-                      <div
-                        ref={(el) => {
-                          if (el && row.open) {
-                            const item = el.querySelector(
-                              `[data-idx="${highlightIndex}"]`
-                            ) as HTMLElement;
-
-                            if (item) {
-                              item.scrollIntoView({
-                                block: "nearest",
-                              });
-                            }
-                          }
-                        }}
-                        className="absolute z-20 bg-white border w-full max-h-48 overflow-auto shadow rounded"
-                      >
-
-                        <div className="px-2 py-1 bg-gray-100 text-xs text-gray-500">
-                          -- PILIH AKUN --
-                        </div>
-
-                        {filtered.map((a, idx) => (
-                          <div
-                            key={a.id}
-                            data-idx={idx}
-                            className={`px-2 py-1 cursor-pointer text-sm ${
-                              idx === highlightIndex
-                                ? "bg-blue-200"
-                                : "hover:bg-blue-100"
-                            }`}
-                            onMouseEnter={() =>
-                              updateRow(i, "highlightIndex", idx)
-                            }
-                            onClick={() => selectAccount(i, a)}
-                          >
-                            {a.code} {a.name}
-                          </div>
-                        ))}
-
-                        {filtered.length === 0 && (
-                          <div className="px-2 py-1 text-gray-400 text-sm">
-                            Tidak ditemukan
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <AccountSearchSelect
+                    accounts={accounts}
+                    value={row.account_id}
+                    onChange={(id) => updateRow(i, "account_id", id)}
+                  />
 
                   {/* DEBIT */}
-                  <input
-                    className="border px-2 py-1 rounded w-[120px] text-right"
+                  <MoneyInput
                     placeholder="Debit"
-                    value={row.debit ? formatNumber(row.debit) : ""}
-                    onChange={(e) =>
-                      updateRow(
-                        i,
-                        "debit",
-                        e.target.value.replace(/\./g, "")
-                      )
-                    }
+                    value={row.debit}
+                    onCommit={(v) => updateRow(i, "debit", v)}
                   />
 
                   {/* CREDIT */}
-                  <input
-                    className="border px-2 py-1 rounded w-[120px] text-right"
+                  <MoneyInput
                     placeholder="Kredit"
-                    value={row.credit ? formatNumber(row.credit) : ""}
-                    onChange={(e) =>
-                      updateRow(
-                        i,
-                        "credit",
-                        e.target.value.replace(/\./g, "")
-                      )
-                    }
+                    value={row.credit}
+                    onCommit={(v) => updateRow(i, "credit", v)}
                   />
                 </div>
               );
@@ -1105,13 +984,9 @@ export default function Jurnal() {
                 ...rows,
                 {
                   account_id: "",
-                  search: "",
-                  selectedLabel: "", // 🔥 WAJIB DITAMBAHKAN
                   desc: "",
                   debit: 0,
                   credit: 0,
-                  open: false,
-                  highlightIndex: 0,
                 },
               ])
             }
@@ -1125,6 +1000,13 @@ export default function Jurnal() {
             Total Debit: {formatNumber(totalDebit())} | Total Kredit:{" "}
             {formatNumber(totalCredit())}
           </div>
+
+          {Math.abs(totalDebit() - totalCredit()) > 0.01 && (
+            <div className="mt-2 text-red-600 font-semibold text-sm">
+              ⚠️ Debit dan Kredit belum balance (selisih{" "}
+              {formatNumber(Math.abs(totalDebit() - totalCredit()))})
+            </div>
+          )}
 
           {/* ACTION */}
           <div className="flex justify-end gap-2 mt-4">

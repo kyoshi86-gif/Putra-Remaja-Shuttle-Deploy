@@ -38,6 +38,8 @@ export function useUnits() {
     setError(null);
 
     const { error: createError } = await supabase.from(TABLE_NAME).insert({
+      kode: payload.code.trim().toUpperCase(),
+      nama: payload.name.trim(),
       code: payload.code.trim().toUpperCase(),
       name: payload.name.trim(),
       is_active: payload.is_active,
@@ -61,6 +63,8 @@ export function useUnits() {
     const { error: updateError } = await supabase
       .from(TABLE_NAME)
       .update({
+        kode: payload.code.trim().toUpperCase(),
+        nama: payload.name.trim(),
         code: payload.code.trim().toUpperCase(),
         name: payload.name.trim(),
         is_active: payload.is_active,

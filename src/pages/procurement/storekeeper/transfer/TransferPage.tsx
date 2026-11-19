@@ -23,6 +23,8 @@ import TransferDetailModal from "./components/TransferDetailModal";
 
 import { useTransferList } from "./hooks/useTransferList";
 
+import { useAccess } from "@/lib/useAccess";
+
 import Pagination from "@/components/common/Pagination";
 
 export default function TransferPage() {
@@ -37,6 +39,11 @@ export default function TransferPage() {
     changePageSize,
     fetchAllFilteredDocuments,
   } = useTransferList();
+
+  const can = useAccess([
+    "storekeeper.export",
+    "storekeeper.print",
+  ] as const);
 
   const [detail, setDetail] = useState<TransferDocument | null>(null);
 
@@ -268,6 +275,7 @@ export default function TransferPage() {
         <TransferFilter filter={filter} stores={stores} onChange={setFilter} />
 
         <div className="flex flex-wrap items-center gap-2 pr-8">
+          {can["storekeeper.export"] && (
           <button
             type="button"
             onClick={handleExport}
@@ -275,7 +283,9 @@ export default function TransferPage() {
           >
             Export Excel
           </button>
+          )}
 
+          {can["storekeeper.print"] && (
           <button
             type="button"
             onClick={handlePrint}
@@ -283,6 +293,7 @@ export default function TransferPage() {
           >
             Print
           </button>
+          )}
         </div>
       </div>
 

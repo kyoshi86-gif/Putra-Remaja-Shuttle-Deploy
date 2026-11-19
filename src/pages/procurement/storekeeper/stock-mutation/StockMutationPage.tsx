@@ -28,6 +28,8 @@ import {
   formatReportDisplayDate,
 } from "@/utils/exportReport";
 
+import { useAccess } from "@/lib/useAccess";
+
 import {
   printReport,
 } from "@/utils/printReport";
@@ -140,6 +142,11 @@ export default function StockMutationPage(): JSX.Element {
     setPage,
     setPageSize,
   } = usePagination();
+
+  const can = useAccess([
+    "storekeeper.export",
+    "storekeeper.print",
+  ] as const);
 
   // --------------------------------------------------------------------------
   // DATA
@@ -1125,6 +1132,7 @@ export default function StockMutationPage(): JSX.Element {
 
             <div className="flex items-center gap-2">
 
+              {can["storekeeper.export"] && (
               <button
                 type="button"
                 onClick={handleExport}
@@ -1136,7 +1144,9 @@ export default function StockMutationPage(): JSX.Element {
               >
                 Export Excel
               </button>
+              )}
 
+              {can["storekeeper.print"] && (
               <button
                 type="button"
                 onClick={handlePrint}
@@ -1148,6 +1158,7 @@ export default function StockMutationPage(): JSX.Element {
               >
                 Print
               </button>
+              )}
 
             </div>
 

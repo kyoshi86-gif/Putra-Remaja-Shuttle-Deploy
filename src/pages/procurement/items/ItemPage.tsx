@@ -6,6 +6,8 @@ import type { Item, ItemFormData, ItemType } from "./types";
 
 import { getCustomUser } from "@/lib/authUser";
 
+import MoneyInput from "@/components/common/MoneyInput";
+
 import { createPaginationMeta } from "@/lib/pagination/types";
 
 import { usePagination } from "@/lib/pagination/usePagination";
@@ -15,6 +17,8 @@ import Pagination from "@/components/common/Pagination";
 import * as XLSX from "xlsx";
 
 import { saveAs } from "file-saver";
+
+import { useAccess } from "@/lib/useAccess";
 
 const itemTypeLabels: Record<ItemType, string> = {
   STOCK: "Stok / Persediaan",
@@ -129,6 +133,13 @@ export default function ItemPage() {
     generateNextItemCode,
     exportItems,
   } = useItems(entityId, page, pageSize, search);
+
+  const can = useAccess([
+    "items.create",
+    "items.edit",
+    "items.delete",
+    "items.export",
+  ] as const);
 
   /*
    * ==========================================================
@@ -470,6 +481,7 @@ export default function ItemPage() {
    */
 
   const handleDelete = async (item: Item) => {
+    if (!can["items.delete"]) return;
     const confirmed = window.confirm(
       `Hapus artikel ${item.code} - ${item.name}?`,
     );
@@ -622,6 +634,7 @@ export default function ItemPage() {
       <form
         onSubmit={handleSubmit}
         className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
+        style={{ display: can["items.create"] || can["items.edit"] ? undefined : "none" }}
       >
         <div className="mb-5 flex items-center justify-between">
           <div>
@@ -832,14 +845,9 @@ export default function ItemPage() {
               Harga Standar
             </label>
 
-            <input
-              type="number"
-              min="0"
-              step="0.01"
+            <MoneyInput
               value={formData.standard_cost}
-              onChange={(event) =>
-                updateField("standard_cost", Number(event.target.value || 0))
-              }
+              onCommit={(v) => updateField("standard_cost", v)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
@@ -1036,6 +1044,7 @@ export default function ItemPage() {
 
               {/* EXPORT */}
 
+              {can["items.export"] && (
               <button
                 type="button"
                 onClick={exportExcel}
@@ -1044,6 +1053,7 @@ export default function ItemPage() {
               >
                 Export Excel
               </button>
+              )}
             </div>
           </div>
         </div>
@@ -1146,21 +1156,25 @@ export default function ItemPage() {
                     </td>
 
                     <td className="whitespace-nowrap px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(item)}
-                        className="mr-3 text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
+                      {can["items.edit"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(item)}
+                          className="mr-3 text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(item)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Hapus
-                      </button>
+                      {can["items.delete"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Hapus
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

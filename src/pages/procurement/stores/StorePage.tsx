@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { useStores } from "./hooks/useStores";
 import type { Store, StoreFormData, StoreType } from "./types";
+import { useAccess } from "@/lib/useAccess";
 
 interface StorePageProps {
   entityId?: string | null;
@@ -42,6 +45,13 @@ export function StorePage({ entityId = null }: StorePageProps) {
     updateStore,
     deleteStore,
   } = useStores(currentEntityId);
+
+  const can = useAccess([
+    "stores.create",
+    "stores.edit",
+    "stores.delete",
+    "stores.export",
+  ] as const);
 
   const [formData, setFormData] = useState<StoreFormData>(initialForm);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
@@ -136,6 +146,7 @@ export function StorePage({ entityId = null }: StorePageProps) {
   };
 
   const handleDelete = async (store: Store) => {
+    if (!can["stores.delete"]) return;
     const confirmed = window.confirm(
       `Hapus store ${store.code} - ${store.name}?`,
     );
@@ -143,6 +154,43 @@ export function StorePage({ entityId = null }: StorePageProps) {
     if (!confirmed) return;
 
     await deleteStore(store.id);
+  };
+
+  const exportExcel = () => {
+    if (stores.length === 0) {
+      window.alert("Tidak ada data store yang dapat diexport.");
+      return;
+    }
+
+    const rows = stores.map((store, index) => ({
+      No: index + 1,
+      Kode: store.code,
+      "Nama Lokasi": store.name,
+      Tipe: storeTypeLabels[store.store_type],
+      Keterangan: store.address || "-",
+      Status: store.is_active ? "Aktif" : "Tidak Aktif",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 16 },
+      { wch: 32 },
+      { wch: 18 },
+      { wch: 40 },
+      { wch: 14 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Store");
+
+    const file = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    saveAs(
+      new Blob([file], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `Store-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   };
 
   return (
@@ -165,6 +213,17 @@ export function StorePage({ entityId = null }: StorePageProps) {
             placeholder="Cari kode, nama, atau lokasi..."
           />
         </div>
+
+        {can["stores.export"] && (
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={stores.length === 0}
+            className="whitespace-nowrap rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export Excel
+          </button>
+        )}
       </div>
 
       {error && (
@@ -173,6 +232,7 @@ export function StorePage({ entityId = null }: StorePageProps) {
         </div>
       )}
 
+      {(can["stores.create"] || can["stores.edit"]) && (
       <form
         onSubmit={handleSubmit}
         className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
@@ -287,6 +347,7 @@ export function StorePage({ entityId = null }: StorePageProps) {
           </button>
         </div>
       </form>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
@@ -350,20 +411,24 @@ export function StorePage({ entityId = null }: StorePageProps) {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(store)}
-                        className="mr-3 text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(store)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Hapus
-                      </button>
+                      {can["stores.edit"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(store)}
+                          className="mr-3 text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {can["stores.delete"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(store)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Hapus
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

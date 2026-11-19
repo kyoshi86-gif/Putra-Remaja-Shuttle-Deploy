@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { useItemCategories } from "./hooks/useItemCategories";
 import type {
   AccountOption,
   ItemCategory,
   ItemCategoryFormData,
 } from "./types";
+import { useAccess } from "@/lib/useAccess";
 
 interface ItemCategoryPageProps {
   entityId?: string | null;
@@ -40,7 +43,14 @@ export function ItemCategoryPage({ entityId = null }: ItemCategoryPageProps) {
     createCategory,
     updateCategory,
     deleteCategory,
-  } = useItemCategories(entityId);
+  } = useItemCategories();
+
+  const can = useAccess([
+    "item_categories.create",
+    "item_categories.edit",
+    "item_categories.delete",
+    "item_categories.export",
+  ] as const);
 
   const [formData, setFormData] = useState<ItemCategoryFormData>(initialForm);
 
@@ -150,6 +160,7 @@ export function ItemCategoryPage({ entityId = null }: ItemCategoryPageProps) {
   };
 
   const handleDelete = async (category: ItemCategory) => {
+    if (!can["item_categories.delete"]) return;
     const confirmed = window.confirm(
       `Hapus kategori ${category.code} - ${category.name}?`,
     );
@@ -157,6 +168,43 @@ export function ItemCategoryPage({ entityId = null }: ItemCategoryPageProps) {
     if (!confirmed) return;
 
     await deleteCategory(category.id);
+  };
+
+  const exportExcel = () => {
+    if (categories.length === 0) {
+      window.alert("Tidak ada data kategori yang dapat diexport.");
+      return;
+    }
+
+    const rows = categories.map((category, index) => ({
+      No: index + 1,
+      Kode: category.code,
+      "Nama Kategori": category.name,
+      "Akun Persediaan": accountLabel(category.inventory_account),
+      "Akun HPP": accountLabel(category.cogs_account),
+      Status: category.is_active ? "Aktif" : "Tidak Aktif",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 16 },
+      { wch: 30 },
+      { wch: 30 },
+      { wch: 30 },
+      { wch: 14 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Kategori");
+
+    const file = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    saveAs(
+      new Blob([file], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `Kategori-Barang-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   };
 
   return (
@@ -180,6 +228,17 @@ export function ItemCategoryPage({ entityId = null }: ItemCategoryPageProps) {
             placeholder="Cari kode atau nama kategori..."
           />
         </div>
+
+        {can["item_categories.export"] && (
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={categories.length === 0}
+            className="whitespace-nowrap rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export Excel
+          </button>
+        )}
       </div>
 
       {error && (
@@ -194,6 +253,7 @@ export function ItemCategoryPage({ entityId = null }: ItemCategoryPageProps) {
         </div>
       )}
 
+      {(can["item_categories.create"] || can["item_categories.edit"]) && (
       <form
         onSubmit={handleSubmit}
         className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
@@ -370,6 +430,7 @@ export function ItemCategoryPage({ entityId = null }: ItemCategoryPageProps) {
           </button>
         </div>
       </form>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
@@ -442,20 +503,24 @@ export function ItemCategoryPage({ entityId = null }: ItemCategoryPageProps) {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(category)}
-                        className="mr-3 text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(category)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Hapus
-                      </button>
+                      {can["item_categories.edit"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(category)}
+                          className="mr-3 text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {can["item_categories.delete"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(category)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Hapus
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

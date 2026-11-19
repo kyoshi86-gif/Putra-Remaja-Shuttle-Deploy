@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
 
+import { parseMoneyInput } from "@/utils/money";
+import MoneyInput from "@/components/common/MoneyInput";
+
 import type {
   ApPaymentFormData,
   ApPaymentAllocation,
@@ -151,7 +154,7 @@ export default function PaymentForm({
   };
 
   const changeAmount = (invoiceId: string, value: string) => {
-    const amount = Number(value);
+    const amount = parseMoneyInput(value);
 
     setAllocations((current) => ({
       ...current,
@@ -414,15 +417,9 @@ export default function PaymentForm({
                       </td>
 
                       <td className="px-3 py-3">
-                        <input
-                          type="number"
-                          min={0}
-                          max={invoice.remaining_amount}
-                          step={1}
+                        <MoneyInput
                           value={state?.amount ?? 0}
-                          onChange={(event) =>
-                            changeAmount(invoice.id, event.target.value)
-                          }
+                          onCommit={(v) => changeAmount(invoice.id, String(v))}
                           disabled={saving || !checked}
                           className="w-40 rounded-lg border px-3 py-2 text-right"
                         />

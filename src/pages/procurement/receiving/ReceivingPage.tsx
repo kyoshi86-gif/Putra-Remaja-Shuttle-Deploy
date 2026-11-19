@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { hasAccess } from "@/lib/hasAccess";
+import { roundMoney } from "@/utils/money";
+import MoneyInput from "@/components/common/MoneyInput";
 import { supabase } from "@/lib/supabaseClient";
 import { getCustomUserId } from "@/lib/authUser";
 import { usePagination } from "@/lib/pagination/usePagination";
@@ -523,7 +525,15 @@ export default function ReceivingPage() {
   ) => {
     setLines((previous) =>
       previous.map((line, lineIndex) =>
-        lineIndex === index ? { ...line, [field]: value } : line,
+        lineIndex === index
+          ? {
+              ...line,
+              [field]:
+                field === "unit_cost" || field === "discount_amount" || field === "tax_amount"
+                  ? Number(roundMoney(value))
+                  : value,
+            }
+          : line,
       ),
     );
   };
@@ -547,7 +557,12 @@ export default function ReceivingPage() {
   ) => {
     setSettlements((previous) =>
       previous.map((line, lineIndex) =>
-        lineIndex === index ? { ...line, [field]: value } : line,
+        lineIndex === index
+          ? {
+              ...line,
+              [field]: field === "amount" ? roundMoney(value) : value,
+            }
+          : line,
       ),
     );
   };
@@ -1333,17 +1348,9 @@ export default function ReceivingPage() {
                         </td>
 
                         <td className="px-3 py-3 text-right">
-                          <input
-                            type="number"
-                            min="0"
+                          <MoneyInput
                             value={line.unit_cost}
-                            onChange={(event) =>
-                              updateLine(
-                                index,
-                                "unit_cost",
-                                Number(event.target.value || 0),
-                              )
-                            }
+                            onCommit={(v) => updateLine(index, "unit_cost", v)}
                             className="w-32 rounded-md border border-gray-300 px-2 py-2 text-right"
                           />
                         </td>
@@ -1418,18 +1425,10 @@ export default function ReceivingPage() {
                     ))}
                   </select>
 
-                  <input
-                    type="number"
-                    min="0"
+                  <MoneyInput
                     value={settlement.amount}
                     disabled={method?.settlement_type === "CREDIT_TERM"}
-                    onChange={(event) =>
-                      updateSettlement(
-                        index,
-                        "amount",
-                        Number(event.target.value || 0),
-                      )
-                    }
+                    onCommit={(v) => updateSettlement(index, "amount", v)}
                     placeholder="Nominal"
                     className="rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
                   />

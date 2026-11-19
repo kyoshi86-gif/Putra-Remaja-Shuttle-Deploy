@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabaseClient";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { hasAccess } from "@/lib/hasAccess";
+import { roundMoney, parseMoneyInput } from "@/utils/money";
+import MoneyInput from "@/components/common/MoneyInput";
 import { usePurchaseOrders } from "./hooks/usePurchaseOrders";
 import { getCustomUser } from "@/lib/authUser";
 import PurchaseOrderDetailModal from "./components/PurchaseOrderDetailModal";
@@ -1071,31 +1073,36 @@ export function PurchaseOrderPage() {
   );
 
   const formSubtotal = useMemo(() => {
-    return formData.details.reduce((total, line) => {
-      return (
-        total +
-        Number(line.quantity_ordered || 0) * Number(line.unit_price || 0)
-      );
-    }, 0);
+    return roundMoney(
+      formData.details.reduce((total, line) => {
+        return (
+          total +
+          Number(line.quantity_ordered || 0) *
+            Number(roundMoney(line.unit_price) || 0)
+        );
+      }, 0),
+    );
   }, [formData.details]);
 
   const formDiscount = useMemo(() => {
-    return formData.details.reduce(
-      (total, line) => total + Number(line.discount_amount || 0),
-
-      0,
+    return roundMoney(
+      formData.details.reduce(
+        (total, line) => total + roundMoney(line.discount_amount),
+        0,
+      ),
     );
   }, [formData.details]);
 
   const formTax = useMemo(() => {
-    return formData.details.reduce(
-      (total, line) => total + Number(line.tax_amount || 0),
-
-      0,
+    return roundMoney(
+      formData.details.reduce(
+        (total, line) => total + roundMoney(line.tax_amount),
+        0,
+      ),
     );
   }, [formData.details]);
 
-  const formGrandTotal = formSubtotal - formDiscount + formTax;
+  const formGrandTotal = roundMoney(formSubtotal - formDiscount + formTax);
 
   /*
    * ========================================================
@@ -1159,6 +1166,12 @@ export function PurchaseOrderPage() {
     }));
   };
 
+  const MONEY_FIELDS: ReadonlySet<string> = new Set([
+    "unit_price",
+    "discount_amount",
+    "tax_amount",
+  ]);
+
   const updateLine = (
     index: number,
     field: keyof PurchaseOrderLineForm,
@@ -1171,7 +1184,9 @@ export function PurchaseOrderPage() {
         lineIndex === index
           ? {
               ...line,
-              [field]: value,
+              [field]: MONEY_FIELDS.has(field)
+                ? parseMoneyInput(String(value))
+                : value,
             }
           : line,
       ),
@@ -1879,52 +1894,25 @@ export function PurchaseOrderPage() {
                       {access.viewFinancial && (
                         <>
                           <td className="px-3 py-3">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <MoneyInput
                               value={line.unit_price}
-                              onChange={(event) =>
-                                updateLine(
-                                  index,
-                                  "unit_price",
-                                  Number(event.target.value || 0),
-                                )
-                              }
+                              onCommit={(v) => updateLine(index, "unit_price", v)}
                               className="w-32 rounded-md border border-gray-300 px-2 py-2 text-right text-sm"
                             />
                           </td>
 
                           <td className="px-3 py-3">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <MoneyInput
                               value={line.discount_amount}
-                              onChange={(event) =>
-                                updateLine(
-                                  index,
-                                  "discount_amount",
-                                  Number(event.target.value || 0),
-                                )
-                              }
+                              onCommit={(v) => updateLine(index, "discount_amount", v)}
                               className="w-28 rounded-md border border-gray-300 px-2 py-2 text-right text-sm"
                             />
                           </td>
 
                           <td className="px-3 py-3">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <MoneyInput
                               value={line.tax_amount}
-                              onChange={(event) =>
-                                updateLine(
-                                  index,
-                                  "tax_amount",
-                                  Number(event.target.value || 0),
-                                )
-                              }
+                              onCommit={(v) => updateLine(index, "tax_amount", v)}
                               className="w-28 rounded-md border border-gray-300 px-2 py-2 text-right text-sm"
                             />
                           </td>

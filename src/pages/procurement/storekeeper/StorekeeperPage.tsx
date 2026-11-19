@@ -11,6 +11,7 @@ import InventoryTransactionModal from "./components/InventoryTransactionModal";
 import MovementDetailModal from "./components/MovementDetailModal";
 import { createPaginationMeta } from "@/lib/pagination/types";
 import Pagination from "@/components/common/Pagination";
+import { useAccess } from "@/lib/useAccess";
 
 export default function StorekeeperPage(): JSX.Element {
   const [tab, setTab] = useState<"SUMMARY" | "CARD">("SUMMARY");
@@ -304,6 +305,12 @@ export default function StorekeeperPage(): JSX.Element {
   const handleOpname = () => transaction.openTransaction("OPNAME");
   const handleAdjustment = () => transaction.openTransaction("ADJUSTMENT");
 
+  const can = useAccess([
+    "inventory_request.transfer",
+    "inventory_request.create",
+    "storekeeper.export",
+  ] as const);
+
   return (
     <div className="w-full pr-2 space-y-4">
       {/* Header */}
@@ -317,6 +324,7 @@ export default function StorekeeperPage(): JSX.Element {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {can["inventory_request.transfer"] && (
           <button
             type="button"
             onClick={handleTransfer}
@@ -324,7 +332,9 @@ export default function StorekeeperPage(): JSX.Element {
           >
             Transfer Stok
           </button>
+          )}
 
+          {can["inventory_request.create"] && (
           <button
             type="button"
             onClick={handleOpname}
@@ -332,7 +342,9 @@ export default function StorekeeperPage(): JSX.Element {
           >
             Stock Opname
           </button>
+          )}
 
+          {can["inventory_request.create"] && (
           <button
             type="button"
             onClick={handleAdjustment}
@@ -340,7 +352,9 @@ export default function StorekeeperPage(): JSX.Element {
           >
             Adjustment
           </button>
+          )}
 
+          {can["storekeeper.export"] && (
           <button
             type="button"
             onClick={exportExcel}
@@ -349,7 +363,9 @@ export default function StorekeeperPage(): JSX.Element {
           >
             Export Excel
           </button>
+          )}
 
+          {can["storekeeper.export"] && (
           <button
             type="button"
             onClick={exportStockOpname}
@@ -358,6 +374,7 @@ export default function StorekeeperPage(): JSX.Element {
           >
             Export Form Opname
           </button>
+          )}
 
           {access?.print && (
             <button

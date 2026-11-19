@@ -127,12 +127,11 @@ export function useItemSubcategories(entityId?: string | null) {
     setError(null);
 
     const { error: createError } = await supabase.from(TABLE_NAME).insert({
-      entity_id: payload.entity_id || null,
-
       category_id: payload.category_id,
+      kode: payload.code.trim().toUpperCase(),
+      nama: payload.name.trim(),
       code: payload.code.trim().toUpperCase(),
       name: payload.name.trim(),
-      description: payload.description.trim() || null,
 
       inventory_account_id: payload.inventory_account_id || null,
       expense_account_id: payload.expense_account_id || null,
@@ -163,12 +162,11 @@ export function useItemSubcategories(entityId?: string | null) {
     const { error: updateError } = await supabase
       .from(TABLE_NAME)
       .update({
-        entity_id: payload.entity_id || null,
-
         category_id: payload.category_id,
+        kode: payload.code.trim().toUpperCase(),
+        nama: payload.name.trim(),
         code: payload.code.trim().toUpperCase(),
         name: payload.name.trim(),
-        description: payload.description.trim() || null,
 
         inventory_account_id: payload.inventory_account_id || null,
         expense_account_id: payload.expense_account_id || null,

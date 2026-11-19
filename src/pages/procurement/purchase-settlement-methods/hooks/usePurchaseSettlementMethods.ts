@@ -104,6 +104,8 @@ export function usePurchaseSettlementMethods(entityId?: string | null) {
     const { error: createError } = await supabase.from(TABLE_NAME).insert({
       entity_id: payload.entity_id || null,
 
+      kode: payload.code.trim().toUpperCase(),
+      nama: payload.name.trim(),
       code: payload.code.trim().toUpperCase(),
       name: payload.name.trim(),
       settlement_type: payload.settlement_type,
@@ -135,6 +137,7 @@ export function usePurchaseSettlementMethods(entityId?: string | null) {
 
     const updatePayload = method.is_system
       ? {
+          nama: payload.name.trim(),
           name: payload.name.trim(),
           account_id: payload.account_id || null,
           requires_amount: payload.requires_amount,
@@ -142,6 +145,8 @@ export function usePurchaseSettlementMethods(entityId?: string | null) {
           updated_at: new Date().toISOString(),
         }
       : {
+          kode: payload.code.trim().toUpperCase(),
+          nama: payload.name.trim(),
           code: payload.code.trim().toUpperCase(),
           name: payload.name.trim(),
           settlement_type: payload.settlement_type,

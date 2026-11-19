@@ -1,7 +1,7 @@
 [
   {
     "key": "Keberangkatan",
-    "label": "Keberangkatan", 
+    "label": "Keberangkatan",
     "sub": [
       {
         "label": "Dashboard",
@@ -9,8 +9,8 @@
         "path": "/dashboard",
         "component": "Dashboard"
       },
-      { 
-        "label": "Surat Jalan", 
+      {
+        "label": "Surat Jalan",
         "access": "Keberangkatan -> Surat Jalan",
         "path": "/surat-jalan",
         "component": "SuratJalan"
@@ -21,23 +21,23 @@
         "path": "/surat-jalan/tambah-perpal",
         "component": "TambahPerpal"
       },
-      { 
-        "label": "Cetak Surat Jalan", 
+      {
+        "label": "Cetak Surat Jalan",
         "access": "Keberangkatan -> Cetak Surat Jalan",
         "path": "/cetak-surat-jalan",
         "component": "CetakSuratJalan"
       },
-      { 
-        "label": "Uang Saku Driver", 
+      {
+        "label": "Uang Saku Driver",
         "access": "Keberangkatan -> Uang Saku Driver",
         "path": "/uang-saku-driver",
         "component": "UangSakuDriver"
       },
-      { 
-        "label": "Premi Driver", 
+      {
+        "label": "Premi Driver",
         "access": "Keberangkatan -> Premi Driver",
         "path": "/premi-driver",
-        "component": "PremiDriver" 
+        "component": "PremiDriver"
       }
     ]
   },
@@ -45,17 +45,17 @@
     "key": "Kasir",
     "label": "Kasir",
     "sub": [
-      { 
-        "label": "Kasbon", 
+      {
+        "label": "Kasbon",
         "access": "Kasir -> Kasbon",
         "path": "/kasbon",
-        "component": "Kasbon" 
+        "component": "Kasbon"
       },
-      { 
-        "label": "Kas Harian", 
+      {
+        "label": "Kas Harian",
         "access": "Kasir -> Kas Harian",
         "path": "/kas-harian",
-        "component": "KasHarian" 
+        "component": "KasHarian"
       },
       {
         "label": "kas_harian.edit",
@@ -81,23 +81,23 @@
     "key": "Laporan",
     "label": "Laporan",
     "sub": [
-      { 
-        "label": "Kas Kasir", 
+      {
+        "label": "Kas Kasir",
         "access": "Laporan -> Kas Kasir",
         "path": "/kas-kasir",
-        "component": "Kaskasir" 
+        "component": "Kaskasir"
       },
-      { 
-        "label": "Jaminan Driver", 
+      {
+        "label": "Jaminan Driver",
         "access": "Laporan -> Jaminan Driver",
         "path": "/jaminan-driver",
-        "component": "JaminanDriver" 
+        "component": "JaminanDriver"
       },
-      { 
-        "label": "Driver Ledger", 
+      {
+        "label": "Driver Ledger",
         "access": "Laporan -> Driver Ledger",
         "path": "/driver-ledger",
-        "component": "DriverLedger" 
+        "component": "DriverLedger"
       },
       {
         "label": "Log Transaksi",
@@ -118,7 +118,7 @@
     "label": "Accounting",
     "sub": [
       {
-        "label": "Jurnal", 
+        "label": "Jurnal",
         "access": "Accounting -> Jurnal",
         "path": "/jurnal",
         "component": "Jurnal"
@@ -276,53 +276,83 @@
     ]
   },
   {
+    "key": "Pembelian",
+    "label": "Pembelian",
+    "sub": [
+      {
+        "label": "Buku Biaya",
+        "access": "Procurement -> Input Biaya Cepat",
+        "path": "/input-biaya-cepat",
+        "component": "procurement/biaya-langsung/BiayaLangsungPage"
+      }
+    ]
+  },
+  {
+    "key": "Gudang",
+    "label": "Gudang",
+    "sub": [
+      {
+        "label": "Surat Jalan Barang",
+        "access": "Procurement -> Surat Jalan Barang",
+        "path": "/surat-jalan-barang",
+        "component": "procurement/surat-jalan-barang/SuratJalanBarangPage"
+      },
+      {
+        "label": "Stok per Entitas",
+        "access": "Procurement -> Stok per Entitas",
+        "path": "/stok-per-entitas",
+        "component": "procurement/surat-jalan-barang/StokEntitasPage"
+      }
+    ]
+  },
+  {
     "key": "Konfigurasi",
     "label": "Konfigurasi",
     "sub": [
-      { 
-        "label": "Role Akses", 
+      {
+        "label": "Role Akses",
         "access": "Konfigurasi -> Role Akses",
         "path": "/role-akses",
-        "component": "RoleAkses" 
+        "component": "RoleAkses"
       },
-      { 
-        "label": "Edit Role", 
+      {
+        "label": "Edit Role",
         "access": "Konfigurasi -> Edit Role",
         "path": "/edit-role",
-        "component": "EditRole" 
+        "component": "EditRole"
       },
-      { 
-        "label": "List User", 
+      {
+        "label": "List User",
         "access": "Konfigurasi -> List User",
         "path": "/list-user",
-        "component": "ListUser" 
+        "component": "ListUser"
       },
-      { 
-        "label": "Armada", 
+      {
+        "label": "Armada",
         "access": "Konfigurasi -> Armada",
         "path": "/armada",
         "component": "Armada"
       },
-      { 
-        "label": "Driver", 
+      {
+        "label": "Driver",
         "access": "Konfigurasi -> Driver",
         "path": "/driver",
         "component": "Driver"
       },
-      { 
-        "label": "Rute", 
+      {
+        "label": "Rute",
         "access": "Konfigurasi -> Rute",
         "path": "/rute",
         "component": "Rute"
       },
-      { 
-        "label": "Daftar Cabang", 
+      {
+        "label": "Daftar Cabang",
         "access": "Konfigurasi -> Entity",
         "path": "/entity",
         "component": "Entity"
       },
-      { 
-        "label": "Jenis Potongan", 
+      {
+        "label": "Jenis Potongan",
         "access": "Konfigurasi -> Jenis Potongan",
         "path": "/jenis-potongan",
         "component": "JenisPotongan"

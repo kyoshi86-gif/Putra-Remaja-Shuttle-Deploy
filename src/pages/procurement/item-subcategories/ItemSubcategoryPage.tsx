@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { useItemSubcategories } from "./hooks/useItemSubcategories";
 import type {
   AccountOption,
   ItemSubcategory,
   ItemSubcategoryFormData,
 } from "./types";
+import { useAccess } from "@/lib/useAccess";
 
 interface ItemSubcategoryPageProps {
   entityId?: string | null;
@@ -45,7 +48,14 @@ export function ItemSubcategoryPage({
     createSubcategory,
     updateSubcategory,
     deleteSubcategory,
-  } = useItemSubcategories(entityId);
+  } = useItemSubcategories();
+
+  const can = useAccess([
+    "item_subcategories.create",
+    "item_subcategories.edit",
+    "item_subcategories.delete",
+    "item_subcategories.export",
+  ] as const);
 
   const [formData, setFormData] =
     useState<ItemSubcategoryFormData>(initialForm);
@@ -139,6 +149,7 @@ export function ItemSubcategoryPage({
   };
 
   const handleDelete = async (subcategory: ItemSubcategory) => {
+    if (!can["item_subcategories.delete"]) return;
     const confirmed = window.confirm(
       `Hapus subkategori ${subcategory.code} - ${subcategory.name}?`,
     );
@@ -146,6 +157,45 @@ export function ItemSubcategoryPage({
     if (!confirmed) return;
 
     await deleteSubcategory(subcategory.id);
+  };
+
+  const exportExcel = () => {
+    if (subcategories.length === 0) {
+      window.alert("Tidak ada data subkategori yang dapat diexport.");
+      return;
+    }
+
+    const rows = subcategories.map((subcategory, index) => ({
+      No: index + 1,
+      Kategori: subcategory.category
+        ? `${subcategory.category.code} - ${subcategory.category.name}`
+        : "-",
+      Kode: subcategory.code,
+      "Nama Subkategori": subcategory.name,
+      "Override Persediaan": accountLabel(subcategory.inventory_account),
+      Status: subcategory.is_active ? "Aktif" : "Tidak Aktif",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 28 },
+      { wch: 14 },
+      { wch: 30 },
+      { wch: 30 },
+      { wch: 14 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Subkategori");
+
+    const file = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    saveAs(
+      new Blob([file], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `Subkategori-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   };
 
   return (
@@ -168,6 +218,17 @@ export function ItemSubcategoryPage({
             placeholder="Cari kategori atau subkategori..."
           />
         </div>
+
+        {can["item_subcategories.export"] && (
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={subcategories.length === 0}
+            className="whitespace-nowrap rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export Excel
+          </button>
+        )}
       </div>
 
       {error && (
@@ -182,6 +243,7 @@ export function ItemSubcategoryPage({
         </div>
       )}
 
+      {(can["item_subcategories.create"] || can["item_subcategories.edit"]) && (
       <form
         onSubmit={handleSubmit}
         className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
@@ -382,6 +444,7 @@ export function ItemSubcategoryPage({
           </button>
         </div>
       </form>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
@@ -456,20 +519,24 @@ export function ItemSubcategoryPage({
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(subcategory)}
-                        className="mr-3 text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(subcategory)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Hapus
-                      </button>
+                      {can["item_subcategories.edit"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(subcategory)}
+                          className="mr-3 text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {can["item_subcategories.delete"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(subcategory)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Hapus
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

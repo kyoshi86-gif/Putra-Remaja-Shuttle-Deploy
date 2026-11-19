@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Check, Eye, Pencil, Plus, Trash2 } from "lucide-react";
-import { parseNumberInput, formatNumberInput } from "../utils/format";
+import { roundMoney } from "../../../utils/money";
+import MoneyInput from "@/components/common/MoneyInput";
 import DateInput from "@/components/common/DateInput";
 import Pagination from "@/components/common/Pagination";
 import SearchableSelect, { type SearchableSelectOption } from "@/components/common/SearchableSelect";
@@ -8,6 +9,8 @@ import { createPaginationMeta } from "@/lib/pagination/types";
 import { usePagination } from "@/lib/pagination/usePagination";
 import { supabase } from "@/lib/supabaseClient";
 import { getCustomUser } from "@/lib/authUser";
+
+import { useAccess } from "@/lib/useAccess";
 
 interface Props { entityId?: string | null; }
 
@@ -94,6 +97,13 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
   const [inputCreditAccountId,setInputCreditAccountId] = useState("");
 
   const { page,pageSize,setPage,setPageSize,resetPage } = usePagination();
+
+  const can = useAccess([
+    "opening_balance.create",
+    "opening_balance.edit",
+    "opening_balance.delete",
+    "opening_balance.post",
+  ] as const);
 
   const loadMasters = useCallback(async () => {
   if (!entityId) {
@@ -362,7 +372,7 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
       return;
     }
 
-    const unitPrice=numberValue(inputPrice);
+    const unitPrice=roundMoney(numberValue(inputPrice));
     if (unitPrice<0) {
       alert("Harga tidak valid.");
       return;
@@ -399,7 +409,7 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
           unit_id:item.unit_id ?? null,
           quantity,
           unit_price:unitPrice,
-          total_amount:quantity*unitPrice,
+          total_amount:roundMoney(quantity*unitPrice),
           debit_account_id:debitAccountId,
           credit_account_id:inputCreditAccountId,
           item,
@@ -614,6 +624,7 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
   };
 
   const handleDelete=async(document:Document)=>{
+    if (!can["opening_balance.delete"]) return;
     if (document.status!=="DRAFT") {
       alert("Hanya Draft yang dapat dihapus.");
       return;
@@ -768,6 +779,7 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
             Refresh
           </button>
 
+          {can["opening_balance.create"] && (
           <button
             type="button"
             onClick={openCreate}
@@ -777,6 +789,7 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
             <Plus size={18}/>
             Tambah Saldo Awal
           </button>
+          )}
         </div>
       </div>
 
@@ -924,21 +937,9 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
                     Harga
                   </label>
 
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatNumberInput(inputPrice)}
-                    onChange={(
-                      event: React.ChangeEvent<HTMLInputElement>
-                    ) => {
-                      const value = parseNumberInput(event.target.value);
-
-                      setInputPrice(
-                        value === 0
-                          ? ""
-                          : String(value)
-                      );
-                    }}
+                  <MoneyInput
+                    value={numberValue(inputPrice)}
+                    onCommit={(v) => setInputPrice(v === 0 ? "" : String(v))}
                     className="w-full rounded border px-3 py-2 text-right"
                   />
                 </div>
@@ -1147,6 +1148,7 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
 
                         {document.status==="DRAFT" && (
                           <>
+                            {can["opening_balance.edit"] && (
                             <button
                               type="button"
                               title="Edit"
@@ -1155,7 +1157,9 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
                             >
                               <Pencil size={17}/>
                             </button>
+                            )}
 
+                            {can["opening_balance.post"] && (
                             <button
                               type="button"
                               title="Posting"
@@ -1164,7 +1168,9 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
                             >
                               <Check size={17}/>
                             </button>
+                            )}
 
+                            {can["opening_balance.delete"] && (
                             <button
                               type="button"
                               title="Hapus"
@@ -1173,6 +1179,7 @@ export default function OpeningBalancePage({ entityId:propEntityId=null }:Props)
                             >
                               <Trash2 size={17}/>
                             </button>
+                            )}
                           </>
                         )}
                       </div>

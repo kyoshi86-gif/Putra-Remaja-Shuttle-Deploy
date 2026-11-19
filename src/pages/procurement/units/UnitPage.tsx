@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { useUnits } from "./hooks/useUnits";
 import type { Unit, UnitFormData } from "./types";
+import { useAccess } from "@/lib/useAccess";
 
 const initialForm: UnitFormData = {
   code: "",
@@ -15,6 +18,13 @@ export function UnitPage() {
   const [formData, setFormData] = useState<UnitFormData>(initialForm);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [search, setSearch] = useState("");
+
+  const can = useAccess([
+    "units.create",
+    "units.edit",
+    "units.delete",
+    "units.export",
+  ] as const);
 
   useEffect(() => {
     if (!editingUnit) {
@@ -66,6 +76,7 @@ export function UnitPage() {
   };
 
   const handleDelete = async (unit: Unit) => {
+    if (!can["units.delete"]) return;
     const confirmed = window.confirm(
       `Hapus satuan ${unit.code} - ${unit.name}?`,
     );
@@ -73,6 +84,34 @@ export function UnitPage() {
     if (!confirmed) return;
 
     await deleteUnit(unit.id);
+  };
+
+  const exportExcel = () => {
+    if (units.length === 0) {
+      window.alert("Tidak ada data satuan yang dapat diexport.");
+      return;
+    }
+
+    const rows = units.map((unit, index) => ({
+      No: index + 1,
+      Kode: unit.code,
+      "Nama Satuan": unit.name,
+      Status: unit.is_active ? "Aktif" : "Tidak Aktif",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [{ wch: 6 }, { wch: 16 }, { wch: 35 }, { wch: 14 }];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Satuan");
+
+    const file = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    saveAs(
+      new Blob([file], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `Satuan-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   };
 
   return (
@@ -94,6 +133,17 @@ export function UnitPage() {
             placeholder="Cari kode atau nama satuan..."
           />
         </div>
+
+        {can["units.export"] && (
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={units.length === 0}
+            className="whitespace-nowrap rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export Excel
+          </button>
+        )}
       </div>
 
       {error && (
@@ -102,6 +152,7 @@ export function UnitPage() {
         </div>
       )}
 
+      {(can["units.create"] || can["units.edit"]) && (
       <form
         onSubmit={handleSubmit}
         className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
@@ -194,6 +245,7 @@ export function UnitPage() {
           </button>
         </div>
       </form>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="border-b border-gray-200 px-5 py-4">
@@ -249,20 +301,24 @@ export function UnitPage() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(unit)}
-                        className="mr-3 text-blue-600 hover:text-blue-800"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(unit)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Hapus
-                      </button>
+                      {can["units.edit"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(unit)}
+                          className="mr-3 text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {can["units.delete"] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(unit)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Hapus
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

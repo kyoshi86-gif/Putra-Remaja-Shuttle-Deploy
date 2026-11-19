@@ -24,3 +24,17 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ── Scratch / test non-production (jangan di-commit) ──
+login.js
+list_bucket.mjs
+node_remove_old.mjs
+node_remove_test.mjs
+node_remove_test.js
+node_upload_remove.mjs
+fix_ports.ps1
+run_snapshot.ps1
+shuttle_snapshot.sql
+tailwind-test/
+.env.example
+backend/

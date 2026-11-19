@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Pagination from "@/components/common/Pagination";
+import SearchableSelect from "@/components/common/SearchableSelect";
 import {
   exportReport,
   formatReportDateRange,
@@ -690,20 +691,18 @@ export default function GeneralLedgerPage() {
             Akun COA
           </label>
 
-          <select
+          <SearchableSelect
             value={selectedAccountId}
-            onChange={(event) => setSelectedAccountId(event.target.value)}
+            options={accounts.map((account) => ({
+              value: account.id,
+              label: `${account.code} - ${account.name}`,
+              searchText: `${account.code} ${account.name}`,
+            }))}
+            onChange={setSelectedAccountId}
             disabled={masterLoading}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="">Pilih akun</option>
-
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.code} - {account.name}
-              </option>
-            ))}
-          </select>
+            placeholder="Pilih akun"
+            clearLabel="-- PILIH AKUN --"
+          />
         </div>
 
         <div>

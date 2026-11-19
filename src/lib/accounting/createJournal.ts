@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { resolveAccountMapping } from "./resolveAccountMapping";
+import { roundMoney } from "@/utils/money";
 
 export type JournalRow = {
   account_id: string;
@@ -46,8 +47,8 @@ function validateJournalRows(rows: JournalRow[]) {
   }
 
   for (const [index, row] of rows.entries()) {
-    const debit = Number(row.debit || 0);
-    const credit = Number(row.credit || 0);
+    const debit = roundMoney(row.debit);
+    const credit = roundMoney(row.credit);
 
     if (!row.account_id) {
       throw new Error(`Baris jurnal ke-${index + 1} belum memiliki akun COA.`);
@@ -71,12 +72,12 @@ function validateJournalRows(rows: JournalRow[]) {
   }
 
   const totalDebit = rows.reduce(
-    (total, row) => total + Number(row.debit || 0),
+    (total, row) => total + roundMoney(row.debit),
     0,
   );
 
   const totalCredit = rows.reduce(
-    (total, row) => total + Number(row.credit || 0),
+    (total, row) => total + roundMoney(row.credit),
     0,
   );
 
@@ -134,8 +135,8 @@ export async function createJournal(
   const detailRows = rows.map((row) => ({
     journal_id: journal.id,
     account_id: row.account_id,
-    debit: Number(row.debit || 0),
-    credit: Number(row.credit || 0),
+    debit: roundMoney(row.debit),
+    credit: roundMoney(row.credit),
     description: row.description?.trim() || null,
   }));
 
@@ -187,7 +188,7 @@ export async function createMappedJournal(
 
   const journalRows = await Promise.all(
     rows.map(async (row) => {
-      const amount = Number(row.amount || 0);
+      const amount = roundMoney(row.amount);
 
       if (!Number.isFinite(amount) || amount <= 0) {
         throw new Error(
