@@ -11,7 +11,7 @@ export default function JadwalMaintenancePage() {
     loadList();
     hasAccess("maintenance.validate").then((v) => setPerm((p) => ({ ...p, validate: v })));
     hasAccess("maintenance.edit").then((v) => setPerm((p) => ({ ...p, edit: v })));
-    /* eslint-disable-next-line */
+     
   }, []);
 
   const loadList = async () => {

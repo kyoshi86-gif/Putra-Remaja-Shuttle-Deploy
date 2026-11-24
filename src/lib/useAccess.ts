@@ -24,7 +24,7 @@ export function useAccess<K extends string>(
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [codes.join(",")]);
 
   return perm as Record<K, boolean>;

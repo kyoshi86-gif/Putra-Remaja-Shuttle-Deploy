@@ -314,7 +314,7 @@ export default function InspeksiUnitPage() {
     hasAccess("inspeksi.edit").then((v) => setPerm((p) => ({ ...p, edit: v })));
     hasAccess("inspeksi.delete").then((v) => setPerm((p) => ({ ...p, del: v })));
     hasAccess("inspeksi.create").then((v) => setPerm((p) => ({ ...p, create: v })));
-    /* eslint-disable-next-line */
+     
   }, []);
 
   const loadUser = () => {
@@ -448,7 +448,7 @@ export default function InspeksiUnitPage() {
       }
       writeLocalDraft(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Tutup zoom foto dengan tombol Escape (sama seperti klik ✕; tidak menutup modal detail)

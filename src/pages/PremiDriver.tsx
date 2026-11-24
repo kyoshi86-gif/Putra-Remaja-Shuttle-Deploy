@@ -1213,6 +1213,40 @@ export default function PremiDriver() {
       finalId = result.id!;
     }
 
+    // === Simpan detail potongan per-jenis (premi_driver_potongan) ===
+    // Hapus baris lama lalu insert ulang agar sinkron dengan potonganList.
+    const { error: delPotError } = await supabase
+      .from("premi_driver_potongan")
+      .delete()
+      .eq("premi_driver_id", finalId);
+
+    if (delPotError) {
+      alert("❌ Gagal hapus detail potongan lama: " + delPotError.message);
+      return;
+    }
+
+    const potonganDetailRows = potonganList
+      .filter((p) => p.nominal && p.nominal > 0)
+      .map((p) => ({
+        premi_driver_id: finalId,
+        jenis_potongan_id: p.jenis_id || null,
+        nama: p.nama,
+        kategori: p.kategori,
+        nominal: p.nominal,
+        entity_id: targetEntity,
+      }));
+
+    if (potonganDetailRows.length > 0) {
+      const { error: insPotError } = await supabase
+        .from("premi_driver_potongan")
+        .insert(potonganDetailRows);
+
+      if (insPotError) {
+        alert("❌ Gagal simpan detail potongan: " + insPotError.message);
+        return;
+      }
+    }
+
     // === Siapkan transaksi kas_harian ===
     interface KasTransaksi {
       tanggal: string;

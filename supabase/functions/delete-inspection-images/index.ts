@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(url, serviceKey);
 
-    let body: any;
+    let body: { paths?: unknown };
     try { body = await req.json(); } catch { return json({ error: "invalid json" }, 400); }
     const paths: string[] = Array.isArray(body?.paths) ? body.paths : [];
     if (paths.length === 0) return json({ error: "paths required" }, 400);

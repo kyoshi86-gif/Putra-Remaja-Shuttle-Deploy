@@ -200,7 +200,7 @@ export default function MoneyInput({
     setCanon(next);
     canonRef.current = next;
     lastCommittedRef.current = value;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

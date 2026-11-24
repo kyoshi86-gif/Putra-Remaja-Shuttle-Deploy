@@ -60,7 +60,7 @@ export default function MaintenancePage() {
     hasAccess("maintenance.edit").then((v) => setPerm((p) => ({ ...p, edit: v })));
     hasAccess("maintenance.finish").then((v) => setPerm((p) => ({ ...p, finish: v })));
     hasAccess("maintenance.cancel").then((v) => setPerm((p) => ({ ...p, cancel: v })));
-    // eslint-disable-next-line
+     
   }, []);
 
   const loadUnits = async () => {

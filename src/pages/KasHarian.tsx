@@ -355,7 +355,6 @@ function injectSaldoKeData(
       const { data, error } = await supabase
         .from("jenis_potongan")
         .select("id, nama, kategori")
-        .in("kategori", ["jaminan", "kasbon"]) // 🔥 penting
         .eq("entity_id", entityCtx.entity_id)
         .order("nama");
   

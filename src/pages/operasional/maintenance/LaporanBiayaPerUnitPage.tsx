@@ -76,7 +76,7 @@ export default function LaporanBiayaPerUnitPage() {
 
   useEffect(() => {
     if (perm) load();
-    // eslint-disable-next-line
+     
   }, [perm]);
 
   useEffect(() => {

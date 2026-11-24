@@ -197,7 +197,7 @@ export default function Jurnal() {
 
   useEffect(() => {
     if (selectedEntity) loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [selectedEntity, range]);
 
   // ================= FILTER =================
