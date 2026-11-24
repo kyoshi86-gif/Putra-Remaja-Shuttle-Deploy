@@ -28,7 +28,7 @@ interface DriverRow {
   premi_driver: {
     driver: string;
     entity_id: string;
-  }[];
+  };
 }
 
 interface DetailRow {
@@ -41,7 +41,7 @@ interface DetailRow {
     tanggal: string;
     tanggal_berangkat: string;
     tanggal_kembali: string;
-  }[];
+  };
 }
 
 interface KasRow {
@@ -186,7 +186,7 @@ export default function LaporanDriver() {
         ((data || []) as DriverRow[])
           .map(
             (r: DriverRow) =>
-              ((r.premi_driver?.[0]?.driver as string) || "").trim()
+              ((r.premi_driver.driver as string) || "").trim()
           )
           .filter(Boolean)
       )
@@ -232,7 +232,7 @@ export default function LaporanDriver() {
     }
 
     const premiRows: LedgerRow[] = ((detail as DetailRow[]) || []).map((d) => {
-      const p = d.premi_driver?.[0];
+      const p = d.premi_driver;
 
       return {
         no: 0,
