@@ -31,6 +31,9 @@ export default function JadwalMaintenancePage() {
       return { txt: "Tepat waktu", cls: "text-orange-500 font-semibold" };
     }
     // Belum selesai → dinamis terhadap hari ini
+    // SPK yang sudah DONE tapi eval_days belum terkunci: jangan tampilkan hitungan
+    // dinamis (akan salah terbaca "Terlewat X hari" padahal sudah selesai)
+    if (status === "DONE") return null;
     let diff: number | null = null;
     if (dl) {
       const d = new Date(dl);
@@ -135,13 +138,24 @@ export default function JadwalMaintenancePage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
             <label className="block">
-              <span className="text-xs text-gray-500">Jadwal Berikutnya</span>
+              <span className="text-xs text-gray-500">Odometer (km) Berikutnya</span>
               <input
-                type="date"
-                defaultValue={r.schedule_date || ""}
-                key={r.id + "-sched"}
-                onBlur={(e) => perm.edit && update(r.id, { schedule_date: e.target.value || null })}
-                disabled={!perm.edit}
+                inputMode="numeric"
+                defaultValue={r.next_odometer != null ? Number(r.next_odometer).toLocaleString("id-ID") : ""}
+                placeholder="diisi saat validasi bila masih kosong"
+                key={r.id + "-nextodo"}
+                onFocus={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, ""); }}
+                onBlur={(e) => {
+                  // Boleh diisi oleh yang punya izin edit ATAU validasi
+                  // (odometer berikutnya sering baru diisi saat mau validasi)
+                  if (!(perm.edit || perm.validate)) return;
+                  const raw = e.currentTarget.value.replace(/\D/g, "");
+                  e.currentTarget.value = raw ? Number(raw).toLocaleString("id-ID") : "";
+                  // hanya simpan bila berubah — hindari update kosong menimpa data
+                  const prev = r.next_odometer != null ? String(Number(r.next_odometer)) : "";
+                  if (raw !== prev) update(r.id, { next_odometer: raw ? Number(raw) : null });
+                }}
+                disabled={!(perm.edit || perm.validate)}
                 className="w-full border rounded px-2 py-1 disabled:bg-gray-100"
               />
             </label>

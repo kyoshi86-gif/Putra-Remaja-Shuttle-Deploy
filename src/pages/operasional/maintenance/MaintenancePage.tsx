@@ -11,7 +11,7 @@ interface SpkForm {
   work_date: string;
   odometer: string;
   vendor: string;
-  schedule_date: string;
+  next_odometer: string;
   notes: string;
 }
 
@@ -20,7 +20,7 @@ interface PartRow { part_name: string; quantity: string; unit_cost: string; }
 const empty: SpkForm = {
   unit_id: "", work_type: "corrective", mechanic: "",
   work_date: new Date().toISOString().slice(0, 10),
-  odometer: "", vendor: "", schedule_date: "", notes: "",
+  odometer: "", vendor: "", next_odometer: "", notes: "",
 };
 
 const fmtTanggal = (d: any): string => {
@@ -90,7 +90,9 @@ export default function MaintenancePage() {
       work_date: form.work_date || null,
       odometer: form.odometer ? Number(form.odometer) : null,
       vendor: form.vendor || null,
-      schedule_date: form.schedule_date || null,
+      // Rencana odometer servis berikutnya (atau NULL bila belum ditentukan —
+      // diisi saat validasi di halaman Jadwal Maintenance)
+      next_odometer: form.next_odometer ? Number(form.next_odometer) : null,
       notes: form.notes || null,
     };
     const { error } = await supabase.from("maintenance_records").update(body).eq("id", editingId);
@@ -123,7 +125,7 @@ export default function MaintenancePage() {
       work_date: r.work_date ? String(r.work_date).slice(0, 10) : new Date().toISOString().slice(0, 10),
       odometer: r.odometer != null ? String(r.odometer) : "",
       vendor: r.vendor || "",
-      schedule_date: r.schedule_date ? String(r.schedule_date).slice(0, 10) : "",
+      next_odometer: r.next_odometer != null ? String(r.next_odometer) : "",
       notes: r.notes || "",
     });
     const { data } = await supabase.from("maintenance_spareparts").select("part_name, quantity, unit_cost").eq("maintenance_record_id", r.id);
@@ -136,7 +138,15 @@ export default function MaintenancePage() {
   };
 
   const mulai = async (id: string) => {
-    const { error } = await supabase.from("maintenance_records").update({ status: "IN_PROGRESS", started_at: new Date().toISOString() }).eq("id", id);
+    // Nama mekanik diisi saat user mengklik "Mulai" (nama user yang mengerjakan).
+    // Sebelum diklik, field mekanik sengaja kosong.
+    let nama = "";
+    const u = localStorage.getItem("custom_user");
+    if (u) { try { const j = JSON.parse(u); nama = j.name || j.username || j.email || ""; } catch {} }
+    const { error } = await supabase
+      .from("maintenance_records")
+      .update({ status: "IN_PROGRESS", started_at: new Date().toISOString(), mechanic: nama || null })
+      .eq("id", id);
     if (!error) loadList(); else setMsg("Gagal mulai: " + error.message);
   };
 
@@ -175,6 +185,9 @@ export default function MaintenancePage() {
       return { txt: "Tepat waktu", cls: "text-orange-500 font-semibold" };
     }
     // Belum selesai → dinamis terhadap hari ini
+    // SPK yang sudah DONE tapi eval_days belum terkunci: jangan tampilkan hitungan
+    // dinamis (akan salah terbaca "Terlewat X hari" padahal sudah selesai)
+    if (status === "DONE") return null;
     if (!dl) return null;
     const d = new Date(dl);
     const now = new Date();
@@ -226,8 +239,8 @@ export default function MaintenancePage() {
                   <input inputMode="numeric" value={fmtNum(form.odometer)} onChange={(e) => set("odometer", e.target.value.replace(/\D/g, ""))} className="w-full border rounded px-2 py-1" />
                 </div>
                 <div>
-                  <label className="block text-xs mb-1">Jadwal Maintenance Berikutnya</label>
-                  <input type="date" value={form.schedule_date} onChange={(e) => set("schedule_date", e.target.value)} className="w-full border rounded px-2 py-1" />
+                  <label className="block text-xs mb-1">Odometer (km) Berikutnya</label>
+                  <input inputMode="numeric" value={fmtNum(form.next_odometer)} onChange={(e) => set("next_odometer", e.target.value.replace(/\D/g, ""))} placeholder="kosongkan bila belum tahu" className="w-full border rounded px-2 py-1" />
                 </div>
               </div>
             </div>

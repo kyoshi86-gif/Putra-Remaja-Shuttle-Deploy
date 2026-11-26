@@ -204,6 +204,7 @@ interface DraftRow {
   action_required: string | null;
   work_type: string | null;
   dateline: string | null;
+  odometer: number | null;
   notes: string | null;
   front_note: string | null; rear_note: string | null;
   left_note: string | null; right_note: string | null;
@@ -407,7 +408,10 @@ export default function InspeksiUnitPage() {
   const continueDraft = (d: DraftRow) => {
     setDraftId(d.id);
     setUnitId(d.unit_id ? String(d.unit_id) : "");
-    setInspectionDate(new Date().toISOString().slice(0, 10));
+    // Pertahankan tanggal asli draft — jangan ditimpa tanggal hari ini
+    setInspectionDate(
+      d.inspection_date ? String(d.inspection_date).slice(0, 10) : new Date().toISOString().slice(0, 10)
+    );
     setOfficer(d.officer || officer);
     setOdometer(d.odometer != null ? String(d.odometer) : "");
     setActionRequired(d.action_required || "TIDAK");
@@ -501,6 +505,7 @@ export default function InspeksiUnitPage() {
     setMsg(""); setMsgKind("info");
     if (!unitId) { window.alert("⚠️ Unit belum dipilih — inspeksi tidak tersimpan.\nSilakan pilih unit terlebih dahulu."); return; }
     if (!odometer.trim()) { window.alert("⚠️ Odometer belum diisi — inspeksi TIDAK tersimpan.\nSilakan isi odometer untuk menyimpan."); return; }
+    if (actionRequired === "PERBAIKAN" && !workType) { window.alert("⚠️ Jenis pekerjaan belum dipilih — inspeksi TIDAK tersimpan.\nPilih jenis pekerjaan agar SPK dapat dibuat."); return; }
     const payload = buildPayload("OPEN");
     let error: any = null;
     let inspectionId: string | null = null;
@@ -532,7 +537,8 @@ export default function InspeksiUnitPage() {
           await supabase.from("maintenance_records").update({
             unit_id: Number(unitId),
             work_type: workType || "corrective",
-            mechanic: officer || "draft",
+            // Nama mekanik TIDAK diisi di sini — diisi saat user klik "Mulai"
+            // di halaman Maintenance (nama user yang mengerjakan).
             work_date: inspectionDate || null,
             odometer: odometer ? Number(odometer) : null,
           }).eq("id", spk.id);
@@ -542,13 +548,29 @@ export default function InspeksiUnitPage() {
           unit_id: Number(unitId),
           inspection_id: inspectionId,
           work_type: workType || "corrective",
-          mechanic: officer || "draft",
+          // Nama mekanik sengaja dibiarkan kosong — baru terisi saat user
+          // mengklik "Mulai" di halaman Maintenance (nama user yang klik).
           work_date: inspectionDate || null,
           odometer: odometer ? Number(odometer) : null,
           status: "OPEN",
         });
         if (spkErr) console.error("auto-SPK error:", spkErr.message);
       }
+    }
+
+    // Tindakan diubah menjadi "Tidak ada perbaikan" → batalkan SPK yang masih OPEN
+    // agar tidak menggantung di daftar maintenance (SPK yang sudah mulai/selesai tidak disentuh)
+    if (inspectionId && actionRequired !== "PERBAIKAN") {
+      const { error: cancelErr } = await supabase
+        .from("maintenance_records")
+        .update({
+          status: "CANCELLED",
+          cancel_reason: "Tindakan inspeksi diubah: tidak perlu perbaikan",
+          finished_at: new Date().toISOString(),
+        })
+        .eq("inspection_id", inspectionId)
+        .eq("status", "OPEN");
+      if (cancelErr) console.error("auto-cancel SPK error:", cancelErr.message);
     }
 
     writeLocalDraft(null);
@@ -564,7 +586,10 @@ export default function InspeksiUnitPage() {
     setDraftId(null);
     setEditingId(r.id);
     setUnitId(r.unit_id ? String(r.unit_id) : "");
-    setInspectionDate(new Date().toISOString().slice(0, 10));
+    // Pertahankan tanggal inspeksi asli — jangan ditimpa tanggal hari ini
+    setInspectionDate(
+      r.inspection_date ? String(r.inspection_date).slice(0, 10) : new Date().toISOString().slice(0, 10)
+    );
     setOfficer(r.officer || "");
     setOdometer(r.odometer != null ? String(r.odometer) : "");
     setActionRequired(r.action_required || "TIDAK");
@@ -594,6 +619,18 @@ export default function InspeksiUnitPage() {
   // ---- hapus inspeksi tersimpan + foto ----
   const deleteInspection = async (r: DraftRow) => {
     if (!confirm("Yakin hapus inspeksi ini + foto-fotonya?")) return;
+    // Batalkan dulu SPK yang masih OPEN milik inspeksi ini, supaya tidak jadi
+    // SPK yatim (FK inspection_id ON DELETE SET NULL → SPK tetap ada tanpa induk)
+    const { error: cancelErr } = await supabase
+      .from("maintenance_records")
+      .update({
+        status: "CANCELLED",
+        cancel_reason: "Inspeksi dihapus",
+        finished_at: new Date().toISOString(),
+      })
+      .eq("inspection_id", r.id)
+      .eq("status", "OPEN");
+    if (cancelErr) return setMsg("Gagal membatalkan SPK: " + cancelErr.message);
     await deleteBucketImages([r.front_image_url, r.rear_image_url, r.left_image_url, r.right_image_url]);
     const { error } = await supabase.from("unit_inspections").delete().eq("id", r.id);
     if (error) return setMsg("Gagal hapus inspeksi: " + error.message);
